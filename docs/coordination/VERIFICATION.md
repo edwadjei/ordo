@@ -107,3 +107,11 @@ Not verified: actual microphone/browser recording, physical devices, trusted pho
 ## Capture actions scoped to My Day
 
 The full quick-capture card row and optional voice onboarding hint now render only on My Day. Browser verified My Day retains the row, while Inbox, Upcoming, workspace and project views omit it. Task lists keep Add a task; Notes keeps New note. Web production build passed after this change. Screenshots: `design/evidence/inbox-contextual-actions.jpg` and `design/evidence/project-contextual-actions.jpg`.
+
+## Everyday views, task times and people — 21 October 2026
+
+Branch `edw/ordo-everyday-views`. Automated: typecheck (all workspaces), 64 tests (API 37, web 11, client 16), format check, documentation build and link check, and a production web build in an isolated worktree all pass.
+
+Signed-in browser checks used a fictional account on an isolated stack (scratch API with migration 0005 applied to a fresh embedded database, production web build). My Day shows the first-name greeting, date, summary and five count chips. A task created from the My Day composer landed on Today. Setting Waiting, a due time, a follow-up date and time, and padded names saved and came back trimmed; the past due time moved the task into Due now. Clearing the due date cleared its time on the server and disabled the time field. Inbox, Upcoming (seven grouped days) and Waiting On (who, follow-up, responsible) render distinctly in light, dark and 375px mobile. Screenshots: `design/evidence/everyday-views/`.
+
+Not verified: migration 0005 against the existing `.data/ordo` database used by the running local servers (they were started by another tool and were not restarted; migration was tested by the API specialist on a database with 0001–0004 applied), physical phones, and screen-reader output. Reminders are in-app surfacing only; no notifications.
