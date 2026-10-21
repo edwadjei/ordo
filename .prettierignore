@@ -1,0 +1,8 @@
+node_modules/
+**/.next/
+**/next-env.d.ts
+.data/
+docs/html/
+docs/PRODUCT.md
+docs/TECHNICAL.md
+package-lock.json

@@ -1,0 +1,31 @@
+{
+  "name": "ordo",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "docs": "node scripts/build-docs.mjs",
+    "docs:check": "npm run docs && node scripts/check-docs.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "npm run dev --workspace @ordo/web",
+    "dev:api": "npm run dev --workspace @ordo/api",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "format": "prettier --write \"{apps,packages,scripts}/**/*.{ts,tsx,mjs,css,json}\" package.json .github/workflows/ci.yml",
+    "format:check": "prettier --check \"{apps,packages,scripts}/**/*.{ts,tsx,mjs,css,json}\" package.json .github/workflows/ci.yml"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "marked": "12.0.2",
+    "prettier": "3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}
