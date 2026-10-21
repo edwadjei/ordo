@@ -20,11 +20,13 @@ Edward's confirmed delivery order is **Ordo Web (responsive) → Ordo for iOS (u
 | [Delivery ledger](PLAN.md) | Phase status, deliverables, and completion evidence |
 | [Engineering method](engineering-method.md) | How a requirement becomes reviewed, verified code |
 | [Local development](LOCAL-DEVELOPMENT.md) | Start web/API, configuration names, persistence, checks, and release limits |
+| [API architecture and concepts](API-ARCHITECTURE.md) | DAMSYN-style boundaries, domain ownership, ports/adapters, and intentional differences |
 | [Everyday core spec](specs/01-everyday-core.md) | Proposed first working slice and acceptance scenarios |
 | [Coordination status](coordination/STATUS.md) | Restart notes, ownership, sessions, environments, and next actions |
 | [Decision register](coordination/DECISIONS.md) | Confirmed facts, proposals, and unresolved decisions |
 | [Foundation specialist brief](coordination/FOUNDATION-BRIEF.md) | Self-contained next-work brief, awaiting design decisions |
 | [Active build plan](coordination/BUILD-PLAN.md) | Current working choices, allocation, and verification sequence |
+| [Verification evidence](coordination/VERIFICATION.md) | Actual checks, browser journeys, screenshots, and unverified release work |
 | [Web specialist brief](coordination/WEB-FOUNDATION-BRIEF.md) | Responsive web scope and accepted white-background design direction |
 | [Proposed agent rules](proposals/AGENTS.md) | Reviewable repository rules for adoption through a PR |
 

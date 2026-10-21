@@ -1,28 +1,32 @@
-import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
 import {
-  users,
-  workspaces,
-  projects,
-  tasks,
-  notes,
-  type Database,
-} from '@ordo/db';
-import { withOwnerLock } from './domain.js';
+  DatabaseAdapter,
+  eq,
+  tables,
+  type TransactionContext,
+} from '../../adapters/database/database.adapter.js';
+import { newId } from '../../platform/identifiers/new-id.js';
 
-// Fictional fixtures only, loaded once following an explicit signed-in request.
-export async function seedDemo(db: Database, ownerUserId: string) {
-  return withOwnerLock(db, ownerUserId, async (tx) => {
-    const [user] = await tx
-      .select()
+const { users, workspaces, projects, tasks, notes } = tables;
+
+export class DemoRepository {
+  constructor(private readonly database: DatabaseAdapter) {}
+
+  async hasLoaded(ownerUserId: string, transaction: TransactionContext) {
+    const [user] = await this.database
+      .use(transaction)
+      .select({ demoLoaded: users.demoLoaded })
       .from(users)
       .where(eq(users.id, ownerUserId));
-    if (user.demoLoaded) return;
+    return user.demoLoaded;
+  }
+
+  async insert(ownerUserId: string, transaction: TransactionContext) {
+    const tx = this.database.use(transaction);
     const workspaceRows = [
-      { id: randomUUID(), ownerUserId, name: 'MTN', color: '#c49936' },
-      { id: randomUUID(), ownerUserId, name: 'DAMSYN', color: '#7367ad' },
-      { id: randomUUID(), ownerUserId, name: 'Dorsh', color: '#5a8498' },
-      { id: randomUUID(), ownerUserId, name: 'Personal', color: '#5c8970' },
+      { id: newId(), ownerUserId, name: 'MTN', color: '#c49936' },
+      { id: newId(), ownerUserId, name: 'DAMSYN', color: '#7367ad' },
+      { id: newId(), ownerUserId, name: 'Dorsh', color: '#5a8498' },
+      { id: newId(), ownerUserId, name: 'Personal', color: '#5c8970' },
     ];
     await tx.insert(workspaces).values(workspaceRows);
     const mtnNames = [
@@ -50,28 +54,28 @@ export async function seedDemo(db: Database, ownerUserId: string) {
     ];
     const projectRows = [
       ...mtnNames.map((name) => ({
-        id: randomUUID(),
+        id: newId(),
         ownerUserId,
         workspaceId: workspaceRows[0].id,
         name,
         description: 'Fictional sample project for exploring Ordo.',
       })),
       {
-        id: randomUUID(),
+        id: newId(),
         ownerUserId,
         workspaceId: workspaceRows[1].id,
         name: 'API v2',
         description: 'Fictional sample project.',
       },
       {
-        id: randomUUID(),
+        id: newId(),
         ownerUserId,
         workspaceId: workspaceRows[2].id,
         name: 'Launch preparation',
         description: 'Fictional sample project.',
       },
       {
-        id: randomUUID(),
+        id: newId(),
         ownerUserId,
         workspaceId: workspaceRows[3].id,
         name: 'Life admin',
@@ -84,7 +88,7 @@ export async function seedDemo(db: Database, ownerUserId: string) {
     const yesterday = new Date(Date.now() - 86400000)
       .toISOString()
       .slice(0, 10);
-    const mainTask = randomUUID();
+    const mainTask = newId();
     await tx.insert(tasks).values([
       {
         id: mainTask,
@@ -99,7 +103,7 @@ export async function seedDemo(db: Database, ownerUserId: string) {
         dueDate: today,
       },
       {
-        id: randomUUID(),
+        id: newId(),
         ownerUserId,
         workspaceId: workspaceRows[0].id,
         projectId: projectRows[1].id,
@@ -110,7 +114,7 @@ export async function seedDemo(db: Database, ownerUserId: string) {
         dueDate: tomorrow,
       },
       {
-        id: randomUUID(),
+        id: newId(),
         ownerUserId,
         workspaceId: workspaceRows[1].id,
         projectId: projectRows[21].id,
@@ -120,7 +124,7 @@ export async function seedDemo(db: Database, ownerUserId: string) {
         priority: 'medium',
       },
       {
-        id: randomUUID(),
+        id: newId(),
         ownerUserId,
         workspaceId: workspaceRows[2].id,
         projectId: projectRows[22].id,
@@ -129,7 +133,7 @@ export async function seedDemo(db: Database, ownerUserId: string) {
         dueDate: tomorrow,
       },
       {
-        id: randomUUID(),
+        id: newId(),
         ownerUserId,
         workspaceId: workspaceRows[3].id,
         projectId: projectRows[23].id,
@@ -138,7 +142,7 @@ export async function seedDemo(db: Database, ownerUserId: string) {
         dueDate: yesterday,
       },
       {
-        id: randomUUID(),
+        id: newId(),
         ownerUserId,
         workspaceId: null,
         projectId: null,
@@ -149,7 +153,7 @@ export async function seedDemo(db: Database, ownerUserId: string) {
       },
     ]);
     await tx.insert(tasks).values({
-      id: randomUUID(),
+      id: newId(),
       ownerUserId,
       workspaceId: workspaceRows[0].id,
       projectId: projectRows[0].id,
@@ -158,7 +162,7 @@ export async function seedDemo(db: Database, ownerUserId: string) {
       status: 'todo',
     });
     await tx.insert(notes).values({
-      id: randomUUID(),
+      id: newId(),
       ownerUserId,
       workspaceId: workspaceRows[0].id,
       projectId: projectRows[0].id,
@@ -169,5 +173,5 @@ export async function seedDemo(db: Database, ownerUserId: string) {
       .update(users)
       .set({ demoLoaded: true, updatedAt: new Date().toISOString() })
       .where(eq(users.id, ownerUserId));
-  });
+  }
 }

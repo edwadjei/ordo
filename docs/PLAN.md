@@ -2,7 +2,7 @@
 
 **Updated:** 21 October 2026.
 
-**Current milestone:** Persistent responsive web foundation; API structure and UI refinement.
+**Current milestone:** Persistent responsive web foundation verified locally; shared native mobile next.
 
 **Application status:** Working locally; baseline pushed on `edw/ordo-web-foundation`, not merged or deployed.
 
@@ -76,3 +76,7 @@ No hosted releases, deployments, backups, or rollback images exist. Database sch
 ## Remaining web acceptance work
 
 Cold offline app reload is not supported without an offline shell; queued task creation is durable, while notes/edits require the API. Full sync cursors/conflict resolution, dark mode, project favorites, destination editing UI, people fields, server-side full-text search/pagination, and production authentication/abuse-control hardening remain incomplete. Record explicit device/browser and performance results before claiming those acceptance scenarios. Native mobile, recording/imports, AI review, MCP, and Mac remain separate work.
+
+## API structure follow-up
+
+DAMSYN-style platform/capabilities/adapters/domains structure is implemented, documented, and independently reviewed. All 26 routes remain intact; 12 API tests (including 4 architecture checks) and 8 client tests pass. White/orange UI and keyboard capture are verified in the compiled app. After restarting the modular API, the existing session/data loaded and a new task write succeeded. See [verification evidence](coordination/VERIFICATION.md) and [API architecture](API-ARCHITECTURE.md). No merge/deploy approval is implied.

@@ -1,25 +1,18 @@
-import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from '@ordo/db';
 import { buildApp } from './app.js';
+import { readApiConfig } from './platform/config/api-config.js';
 
-const production = process.env.NODE_ENV === 'production';
-if (production && (!process.env.DATABASE_URL || !process.env.TRUSTED_ORIGINS)) {
-  throw new Error(
-    'Production requires DATABASE_URL and TRUSTED_ORIGINS. Embedded local storage is development-only.',
-  );
-}
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const config = readApiConfig(process.env, repositoryRoot);
 const connection = await openDatabase({
-  url: process.env.DATABASE_URL,
-  dataDir: process.env.ORDO_DATA_DIR ?? resolve(repositoryRoot, '.data/ordo'),
+  url: config.databaseUrl,
+  dataDir: config.dataDir,
 });
 const app = await buildApp({
   connection,
-  secureCookies: production,
-  trustedOrigins: process.env.TRUSTED_ORIGINS?.split(',')
-    .map((v) => v.trim())
-    .filter(Boolean),
+  secureCookies: config.secureCookies,
+  trustedOrigins: config.trustedOrigins,
 });
 let stopping = false;
 async function shutdown() {
@@ -30,10 +23,7 @@ async function shutdown() {
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
-await app.listen({
-  host: '127.0.0.1',
-  port: Number(process.env.API_PORT ?? 4318),
-});
+await app.listen({ host: config.host, port: config.port });
 console.log(
   'Ordo API listening on loopback. No request content logging is enabled.',
 );

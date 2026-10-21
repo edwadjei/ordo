@@ -2,6 +2,12 @@
 
 Fastify + TypeScript with Drizzle and PostgreSQL. This is the first local web-core foundation, not a production release or the full MVP. The same domain/API boundary is intended for the later React Native/Expo iOS/Android clients; native authentication is not implemented yet.
 
+## Architecture and concept notes
+
+The API follows the structure and concepts requested from Edward's DAMSYN API: `platform/`, abstract `capabilities/`, concrete `adapters/`, and business `domains/`. Controllers parse and call services; services own invariants/transactions; repositories own scoped queries. Fastify, Drizzle, current routes, payloads, and migration checksums remain unchanged.
+
+Read [the architecture map](docs/architecture.md), then the owning domain's concept note: [identity](src/domains/identity/identity.md), [workspaces/projects](src/domains/workspaces/workspaces.md), [tasks](src/domains/tasks/tasks.md), [notes](src/domains/notes/notes.md), [Home](src/domains/home/home.md), or [fictional demo](src/domains/demo/demo.md). Import-boundary tests enforce the platform/domain split and capability ownership.
+
 ## Run locally
 
 Use Node.js 22.23.2 (the root `.nvmrc`) and run from the repository root:
@@ -17,13 +23,13 @@ No account or sample content is created automatically. Register through the loca
 
 ## Configuration
 
-| Name | Purpose | Default |
-|---|---|---|
-| `API_PORT` | API loopback port | `4318` |
-| `ORDO_DATA_DIR` | Local embedded PostgreSQL directory | repository `.data/ordo` |
-| `DATABASE_URL` | Standard PostgreSQL connection string; bypasses embedded database | Unset for local development |
-| `TRUSTED_ORIGINS` | Comma-separated exact origins allowed for browser writes | `http://localhost:3318,http://127.0.0.1:3318` |
-| `NODE_ENV` | Production requires `DATABASE_URL` and explicit `TRUSTED_ORIGINS`; sets Secure session cookies | Local development |
+| Name              | Purpose                                                                                        | Default                                       |
+| ----------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `API_PORT`        | API loopback port                                                                              | `4318`                                        |
+| `ORDO_DATA_DIR`   | Local embedded PostgreSQL directory                                                            | repository `.data/ordo`                       |
+| `DATABASE_URL`    | Standard PostgreSQL connection string; bypasses embedded database                              | Unset for local development                   |
+| `TRUSTED_ORIGINS` | Comma-separated exact origins allowed for browser writes                                       | `http://localhost:3318,http://127.0.0.1:3318` |
+| `NODE_ENV`        | Production requires `DATABASE_URL` and explicit `TRUSTED_ORIGINS`; sets Secure session cookies | Local development                             |
 
 Never print or commit connection strings or cookie/session values. The application does not log request bodies. Standard PostgreSQL compatibility uses the same schema and postgres-js driver but has not yet been verified against a separate PostgreSQL server in this environment. Embedded persistence, constraints, and restarts have been tested.
 
@@ -51,34 +57,34 @@ Task status is `todo | in_progress | waiting | done`. Priority is `low | medium 
 
 `GET /v1/home` returns `{ user, workspaces, projects, tasks, notes }` for the current owner, excluding archived tasks/notes. Entity writes return the saved entity directly. Auth routes return `{ user }`, logout `{ ok: true }`. Demo returns a refreshed Home snapshot. Owner IDs, password hashes, and session hashes are never included.
 
-| Method and path | Body / behavior |
-|---|---|
-| `GET /health` | Public `{ status: 'ok' }` liveness; does not prove a signed-in feature works |
-| `POST /v1/auth/register` | Required `email, password, displayName`; creates account and cookie, 201 |
-| `POST /v1/auth/login` | Required `email, password`; creates new session cookie |
-| `GET /v1/auth/me` | Authenticated public user |
-| `POST /v1/auth/logout` | No body; revokes current session and clears cookie |
-| `GET /v1/home` | Current owner's full active snapshot |
-| `GET /v1/workspaces` | Current owner's workspace list |
-| `GET /v1/workspaces/:id` | Owned workspace or 404 |
-| `POST /v1/workspaces` | Required `name`; optional `color` (hex, default `#577664`) |
-| `PATCH /v1/workspaces/:id` | Optional `name, color`; required `expectedRevision` |
-| `GET /v1/workspaces/:id/projects` | Scoped owned project list |
-| `POST /v1/projects` | Required `name, workspaceId`; optional `description` |
-| `POST /v1/workspaces/:id/projects` | Required `name`; workspace from URL; optional `description` |
-| `GET /v1/projects/:id` | Owned project or 404 |
-| `PATCH /v1/projects/:id` | Optional `name, description`; required `expectedRevision` |
-| `GET /v1/tasks` | Current owner's active tasks |
-| `GET /v1/tasks/:id` | Active owned task or 404 |
-| `POST /v1/tasks` | Required `title` and `Idempotency-Key` header; optional task fields above; 201 first create / 200 identical retry |
-| `PATCH /v1/tasks/:id` | Optional editable task fields; required `expectedRevision`; omitted fields remain unchanged |
-| `DELETE /v1/tasks/:id` | Required `{ expectedRevision }`; soft archive; returns tombstone |
-| `GET /v1/notes` | Current owner's active notes |
-| `GET /v1/notes/:id` | Active owned note or 404 |
-| `POST /v1/notes` | Required `title`; optional `body, workspaceId, projectId` |
-| `PATCH /v1/notes/:id` | Optional note fields; required `expectedRevision`; omitted fields remain unchanged |
-| `DELETE /v1/notes/:id` | Required `{ expectedRevision }`; soft archive; returns tombstone |
-| `POST /v1/demo` | Explicitly loads fictional fixtures once for the authenticated owner, transactionally |
+| Method and path                    | Body / behavior                                                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                      | Public `{ status: 'ok' }` liveness; does not prove a signed-in feature works                                      |
+| `POST /v1/auth/register`           | Required `email, password, displayName`; creates account and cookie, 201                                          |
+| `POST /v1/auth/login`              | Required `email, password`; creates new session cookie                                                            |
+| `GET /v1/auth/me`                  | Authenticated public user                                                                                         |
+| `POST /v1/auth/logout`             | No body; revokes current session and clears cookie                                                                |
+| `GET /v1/home`                     | Current owner's full active snapshot                                                                              |
+| `GET /v1/workspaces`               | Current owner's workspace list                                                                                    |
+| `GET /v1/workspaces/:id`           | Owned workspace or 404                                                                                            |
+| `POST /v1/workspaces`              | Required `name`; optional `color` (hex, default `#577664`)                                                        |
+| `PATCH /v1/workspaces/:id`         | Optional `name, color`; required `expectedRevision`                                                               |
+| `GET /v1/workspaces/:id/projects`  | Scoped owned project list                                                                                         |
+| `POST /v1/projects`                | Required `name, workspaceId`; optional `description`                                                              |
+| `POST /v1/workspaces/:id/projects` | Required `name`; workspace from URL; optional `description`                                                       |
+| `GET /v1/projects/:id`             | Owned project or 404                                                                                              |
+| `PATCH /v1/projects/:id`           | Optional `name, description`; required `expectedRevision`                                                         |
+| `GET /v1/tasks`                    | Current owner's active tasks                                                                                      |
+| `GET /v1/tasks/:id`                | Active owned task or 404                                                                                          |
+| `POST /v1/tasks`                   | Required `title` and `Idempotency-Key` header; optional task fields above; 201 first create / 200 identical retry |
+| `PATCH /v1/tasks/:id`              | Optional editable task fields; required `expectedRevision`; omitted fields remain unchanged                       |
+| `DELETE /v1/tasks/:id`             | Required `{ expectedRevision }`; soft archive; returns tombstone                                                  |
+| `GET /v1/notes`                    | Current owner's active notes                                                                                      |
+| `GET /v1/notes/:id`                | Active owned note or 404                                                                                          |
+| `POST /v1/notes`                   | Required `title`; optional `body, workspaceId, projectId`                                                         |
+| `PATCH /v1/notes/:id`              | Optional note fields; required `expectedRevision`; omitted fields remain unchanged                                |
+| `DELETE /v1/notes/:id`             | Required `{ expectedRevision }`; soft archive; returns tombstone                                                  |
+| `POST /v1/demo`                    | Explicitly loads fictional fixtures once for the authenticated owner, transactionally                             |
 
 Task creation defaults to `todo`, empty description, null optional scope/dates/priority/parent. Idempotency keys are owner-scoped, at most 128 characters, and retained with the task reference; a changed payload under the same key returns `409 IDEMPOTENCY_CONFLICT`. An archived original task does not reappear on retry (`410 TASK_ARCHIVED`). Keep the same key only for retrying the same original payload.
 

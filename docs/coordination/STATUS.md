@@ -14,7 +14,7 @@
 
 The first persistent responsive web foundation is implemented and pushed at `8e5b837`, after documentation checkpoint `7c3715a`. Both commits already use Edward's requested author and committer identity, with no AI attribution. The feature branch was renamed to `edw/ordo-web-foundation` locally and remotely; its old remote name was removed. `main` has not changed.
 
-Current follow-up work: adapt API structure and concept documentation to Edward's local DAMSYN API conventions, retain the functioning endpoint contract and Fastify/Drizzle stack, and incorporate the orange reference as a restrained brand accent on white surfaces. Re-run applicable checks and commit/push these changes separately. No merge, deployment, or shared-environment data change is authorized.
+DAMSYN-style API structure and concept documentation are implemented and independently reviewed, retaining all 26 endpoint contracts and the Fastify/Drizzle stack. The orange reference is implemented as a restrained accent on white surfaces. Formatting, all workspace typechecks, 20 tests, documentation checks, the production web build, and post-restart signed-in persistence/write checks pass. Keep the verification record and pushed branch checkpoints current; use the Git log and tracking status for the exact API refactor revision. No merge, deployment, or shared-environment data change is authorized.
 
 Use coordinated-development exclusively: coordinator planning and standalone specialist briefs, specialist implementation, coordinator review, and Edward's per-change merge/deploy approval. Brainstorming is optional design support. Do not resume a Superpowers development sequence or impose a separate plan-approval stage.
 
@@ -23,8 +23,8 @@ Use coordinated-development exclusively: coordinator planning and standalone spe
 | Area | State |
 |---|---|
 | Coordination/docs | Maintaining branch checkpoints, decisions, setup, and evidence |
-| API/domain/database | Persistent authorized baseline complete; DAMSYN-style modularization in progress |
-| Responsive web/client | Working local foundation; white palette accepted, orange accent and keyboard focus follow-up |
+| API/domain/database | Persistent authorized baseline and DAMSYN-style modularization verified locally |
+| Responsive web/client | Working local foundation; white surfaces, restrained orange accents, and keyboard capture verified |
 | Review | Baseline API and client reviewed; reported persistence/session/editor defects fixed and tested |
 | Mobile iOS/Android | Not implemented; React Native/Expo direction selected, iOS urgent and prioritized |
 | macOS | Not implemented; follows priority mobile delivery |
@@ -34,9 +34,9 @@ Specialists were dispatched within this coordinator task, with separate file own
 
 ## Verified baseline
 
-Fresh dependency installation, formatting check, all workspace typechecks, 8 API integration tests, 8 client tests, the production build, documentation build/link check, and whitespace check passed for the pushed web foundation.
+Fresh dependency installation, formatting check, all workspace typechecks, 12 API tests (8 behavior, 4 architecture), 8 client tests, the production build, documentation build/link check, and whitespace check passed for the pushed web foundation.
 
-Browser evidence using a fictional local account: signup, explicit fictional fixture loading, title+Enter task creation, persistence after reload, task edit, subtask creation, parent completion with child still open, note save state, and command-search opening. Continue verifying follow-up code after rebuilding; this is not a claim of phone-device or production verification.
+Browser evidence using a fictional local account: signup, explicit fictional fixture loading, title+Enter task creation, persistence after reload, task edit, subtask creation, parent completion with child still open, note save state, command search/input focus, sign-out/sign-in, and navigation/filtering across 21 projects. After the refactored server restart, the existing session/data loaded and a new task write succeeded. Continue verifying follow-up code after rebuilding; this is not a claim of phone-device or production verification.
 
 Review fixed omitted PATCH defaults clearing fields, logout being caught by sign-in throttling, fresh database directories, account-switch mutation preconditions, stale logout responses, and edits during saves. Detailed runtime limits live in the API/web workspace guides and local development guide.
 
@@ -56,8 +56,8 @@ The documentation site is generated into `docs/html`, and a preview may be runni
 
 1. Inspect Git status/log and current live processes; preserve uncommitted work. Use `edw/` for new branches and Edward's requested Git identity.
 2. Read the active build plan, decision register, and relevant specialist briefs.
-3. Complete and verify the active API restructure without changing endpoint semantics or baseline migration history.
-4. Verify the orange/white UI and fast keyboard capture in the rebuilt app; save concrete screenshots and update delivery evidence.
+3. Confirm the API restructure checkpoint is pushed; preserve endpoint semantics and baseline migration history.
+4. Use the verification record for the tested orange/white UI and keyboard capture; retain concrete screenshots and update delivery evidence as behavior changes.
 5. Commit and push coherent verified checkpoints. Do not merge or deploy without Edward's explicit approval for that change.
 6. Prepare the next mobile brief with React Native/Expo, iOS-first design/testing/release, separate Android checks, and secure native authentication/distribution decisions.
 
