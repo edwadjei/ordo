@@ -75,7 +75,7 @@ No hosted releases, deployments, backups, or rollback images exist. Database sch
 
 ## Remaining web acceptance work
 
-Cold offline app reload is not supported without an offline shell; queued task creation is durable, while notes/edits require the API. Full sync cursors/conflict resolution, project favorites, destination editing UI, people fields, pagination, and production authentication/abuse-control hardening remain incomplete. Dark mode and server-side full-text search are implemented. Record explicit device/browser and performance results before claiming those acceptance scenarios. Native mobile, transcript imports, AI review, MCP, and Mac remain separate work. Web recording/private storage and configurable transcription are implemented; live provider and physical-phone testing remain unverified.
+Cold offline app reload is not supported without an offline shell; queued task creation is durable, while notes/edits require the API. Full sync cursors/conflict resolution, project favorites, destination editing UI, people fields, pagination, and production authentication/abuse-control hardening remain incomplete. Dark mode and server-side full-text search are implemented. Record explicit device/browser and performance results before claiming those acceptance scenarios. Native mobile, transcript imports, AI review, MCP, and Mac remain separate work. Web recording-to-transcription uses temporary memory only; audio/files are not stored; live provider and physical-phone testing remain unverified.
 
 ## API structure follow-up
 
@@ -83,4 +83,4 @@ DAMSYN-style platform/capabilities/adapters/domains structure is implemented, do
 
 ## Passwordless/search/audio follow-up
 
-Implemented locally on `edw/ordo-passwordless-capture`: six-digit email/Ghana-phone OTP, contact verification, server full-text search, web recording/upload/private persistence, configurable transcription, and Coming soon labels for unavailable functionality. 39 automated tests and production build pass; see the verification record for browser screenshots and remaining live-provider/device gaps. A phone HTTPS proxy and actual-device checklist are prepared. Email-first onboarding with later verified phone linking is recommended; phone linking remains pending.
+Implemented locally on `edw/ordo-passwordless-capture`: six-digit email/Ghana-phone OTP, contact verification, server full-text search, web recording-to-transcription without audio/file storage, and Coming soon labels for unavailable functionality. 39 automated tests and production build pass; see the verification record for browser screenshots and remaining live-provider/device gaps. A phone HTTPS proxy and actual-device checklist are prepared. Email-first onboarding with later verified phone linking is recommended; phone linking remains pending.

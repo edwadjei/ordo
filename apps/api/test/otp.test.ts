@@ -280,7 +280,7 @@ test('authenticated reads reject stale expected account after a cookie account s
     displayName: 'Read scope',
   });
   const cookie = registration.headers['set-cookie']!.toString().split(';')[0];
-  for (const url of ['/v1/search?q=scope', '/v1/captures']) {
+  for (const url of ['/v1/search?q=scope', '/v1/notes']) {
     const mismatch = await h.app.inject({
       url,
       headers: { cookie, 'x-ordo-account': randomUUID() },

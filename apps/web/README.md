@@ -33,7 +33,7 @@ The current-account pointer and a last-loaded account snapshot are cached for an
 
 **No service worker is installed.** An already open app can queue tasks while offline, but a cold offline reload is not guaranteed to load the application shell. Only task creation is queued; task edits, workspaces/projects, and notes require the API. Note text is retained in the open editor after a failure and warns on closing/unloading; it is not a durable offline note queue. A full multi-device sync protocol and conflict resolution UI remain later work.
 
-Record opens microphone capture with stop/preview/save and audio-file upload fallback. Saved recordings can be reopened and played. With a configured provider, explicit transcription can be saved as a note; otherwise transcription says Coming soon. AI Capture and Upload Transcript are disabled with Coming soon labels. Project favorites, reassigning task destinations, and people fields remain pending. Light, Dark, and System themes are supported.
+With a configured provider, Record captures microphone audio into memory; Stop transcribes it and discards the audio. Only the transcript can be explicitly saved as a note. There is no audio file picker, recording history, playback, or audio persistence. Without transcription configuration, Record shows Coming soon and does not request microphone access. AI Capture and Upload Transcript are disabled with Coming soon labels. Project favorites, reassigning task destinations, and people fields remain pending. Light, Dark, and System themes are supported.
 
 ## Checks
 

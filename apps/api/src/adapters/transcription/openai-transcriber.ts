@@ -12,7 +12,7 @@ export class OpenAiTranscriber extends Transcriber {
   ) {
     super();
   }
-  async transcribe(audio: Uint8Array, mimeType: string) {
+  async transcribe(audio: Uint8Array, mimeType: string, signal?: AbortSignal) {
     const form = new FormData();
     form.set(
       'file',
@@ -27,7 +27,9 @@ export class OpenAiTranscriber extends Transcriber {
         method: 'POST',
         headers: { Authorization: `Bearer ${this.apiKey}` },
         body: form,
-        signal: AbortSignal.timeout(60000),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(60000)])
+          : AbortSignal.timeout(60000),
       },
     );
     if (!response.ok)

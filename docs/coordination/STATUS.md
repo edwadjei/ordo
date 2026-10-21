@@ -1,3 +1,5 @@
+> Current audio policy (C20): no stored audio or uploaded files. Record → transcribe in temporary memory → discard audio. Earlier storage evidence below is historical and superseded.
+
 # Ordo coordinator handoff
 
 **Updated:** 21 October 2026.
@@ -86,3 +88,11 @@ Edward asked whether onboarding should collect both phone/email or email alone w
 Waiting on Edward: review the PR. Live delivery needs an intended test recipient, transcription needs a provider key, and actual phone microphone testing needs trusted HTTPS and a real device. These do not imply approval to merge or deploy.
 
 PR: [#1 — Add passwordless sign-in, server search and audio capture](https://github.com/edwadjei/ordo/pull/1), `edw/ordo-passwordless-capture` → `edw/ordo-web-foundation`. Mergeable when opened; screenshots embedded in the description and their remote asset URL verified accessible. GitHub validation started; local checks passed. No merge/deployment approval given.
+
+## Audio policy correction (C20)
+
+Edward rejected audio/file retention. The saved-audio implementation described in the earlier section is superseded: storage adapters, capture APIs, file selection/history/playback are removed. New flow is microphone → temporary in-memory transcription request → discard audio → editable transcript → explicit save as note. Without provider configuration, Record shows Coming soon and cannot start the microphone. No audio metadata, files, offline drafts, retries, or playback are retained.
+
+The sole locally stored recording was the exact generated test tone from the previous browser check. It was matched against the synthetic fixture, removed with its metadata, and the fixture/empty legacy audio directory were removed too. No other recordings existed. Supplied PRODUCT/TECHNICAL briefs remain verbatim; C20 overrides their audio-storage direction. Provider-side retention remains a separate provider policy; Ordo itself writes no audio to disk or its database.
+
+Correction checks: 41 tests pass (27 API + 14 client), typechecks/build/format/docs pass. Compiled app and running API updated; desktop/responsive screenshots refreshed. PR #1 is updated on the same branch; no merge/deploy. Record remains Coming soon locally because no transcription key is configured. Only explicit transcript notes may persist; no audio/files are saved.

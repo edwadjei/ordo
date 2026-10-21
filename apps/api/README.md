@@ -117,10 +117,6 @@ Not yet implemented: contact linking/recovery, account/export/deletion UI, sessi
 | `POST /v1/auth/otp/request` | `{contact}` email or Ghana phone → 202 `{challengeId,retryAfterSeconds,expiresInSeconds}` |
 | `POST /v1/auth/otp/verify` | `{challengeId,code,displayName?}` → user and session cookie |
 | `GET /v1/search?q=...` | Ranked owner-scoped task/note/project full-text results, max 30 |
-| `POST /v1/captures` | Raw supported audio, max 20 MiB → saved metadata |
-| `GET /v1/captures` | Owner's saved recording metadata |
-| `GET /v1/captures/:id` | Owner's metadata/status/transcript |
-| `GET /v1/captures/:id/audio` | Owner's audio bytes |
-| `POST /v1/captures/:id/transcribe` | Explicit provider request, retryable; 503 when unavailable |
+| `POST /v1/transcriptions` | Raw supported audio, max 20 MiB → `{transcript}`; memory only, audio discarded after processing; 503 when unavailable |
 
-OTP is valid for five minutes, single-use, with 60-second resend spacing, five sends and five attempts per 15-minute contact window; resending does not clear failed attempts. Email and phone accounts are not automatically linked. Details live in the identity, search, and captures domain concept notes. Capture storage defaults to `.data/captures` and must be backed up separately from PostgreSQL; single-process limits apply. `X-Ordo-Account` guards tagged authenticated reads as well as writes against stale-tab account switches.
+OTP is valid for five minutes, single-use, with 60-second resend spacing, five sends and five attempts per 15-minute contact window; resending does not clear failed attempts. Email and phone accounts are not automatically linked. Details live in the identity, search, and transcriptions domain concept notes. Ordo stores no audio/files or recording metadata. Audio buffers are request-scoped and cleared after processing; transcripts persist only when separately saved through Notes. Per-process concurrency limits apply. `X-Ordo-Account` guards tagged authenticated reads as well as writes against stale-tab account switches.

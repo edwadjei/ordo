@@ -468,10 +468,12 @@ export function WorkspaceApp() {
               },
               {
                 title: 'Record',
-                hint: capabilities?.recording
-                  ? 'A thought, out loud'
-                  : 'Coming soon',
-                unavailable: !capabilities?.recording,
+                hint:
+                  capabilities?.recording && capabilities?.transcription
+                    ? 'A thought, out loud'
+                    : 'Coming soon',
+                unavailable:
+                  !capabilities?.recording || !capabilities?.transcription,
                 icon: Mic,
                 action: () => setModal('record'),
               },

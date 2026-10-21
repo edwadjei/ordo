@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Mic, Square, Upload, RefreshCw } from 'lucide-react';
-import { RequestError, type AudioCapture } from '@ordo/client';
+import { Mic, Square } from 'lucide-react';
+import { RequestError } from '@ordo/client';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -16,21 +16,21 @@ export function Recorder({
 }) {
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
+  const parts = useRef<Blob[]>([]);
   const active = useRef(true);
+  const discard = useRef(false);
   const request = useRef<AbortController | null>(null);
   const [recording, setRecording] = useState(false);
   const [starting, setStarting] = useState(false);
-  const [audio, setAudio] = useState<Blob | null>(null);
-  const [url, setUrl] = useState('');
-  const [saved, setSaved] = useState<AudioCapture | null>(null);
-  const [history, setHistory] = useState<AudioCapture[]>([]);
+  const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [seconds, setSeconds] = useState(0);
   const [supported, setSupported] = useState(false);
   const [secure, setSecure] = useState(true);
-  const [canTranscribe, setCanTranscribe] = useState(transcription);
-  const [noteSaved, setNoteSaved] = useState(false);
+  const [available, setAvailable] = useState(transcription);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
   useEffect(() => {
     active.current = true;
     setSecure(window.isSecureContext);
@@ -38,33 +38,15 @@ export function Recorder({
       !!navigator.mediaDevices?.getUserMedia &&
         typeof MediaRecorder !== 'undefined',
     );
-    api
-      .captures()
-      .then((result) => {
-        if (active.current) setHistory(result.captures);
-      })
-      .catch(() => {
-        if (active.current)
-          setError(
-            'Could not load saved recordings. You can retry by reopening Record.',
-          );
-      });
     return () => {
       active.current = false;
+      discard.current = true;
       request.current?.abort();
+      parts.current = [];
       if (recorder.current?.state !== 'inactive') recorder.current?.stop();
       stream.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);
-  useEffect(() => {
-    if (!audio) {
-      setUrl('');
-      return;
-    }
-    const next = URL.createObjectURL(audio);
-    setUrl(next);
-    return () => URL.revokeObjectURL(next);
-  }, [audio]);
   useEffect(() => {
     if (!recording) return;
     const timer = window.setInterval(
@@ -75,22 +57,61 @@ export function Recorder({
   }, [recording]);
   function close() {
     if (
-      (recording || starting || (audio && !saved)) &&
-      !window.confirm('Close this recording? Unsaved audio will be discarded.')
+      (recording || starting || (text && !savedNote)) &&
+      !window.confirm('Close and discard this unsaved recording or transcript?')
     )
       return;
+    discard.current = true;
+    parts.current = [];
+    request.current?.abort();
     onClose();
   }
+  async function transcribe(audio: Blob) {
+    setBusy(true);
+    setTranscribing(true);
+    const control = new AbortController();
+    request.current = control;
+    try {
+      const result = await api.transcribeAudio(audio, control.signal);
+      if (active.current) setText(result.transcript);
+    } catch (cause) {
+      if (active.current) {
+        if (
+          cause instanceof RequestError &&
+          cause.code === 'FEATURE_UNAVAILABLE'
+        )
+          setAvailable(false);
+        setError(
+          'Could not transcribe this recording. The audio has been discarded. Please record again.',
+        );
+      }
+    } finally {
+      // No audio is retained for playback, retries, or later uploads.
+      parts.current = [];
+      if (active.current) {
+        setBusy(false);
+        setTranscribing(false);
+      }
+    }
+  }
   async function start() {
+    if (!available || !secure || !supported) return;
+    if (
+      text &&
+      !savedNote &&
+      !window.confirm('Discard the unsaved transcript and record again?')
+    )
+      return;
     setStarting(true);
     setError('');
-    setSaved(null);
-    setNoteSaved(false);
-    setAudio(null);
+    setText('');
+    setSavedNote(null);
     setSeconds(0);
+    discard.current = false;
+    parts.current = [];
     try {
       const media = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!active.current) {
+      if (!active.current || discard.current) {
         media.getTracks().forEach((track) => track.stop());
         return;
       }
@@ -106,109 +127,82 @@ export function Recorder({
         mimeType ? { mimeType } : undefined,
       );
       recorder.current = next;
-      const parts: Blob[] = [];
       let size = 0;
       next.ondataavailable = (event) => {
-        if (!event.data.size) return;
+        if (!event.data.size || discard.current || !active.current) return;
         size += event.data.size;
         if (size > MAX_BYTES) {
+          discard.current = true;
+          parts.current = [];
           if (active.current)
             setError(
-              'Recording reached the 20 MB limit. Start a shorter recording.',
+              'Recording exceeded the limit and was discarded. Please record a shorter thought.',
             );
           if (next.state !== 'inactive') next.stop();
           return;
         }
-        parts.push(event.data);
+        parts.current.push(event.data);
       };
       next.onstop = () => {
         media.getTracks().forEach((track) => track.stop());
-        if (!active.current) return;
+        stream.current = null;
+        recorder.current = null;
+        if (active.current) {
+          setRecording(false);
+          setBusy(false);
+        }
+        if (!active.current || discard.current) {
+          parts.current = [];
+          return;
+        }
         setRecording(false);
-        if (size <= MAX_BYTES && parts.length)
-          setAudio(new Blob(parts, { type: next.mimeType || parts[0].type }));
+        const audio = new Blob(parts.current, {
+          type: next.mimeType || parts.current[0]?.type || 'audio/webm',
+        });
+        parts.current = [];
+        recorder.current = null;
+        if (audio.size) void transcribe(audio);
+        else setError('No audio was captured. Please record again.');
       };
       next.onerror = () => {
+        discard.current = true;
+        parts.current = [];
         media.getTracks().forEach((track) => track.stop());
         if (active.current) {
           setRecording(false);
-          setError('Recording stopped unexpectedly. Try again.');
+          setError(
+            'Recording stopped and the audio was discarded. Please try again.',
+          );
         }
       };
       next.start(1000);
       setRecording(true);
     } catch (cause) {
+      discard.current = true;
+      parts.current = [];
       stream.current?.getTracks().forEach((track) => track.stop());
       if (active.current)
         setError(
           (cause as DOMException).name === 'NotAllowedError'
-            ? 'Microphone access was declined. Allow it in browser settings or upload audio.'
-            : 'Could not start recording. Try uploading audio instead.',
+            ? 'Microphone access was declined. Allow it in browser settings to record.'
+            : 'Could not start recording. Please try again.',
         );
     } finally {
       if (active.current) setStarting(false);
     }
   }
-  async function save() {
-    if (!audio) return;
-    setBusy(true);
-    setError('');
-    const control = new AbortController();
-    request.current = control;
-    try {
-      const result = await api.createCapture(audio, control.signal);
-      if (!active.current) return;
-      setSaved(result);
-      setHistory((items) => [
-        result,
-        ...items.filter((item) => item.id !== result.id),
-      ]);
-    } catch (cause) {
-      if (active.current) setError((cause as Error).message);
-    } finally {
-      if (active.current) setBusy(false);
-    }
-  }
-  async function transcribe() {
-    if (!saved) return;
-    setBusy(true);
-    setError('');
-    const control = new AbortController();
-    request.current = control;
-    try {
-      const result = await api.transcribe(saved.id, control.signal);
-      if (active.current) {
-        setSaved(result);
-        setHistory((items) =>
-          items.map((item) => (item.id === result.id ? result : item)),
-        );
-      }
-    } catch (cause) {
-      if (active.current) {
-        if (
-          cause instanceof RequestError &&
-          cause.code === 'FEATURE_UNAVAILABLE'
-        )
-          setCanTranscribe(false);
-        else setError((cause as Error).message);
-      }
-    } finally {
-      if (active.current) setBusy(false);
-    }
-  }
   async function saveNote() {
-    if (!saved?.transcript) return;
+    if (!text.trim()) return;
     setBusy(true);
     setError('');
     try {
-      const note = await api.createNote({
-        title: 'Voice note',
-        body: saved.transcript,
-      });
-      if (active.current) {
-        setNoteSaved(true);
-        await onNote(note.id);
+      let id = savedNote;
+      if (!id) {
+        const note = await api.createNote({ title: 'Voice note', body: text });
+        id = note.id;
+        if (active.current) setSavedNote(id);
       }
+      if (active.current) await onNote(id);
     } catch (cause) {
       if (active.current) setError((cause as Error).message);
     } finally {
@@ -218,17 +212,13 @@ export function Recorder({
   return (
     <Dialog title="A thought, out loud." onClose={close}>
       <div className="recorder" aria-busy={busy}>
-        {!secure ? (
-          <p className="muted">
-            Recording needs a secure connection. You can upload an audio file
-            here.
-          </p>
+        {!available ? (
+          <p className="muted">Voice transcription · Coming soon.</p>
+        ) : !secure ? (
+          <p className="muted">Recording needs a secure connection.</p>
         ) : (
           !supported && (
-            <p className="muted">
-              Recording isn’t supported in this browser. Upload an audio file
-              instead.
-            </p>
+            <p className="muted">Recording isn’t supported in this browser.</p>
           )
         )}
         {recording ? (
@@ -238,159 +228,59 @@ export function Recorder({
             {String(seconds % 60).padStart(2, '0')}
             <button
               className="secondary"
-              onClick={() => recorder.current?.stop()}
+              onClick={() => {
+                setRecording(false);
+                setBusy(true);
+                recorder.current?.stop();
+              }}
             >
               <Square size={14} />
-              Stop
+              Stop and transcribe
             </button>
           </div>
         ) : (
           <div className="form-actions">
-            {secure && supported && (
-              <button
-                className="primary"
-                disabled={busy || starting}
-                onClick={() => {
-                  if (
-                    audio &&
-                    !saved &&
-                    !window.confirm(
-                      'Discard the unsaved recording and start again?',
-                    )
-                  )
-                    return;
-                  void start();
-                }}
-              >
-                <Mic size={15} />
-                {starting
-                  ? 'Opening microphone…'
-                  : audio || saved
-                    ? 'Record another'
-                    : 'Start recording'}
-              </button>
-            )}
-            <label className="audio-upload secondary">
-              <Upload size={14} />
-              Choose audio
-              <input
-                type="file"
-                accept="audio/webm,audio/mp4,audio/ogg,audio/wav,.m4a,.webm,.ogg,.wav"
-                disabled={busy || starting}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  event.target.value = '';
-                  if (!file) return;
-                  if (file.size > MAX_BYTES || !file.size) {
-                    setError('Choose a non-empty audio file under 20 MB.');
-                    return;
-                  }
-                  if (
-                    audio &&
-                    !saved &&
-                    !window.confirm('Replace your unsaved recording?')
-                  )
-                    return;
-                  // Some phone pickers omit the MIME type for m4a/wav files.
-                  const extension = file.name.split('.').pop()?.toLowerCase();
-                  const type =
-                    file.type ||
-                    (
-                      {
-                        m4a: 'audio/mp4',
-                        wav: 'audio/wav',
-                        ogg: 'audio/ogg',
-                        webm: 'audio/webm',
-                      } as Record<string, string>
-                    )[extension || ''];
-                  if (
-                    !type ||
-                    ![
-                      'audio/webm',
-                      'audio/mp4',
-                      'audio/ogg',
-                      'audio/wav',
-                      'audio/x-wav',
-                      'audio/x-m4a',
-                    ].includes(type.split(';')[0])
-                  ) {
-                    setError('Choose a WebM, M4A, Ogg, or WAV audio file.');
-                    return;
-                  }
-                  setAudio(
-                    new Blob([file], {
-                      type: type
-                        .replace('audio/x-wav', 'audio/wav')
-                        .replace('audio/x-m4a', 'audio/mp4'),
-                    }),
-                  );
-                  setSaved(null);
-                  setNoteSaved(false);
-                  setError('');
-                }}
-              />
-            </label>
-          </div>
-        )}
-        {!recording && (url || saved) && (
-          <audio
-            className="recording-preview"
-            controls
-            src={url || api.captureAudioUrl(saved!.id)}
-          />
-        )}
-        {audio && !saved && !recording && (
-          <div className="form-actions">
             <button
               className="primary"
-              disabled={busy}
-              onClick={() => void save()}
+              disabled={busy || starting || !available || !secure || !supported}
+              onClick={() => void start()}
             >
-              {busy ? 'Saving…' : 'Save recording'}
+              <Mic size={15} />
+              {starting
+                ? 'Opening microphone…'
+                : text
+                  ? 'Record another'
+                  : 'Start recording'}
             </button>
-            <span className="muted small">
-              Not saved yet · {(audio.size / 1024 / 1024).toFixed(1)} MB
-            </span>
           </div>
         )}
-        {saved && !recording && (
+        {transcribing && (
+          <p className="muted" role="status">
+            Transcribing… Audio will be discarded.
+          </p>
+        )}
+        {text && (
           <>
-            <p className="saved" role="status">
-              Recording saved.
-            </p>
+            <label>
+              Transcript
+              <textarea
+                className="transcript-text"
+                value={text}
+                disabled={busy || !!savedNote}
+                onChange={(event) => setText(event.target.value)}
+              />
+            </label>
             <button
-              className="secondary"
-              disabled={busy || !canTranscribe || !!saved.transcript}
-              onClick={() => void transcribe()}
+              className="primary"
+              disabled={busy || !text.trim()}
+              onClick={() => void saveNote()}
             >
-              <RefreshCw size={14} />
               {busy
-                ? 'Working…'
-                : !canTranscribe
-                  ? 'Transcription · Coming soon'
-                  : saved.transcript
-                    ? 'Transcribed'
-                    : 'Transcribe recording'}
+                ? 'Saving…'
+                : savedNote
+                  ? 'Open saved note'
+                  : 'Save transcript as note'}
             </button>
-            {saved.transcript && (
-              <>
-                <label>
-                  Transcript
-                  <textarea
-                    className="transcript-text"
-                    readOnly
-                    value={saved.transcript}
-                  />
-                </label>
-                <button
-                  className="primary"
-                  disabled={busy || noteSaved}
-                  onClick={() => void saveNote()}
-                >
-                  {noteSaved ? 'Saved as note' : 'Save transcript as note'}
-                </button>
-              </>
-            )}
           </>
         )}
         {error && (
@@ -398,40 +288,10 @@ export function Recorder({
             {error}
           </p>
         )}
-        {!!history.length && !recording && (
-          <div className="recording-history">
-            <h3>Saved recordings</h3>
-            {history.map((item) => (
-              <button
-                className="secondary"
-                key={item.id}
-                disabled={busy}
-                onClick={() => {
-                  if (
-                    audio &&
-                    !saved &&
-                    !window.confirm(
-                      'Discard unsaved audio and open this recording?',
-                    )
-                  )
-                    return;
-                  setAudio(null);
-                  setSaved(item);
-                  setError('');
-                  setNoteSaved(false);
-                }}
-              >
-                {item.createdAt
-                  ? new Date(item.createdAt).toLocaleString()
-                  : 'Recording'}{' '}
-                · {item.status}
-              </button>
-            ))}
-          </div>
-        )}
         <p className="privacy-note">
-          Record only with everyone’s permission. Audio stays in your workspace;
-          transcription sends the selected recording to the configured service.
+          Audio is used only to transcribe and isn’t saved by Ordo. Only save
+          the transcript if you want to keep it. Record only with everyone’s
+          permission.
         </p>
       </div>
     </Dialog>

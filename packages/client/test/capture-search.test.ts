@@ -6,19 +6,19 @@ test('audio uses raw bytes, actual MIME type, account precondition, and cancella
   const audio = new Blob(['audio bytes'], { type: 'audio/mp4' });
   const control = new AbortController();
   const client = createClient('/api', async (url, init) => {
-    assert.equal(url, '/api/captures');
+    assert.equal(url, '/api/transcriptions');
     assert.equal(init?.method, 'POST');
     assert.equal(init?.body, audio);
     assert.equal(new Headers(init?.headers).get('Content-Type'), 'audio/mp4');
     assert.equal(new Headers(init?.headers).get('X-Ordo-Account'), 'owner');
     assert.equal(init?.signal, control.signal);
     assert.equal(init?.credentials, 'include');
-    return Response.json({ id: 'capture', status: 'recorded' });
+    return Response.json({ transcript: 'A transient voice thought.' });
   });
   client.setAccount('owner');
   assert.equal(
-    (await client.createCapture(audio, control.signal)).id,
-    'capture',
+    (await client.transcribeAudio(audio, control.signal)).transcript,
+    'A transient voice thought.',
   );
 });
 
@@ -76,7 +76,7 @@ test('account-scoped reads carry the displayed owner while discovery remains unt
   const tagged: string[] = [];
   const client = createClient('/api', async (url, init) => {
     const route = String(url);
-    const expected = /\/(search|captures)(\?|\/|$)/.test(route)
+    const expected = /\/(search|transcriptions)(\?|\/|$)/.test(route)
       ? 'alice'
       : null;
     assert.equal(
@@ -86,17 +86,16 @@ test('account-scoped reads carry the displayed owner while discovery remains unt
     );
     tagged.push(route);
     return Response.json(
-      route.includes('/search') ? { results: [] } : { captures: [] },
+      route.includes('/search') ? { results: [] } : { transcript: 'Transient' },
     );
   });
   client.setAccount('alice');
   await client.search('private');
-  await client.captures();
-  await client.capture('fixture');
+  await client.transcribeAudio(new Blob(['audio'], { type: 'audio/webm' }));
   await client.home();
   await client.me();
   await client.capabilities();
-  assert.equal(tagged.length, 6);
+  assert.equal(tagged.length, 5);
 });
 
 test('account mismatch invalidates current UI but a stale response cannot invalidate a newly selected account', async () => {
@@ -124,7 +123,9 @@ test('account mismatch invalidates current UI but a stale response cannot invali
       cause instanceof RequestError && cause.code === 'SESSION_CHANGED',
   );
   assert.equal(invalidations, 1);
-  const stale = client.captures();
+  const stale = client.transcribeAudio(
+    new Blob(['audio'], { type: 'audio/mp4' }),
+  );
   client.setAccount('bob');
   release!();
   await assert.rejects(stale);

@@ -55,10 +55,10 @@ The first local startup initializes that schema and records its checksum. An app
 
 ## Current release limits
 
-This build is local development, not a hosted release. Production proxy-aware abuse controls, contact linking/recovery, operational backup/restore, native-client authentication, and multi-instance migrations need release work. Recording upload/playback and configurable transcription are implemented for a single server. AI extraction and transcript imports show Coming soon. MCP, native mobile packages, and Mac packaging remain separate slices. See [phone verification](PHONE-TESTING.md) for HTTPS requirements and the actual-device checklist.
+This build is local development, not a hosted release. Production proxy-aware abuse controls, contact linking/recovery, operational backup/restore, native-client authentication, and multi-instance migrations need release work. Recording-to-transcription uses temporary memory only; Ordo stores no audio or uploaded files. AI extraction and transcript imports show Coming soon. MCP, native mobile packages, and Mac packaging remain separate slices. See [phone verification](PHONE-TESTING.md) for HTTPS requirements and the actual-device checklist.
 
 ## Delivery and audio settings
 
-`GATEKEEPER_API_KEY` and `GATEKEEPER_API_URL` enable OTP delivery. `OPENAI_API_KEY` enables transcription; otherwise the UI shows Coming soon. These credentials are server-only. Recording files default to private `.data/captures`, separate from `.data/ordo` PostgreSQL state. Back up both for recovery. The configured provider receives audio only after an explicit transcription request. Provider calls are not part of automated tests.
+`GATEKEEPER_API_KEY` and `GATEKEEPER_API_URL` enable OTP delivery. `OPENAI_API_KEY` enables transcription; otherwise the UI shows Coming soon. These credentials are server-only. There is no audio data directory or file storage. Recording bytes exist only in memory while a transcription request is processed, then are cleared on success, failure, or timeout. The configured provider receives audio for transcription; provider-side retention is governed separately by that provider. Only transcript text explicitly saved as a note persists in PostgreSQL. Provider calls are not part of automated tests.
 
 `ORDO_TLS_KEY`, `ORDO_TLS_CERT`, and optional `ORDO_HTTPS_PORT` configure the local phone HTTPS proxy. Certificate/device trust is not installed automatically. API origin checks still require the exact HTTPS origin in `TRUSTED_ORIGINS`.

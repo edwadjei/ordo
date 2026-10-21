@@ -13,10 +13,9 @@ import { createDemoModule } from './domains/demo/demo.module.js';
 import type { OtpDelivery } from './capabilities/otp-delivery.contract.js';
 import { createSearchModule } from './domains/search/search.module.js';
 import {
-  createCapturesModule,
-  type CaptureOptions,
-} from './domains/captures/captures.module.js';
-import { fileURLToPath } from 'node:url';
+  createTranscriptionsModule,
+  type TranscriptionOptions,
+} from './domains/transcriptions/transcriptions.module.js';
 
 export interface AppOptions {
   connection: DatabaseConnection;
@@ -25,7 +24,7 @@ export interface AppOptions {
   closeConnection?: boolean;
   otpDelivery?: OtpDelivery;
   otpNow?: () => number;
-  captures?: CaptureOptions;
+  transcriptions?: TranscriptionOptions;
 }
 
 export async function buildApp(options: AppOptions) {
@@ -46,13 +45,7 @@ export async function buildApp(options: AppOptions) {
   );
   const demo = createDemoModule(database, home.service);
   const search = createSearchModule(database);
-  const captures = createCapturesModule(
-    options.captures ?? {
-      dataDir: fileURLToPath(
-        new URL('../../../.data/captures/', import.meta.url),
-      ),
-    },
-  );
+  const transcriptions = createTranscriptionsModule(options.transcriptions);
 
   registerErrorHandler(app);
   registerRequestSecurity(app, {
@@ -72,8 +65,8 @@ export async function buildApp(options: AppOptions) {
       );
     return {
       otp: { email: deliveryAvailable, sms: deliveryAvailable },
-      recording: true,
-      transcription: captures.service.transcriptionAvailable,
+      recording: transcriptions.service.transcriptionAvailable,
+      transcription: transcriptions.service.transcriptionAvailable,
       aiCapture: false,
       transcriptImport: false,
     };
@@ -88,7 +81,7 @@ export async function buildApp(options: AppOptions) {
     home,
     demo,
     search,
-    captures,
+    transcriptions,
   ])
     module.register(app);
   return app;

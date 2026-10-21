@@ -36,13 +36,6 @@ export interface SearchResult {
   workspaceId: string | null;
   projectId?: string | null;
 }
-export interface AudioCapture {
-  id: string;
-  status: 'recorded' | 'transcribing' | 'transcribed' | 'failed';
-  transcript?: string | null;
-  mimeType?: string;
-  createdAt?: string;
-}
 export type TaskChanges = Partial<TaskInput> & { expectedRevision: number };
 export type NoteChanges = Partial<NoteInput> & { expectedRevision: number };
 export function createClient(
@@ -130,23 +123,13 @@ export function createClient(
         `/search?q=${encodeURIComponent(query)}`,
         { signal },
       ),
-    createCapture: (audio: Blob, signal?: AbortSignal) =>
-      request<AudioCapture>('/captures', {
+    transcribeAudio: (audio: Blob, signal?: AbortSignal) =>
+      request<{ transcript: string }>('/transcriptions', {
         method: 'POST',
         body: audio,
         signal,
         headers: { 'Content-Type': audio.type || 'audio/webm' },
       }),
-    capture: (id: string) =>
-      request<AudioCapture>(`/captures/${encodeURIComponent(id)}`),
-    captures: () => request<{ captures: AudioCapture[] }>('/captures'),
-    transcribe: (id: string, signal?: AbortSignal) =>
-      request<AudioCapture>(`/captures/${encodeURIComponent(id)}/transcribe`, {
-        method: 'POST',
-        signal,
-      }),
-    captureAudioUrl: (id: string) =>
-      `${base}/captures/${encodeURIComponent(id)}/audio`,
     home: () => request<HomeSnapshot>('/home'),
     me: () => request<{ user: User }>('/auth/me'),
     register: (data: {

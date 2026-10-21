@@ -1646,28 +1646,6 @@ fieldset:disabled select {
   display: grid;
   gap: 8px;
 }
-.recorder .audio-upload {
-  display: inline-flex;
-  cursor: pointer;
-  margin: 0;
-}
-.audio-upload input {
-  width: 1px !important;
-  height: 1px;
-  padding: 0 !important;
-  min-height: 0 !important;
-  position: absolute;
-  opacity: 0;
-}
-.audio-upload:focus-within {
-  outline: 2px solid var(--ink);
-  outline-offset: 3px;
-}
-.recording-preview {
-  display: block;
-  width: 100%;
-  margin: 20px 0;
-}
 .recording-live {
   display: flex;
   align-items: center;
@@ -1686,21 +1664,6 @@ fieldset:disabled select {
 }
 .transcript-text {
   min-height: 180px;
-}
-.recording-history {
-  display: grid;
-  gap: 8px;
-  margin-top: 25px;
-  max-height: 200px;
-  overflow: auto;
-}
-.recording-history h3 {
-  font-size: 12px;
-  font-weight: 500;
-}
-.recording-history button {
-  text-align: left;
-  justify-content: flex-start;
 }
 .search-excerpt {
   max-width: 340px;

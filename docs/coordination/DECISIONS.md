@@ -33,6 +33,8 @@
 
 | C19 | Implement email/phone OTP, server search, web recording, configurable transcription, and phone-test preparation; unavailable features must say Coming soon | Edward’s implementation request, 21 October 2026 |
 
+| C20 | Do not store audio or uploaded files. Record, transcribe using temporary memory, discard audio, and save transcript text only when requested. Supersedes earlier audio persistence plans and C19 implementation details | Edward’s explicit audio-retention correction, 21 October 2026 |
+
 ## Proposals and open choices
 
 | ID | Choice | Recommendation / next action | State |
