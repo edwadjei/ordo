@@ -49,4 +49,4 @@ The shared-client tests cover account isolation, idempotency preservation, stora
 
 ## Appearance
 
-Use the Appearance selector in the top bar or sign-in screen to choose Light, Dark, or System. The choice is saved in this browser; System follows the operating system appearance. Both themes retain orange accents and workspace colors. CSS light-dark() requires a current browser.
+Use the sun/moon icon in the top bar or sign-in screen to switch between Light and Dark. The choice is saved in this browser. Before an explicit choice, appearance follows the operating system. Both themes retain orange accents and workspace colors. CSS light-dark() requires a current browser.

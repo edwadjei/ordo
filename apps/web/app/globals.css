@@ -1597,22 +1597,13 @@ fieldset:disabled select {
   color-scheme: dark;
 }
 .theme-selector {
-  display: inline-flex;
-  margin: 0;
-}
-.theme-selector select {
-  color: var(--ink);
-  background: var(--sidebar);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 7px;
-  font-size: 11px;
-  min-height: 34px;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
 }
 .auth-form > .theme-selector {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: 20px;
+  margin: 0 0 20px auto;
 }
 .topbar {
   background: var(--bg);

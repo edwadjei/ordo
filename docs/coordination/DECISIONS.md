@@ -35,6 +35,8 @@
 
 | C20 | Do not store audio or uploaded files. Record, transcribe using temporary memory, discard audio, and save transcript text only when requested. Supersedes earlier audio persistence plans and C19 implementation details | Edward’s explicit audio-retention correction, 21 October 2026 |
 
+| C21 | Use a simple sun/moon icon to toggle web light/dark mode instead of a dropdown | Edward’s appearance-control request, 21 October 2026 |
+
 ## Proposals and open choices
 
 | ID | Choice | Recommendation / next action | State |

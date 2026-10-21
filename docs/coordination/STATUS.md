@@ -96,3 +96,5 @@ Edward rejected audio/file retention. The saved-audio implementation described i
 The sole locally stored recording was the exact generated test tone from the previous browser check. It was matched against the synthetic fixture, removed with its metadata, and the fixture/empty legacy audio directory were removed too. No other recordings existed. Supplied PRODUCT/TECHNICAL briefs remain verbatim; C20 overrides their audio-storage direction. Provider-side retention remains a separate provider policy; Ordo itself writes no audio to disk or its database.
 
 Correction checks: 41 tests pass (27 API + 14 client), typechecks/build/format/docs pass. Compiled app and running API updated; desktop/responsive screenshots refreshed. PR #1 is updated on the same branch; no merge/deploy. Record remains Coming soon locally because no transcription key is configured. Only explicit transcript notes may persist; no audio/files are saved.
+
+Latest UI change: sun/moon appearance icon replaces dropdown (C21). Toggle and reload persistence browser-verified; production web build passes. Updated desktop/responsive screenshots are included in PR #1.
