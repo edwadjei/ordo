@@ -255,6 +255,25 @@ test('Gatekeeper transport uses separate email and Ghana SMS payloads and hides 
   await delivery.send('+233241234567', '654321');
   assert.equal(calls[0].url, 'https://provider.invalid/api/send_email');
   assert.equal(calls[0].body.email, 'person@example.invalid');
+  assert.equal(calls[0].body.isHtml, true);
+  assert.match(calls[0].body.subject, /Ordo sign-in code/);
+  assert.match(calls[0].body.message, /A calmer way in/);
+  assert.match(calls[0].body.message, /123456/);
+  assert.match(calls[0].body.message, /ff6a00/);
+  assert.ok(!/https?:|<script|<img/i.test(calls[0].body.message));
+  const plain = new GatekeeperOtpDelivery(
+    {
+      apiKey: 'fictional',
+      apiUrl: 'https://provider.invalid',
+      emailHtml: false,
+    },
+    transport,
+  );
+  await plain.send('person@example.invalid', '123456');
+  assert.equal(calls[2].body.isHtml, false);
+  assert.match(calls[2].body.message, /From thought to done/);
+  assert.ok(!calls[2].body.message.includes('<table'));
+  await assert.rejects(() => plain.send('person@example.invalid', '<bad>'));
   assert.equal(calls[1].url, 'https://provider.invalid/api/send_sms');
   assert.equal(calls[1].body.phoneNumber, '0241234567');
   assert.equal(calls[0].headers['x-api-key'], 'fictional-test-key');

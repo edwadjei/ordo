@@ -24,9 +24,10 @@ import {
   Folder,
   NotebookPen,
   LoaderCircle,
+  Settings,
 } from 'lucide-react';
 import type {
-  AppCapabilities,
+  AudioSettings,
   HomeSnapshot,
   Note,
   Task,
@@ -45,6 +46,7 @@ import { Dialog } from './dialog';
 import { TaskDetail } from './task-detail';
 import { NoteEditor } from './note-editor';
 import { Recorder } from './recorder';
+import { AudioSettingsDialog } from './audio-settings';
 const viewNames: Record<View, string> = {
   day: 'My Day',
   inbox: 'Inbox',
@@ -56,21 +58,27 @@ const viewNames: Record<View, string> = {
 export function WorkspaceApp() {
   const work = useWorkspace(),
     { snapshot: data } = work;
-  const [capabilities, setCapabilities] = useState<AppCapabilities | null>(
-    null,
-  );
+  const [audioConfig, setAudioConfig] = useState<{
+    ownerId: string;
+    settings: AudioSettings;
+  } | null>(null);
   useEffect(() => {
+    const ownerId = data?.user.id;
+    const control = new AbortController();
     let active = true;
-    api
-      .capabilities()
-      .then((value) => {
-        if (active) setCapabilities(value);
-      })
-      .catch(() => {});
+    setAudioConfig(null);
+    if (ownerId)
+      api
+        .audioSettings(control.signal)
+        .then((settings) => {
+          if (active) setAudioConfig({ ownerId, settings });
+        })
+        .catch(() => {});
     return () => {
       active = false;
+      control.abort();
     };
-  }, []);
+  }, [data?.user.id]);
   const [view, setView] = useState<View>('day'),
     [workspaceId, setWorkspaceId] = useState<string | null>(null),
     [projectId, setProjectId] = useState<string | null>(null),
@@ -81,7 +89,7 @@ export function WorkspaceApp() {
     [selectedTask, setSelectedTask] = useState<string | null>(null),
     [selectedNote, setSelectedNote] = useState<string | null>(null),
     [modal, setModal] = useState<
-      'task' | 'workspace' | 'project' | 'search' | 'record' | null
+      'task' | 'workspace' | 'project' | 'search' | 'record' | 'settings' | null
     >(null),
     [query, setQuery] = useState(''),
     [busy, setBusy] = useState(false),
@@ -194,6 +202,9 @@ export function WorkspaceApp() {
       : view === 'workspace'
         ? workspace?.name || 'Workspace'
         : viewNames[view];
+  const audioSettings =
+    audioConfig?.ownerId === data.user.id ? audioConfig.settings : null;
+  const audioReady = !!audioSettings?.configured;
   const activeTask = data.tasks.find((task) => task.id === selectedTask),
     activeNote = data.notes.find((note) => note.id === selectedNote);
   const pending = work.pending.filter(
@@ -335,6 +346,16 @@ export function WorkspaceApp() {
           )}
         </div>
         <div className="sidebar-bottom">
+          <button
+            className="nav-item settings-nav"
+            onClick={() => {
+              setMobileMenu(false);
+              setModal('settings');
+            }}
+          >
+            <Settings size={16} />
+            <span>Settings</span>
+          </button>
           <div className="profile">
             <span className="avatar">
               {data.user.displayName
@@ -458,65 +479,83 @@ export function WorkspaceApp() {
               </button>
             </div>
           )}
-          <div className="quick-actions">
-            {[
-              {
-                title: 'Add Task',
-                hint: 'One thing at a time',
-                icon: Plus,
-                action: () => setModal('task'),
-              },
-              {
-                title: 'Record',
-                hint:
-                  capabilities?.recording && capabilities?.transcription
-                    ? 'A thought, out loud'
-                    : 'Coming soon',
-                unavailable:
-                  !capabilities?.recording || !capabilities?.transcription,
-                icon: Mic,
-                action: () => setModal('record'),
-              },
-              {
-                title: 'Quick Note',
-                hint: 'Get it out of your head',
-                icon: NotebookPen,
-                action: quickNote,
-              },
-              {
-                title: 'Upload Transcript',
-                hint: 'Coming soon',
-                unavailable: true,
-                icon: Upload,
-                action: () => {},
-              },
-              {
-                title: 'AI Capture',
-                hint: 'Coming soon',
-                unavailable: true,
-                icon: Sparkles,
-                action: () => {},
-              },
-            ].map((action) => (
-              <button
-                className="action-card"
-                key={action.title}
-                onClick={action.action}
-                disabled={
-                  action.unavailable || (busy && action.title === 'Quick Note')
-                }
-                aria-label={
-                  action.unavailable
-                    ? `${action.title} — Coming soon`
-                    : undefined
-                }
-              >
-                <action.icon size={23} strokeWidth={1.4} />
-                <strong>{action.title}</strong>
-                <small>{action.hint}</small>
-              </button>
-            ))}
-          </div>
+          {view === 'day' &&
+            audioSettings &&
+            !audioReady &&
+            !data.workspaces.length &&
+            !data.tasks.length &&
+            !data.notes.length && (
+              <div className="voice-onboarding">
+                <span>
+                  Want to capture a thought by voice? Choose local Whisper or
+                  your own provider.
+                </span>
+                <button
+                  className="text-button"
+                  onClick={() => setModal('settings')}
+                >
+                  Set up voice
+                </button>
+              </div>
+            )}
+          {view === 'day' && (
+            <div className="quick-actions">
+              {[
+                {
+                  title: 'Add Task',
+                  hint: 'One thing at a time',
+                  icon: Plus,
+                  action: () => setModal('task'),
+                },
+                {
+                  title: 'Record',
+                  hint: audioReady ? 'A thought, out loud' : 'Coming soon',
+                  unavailable: !audioReady,
+                  icon: Mic,
+                  action: () => setModal('record'),
+                },
+                {
+                  title: 'Quick Note',
+                  hint: 'Get it out of your head',
+                  icon: NotebookPen,
+                  action: quickNote,
+                },
+                {
+                  title: 'Upload Transcript',
+                  hint: 'Coming soon',
+                  unavailable: true,
+                  icon: Upload,
+                  action: () => {},
+                },
+                {
+                  title: 'AI Capture',
+                  hint: 'Coming soon',
+                  unavailable: true,
+                  icon: Sparkles,
+                  action: () => {},
+                },
+              ].map((action) => (
+                <button
+                  className="action-card"
+                  key={action.title}
+                  onClick={action.action}
+                  disabled={
+                    action.unavailable ||
+                    (busy && action.title === 'Quick Note')
+                  }
+                  aria-label={
+                    action.unavailable
+                      ? `${action.title} — Coming soon`
+                      : undefined
+                  }
+                >
+                  <action.icon size={23} strokeWidth={1.4} />
+                  <strong>{action.title}</strong>
+                  <small>{action.hint}</small>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="workspace-layout">
             <section className="primary-column">
               <div className="section-heading">
@@ -806,10 +845,21 @@ export function WorkspaceApp() {
           onSave={work.refresh}
         />
       )}
+      {modal === 'settings' && (
+        <AudioSettingsDialog
+          key={data.user.id}
+          initial={audioSettings}
+          onClose={() => setModal(null)}
+          onChange={(settings) =>
+            setAudioConfig({ ownerId: data.user.id, settings })
+          }
+        />
+      )}
       {modal === 'record' && (
         <Recorder
           key={data.user.id}
-          transcription={!!capabilities?.transcription}
+          transcription={audioReady}
+          provider={audioSettings?.provider || 'local_whisper'}
           onClose={() => setModal(null)}
           onNote={async (id) => {
             await work.refresh();

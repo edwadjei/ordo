@@ -120,3 +120,11 @@ Not yet implemented: contact linking/recovery, account/export/deletion UI, sessi
 | `POST /v1/transcriptions` | Raw supported audio, max 20 MiB → `{transcript}`; memory only, audio discarded after processing; 503 when unavailable |
 
 OTP is valid for five minutes, single-use, with 60-second resend spacing, five sends and five attempts per 15-minute contact window; resending does not clear failed attempts. Email and phone accounts are not automatically linked. Details live in the identity, search, and transcriptions domain concept notes. Ordo stores no audio/files or recording metadata. Audio buffers are request-scoped and cleared after processing; transcripts persist only when separately saved through Notes. Per-process concurrency limits apply. `X-Ordo-Account` guards tagged authenticated reads as well as writes against stale-tab account switches.
+
+## Audio provider settings
+
+`GET /v1/settings/audio` returns safe owner-scoped readiness/configuration. `PATCH /v1/settings/audio` saves `{provider,apiKey?,removeApiKey?}`; keys are encrypted and never returned. New-key writes require HTTPS or exact loopback origins. `POST /v1/settings/audio/test` checks the saved provider configuration without sending audio. Local Whisper is the default; global OpenAI credentials are not inherited by accounts.
+
+`POST /v1/transcriptions` requires `X-Ordo-Audio-Provider` (`local_whisper` or `openai`) alongside the displayed-account guard when resolving user settings. A stale or missing snapshot returns `409 AUDIO_SETTINGS_CHANGED` before sending audio. Local inference uses pipe-only FFmpeg conversion and loopback Whisper with no recorded files. Migration 0004 adds owner-scoped encrypted audio preferences. See the audio-settings domain concept and root audio guide.
+
+OTP email uses the Ordo HTML template by default (wordmark, orange accent, expiry/security copy, no remote assets). `GATEKEEPER_EMAIL_HTML=false` chooses the plain-text fallback. Sender delivery/domain identity remains controlled by the configured Gatekeeper service; the application supplies subject/body.

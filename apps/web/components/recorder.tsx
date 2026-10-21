@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { Mic, Square } from 'lucide-react';
-import { RequestError } from '@ordo/client';
+import { RequestError, type AudioSettings } from '@ordo/client';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -9,10 +9,12 @@ export function Recorder({
   onClose,
   onNote,
   transcription,
+  provider,
 }: {
   onClose: () => void;
   onNote: (id: string) => Promise<void>;
   transcription: boolean;
+  provider: AudioSettings['provider'];
 }) {
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -20,6 +22,8 @@ export function Recorder({
   const active = useRef(true);
   const discard = useRef(false);
   const request = useRef<AbortController | null>(null);
+  // Keep the provider shown when this dialog opened, even if another tab changes settings.
+  const [selectedProvider] = useState(provider);
   const [recording, setRecording] = useState(false);
   const [starting, setStarting] = useState(false);
   const [text, setText] = useState('');
@@ -72,7 +76,11 @@ export function Recorder({
     const control = new AbortController();
     request.current = control;
     try {
-      const result = await api.transcribeAudio(audio, control.signal);
+      const result = await api.transcribeAudio(
+        audio,
+        control.signal,
+        selectedProvider,
+      );
       if (active.current) setText(result.transcript);
     } catch (cause) {
       if (active.current) {
@@ -82,7 +90,10 @@ export function Recorder({
         )
           setAvailable(false);
         setError(
-          'Could not transcribe this recording. The audio has been discarded. Please record again.',
+          cause instanceof RequestError &&
+            cause.code === 'AUDIO_SETTINGS_CHANGED'
+            ? 'Your transcription settings changed. The audio was discarded. Check Settings and record again.'
+            : 'Could not transcribe this recording. The audio has been discarded. Please record again.',
         );
       }
     } finally {
@@ -212,6 +223,11 @@ export function Recorder({
   return (
     <Dialog title="A thought, out loud." onClose={close}>
       <div className="recorder" aria-busy={busy}>
+        <p className="muted small">
+          {selectedProvider === 'local_whisper'
+            ? 'Local Whisper on this Mac / server'
+            : 'OpenAI — audio is sent to OpenAI to transcribe'}
+        </p>
         {!available ? (
           <p className="muted">Voice transcription · Coming soon.</p>
         ) : !secure ? (

@@ -10,6 +10,10 @@ import { createTasksModule } from './domains/tasks/tasks.module.js';
 import { createNotesModule } from './domains/notes/notes.module.js';
 import { createHomeModule } from './domains/home/home.module.js';
 import { createDemoModule } from './domains/demo/demo.module.js';
+import {
+  createAudioSettingsModule,
+  type AudioSettingsOptions,
+} from './domains/audio-settings/audio-settings.module.js';
 import type { OtpDelivery } from './capabilities/otp-delivery.contract.js';
 import { createSearchModule } from './domains/search/search.module.js';
 import {
@@ -25,6 +29,7 @@ export interface AppOptions {
   otpDelivery?: OtpDelivery;
   otpNow?: () => number;
   transcriptions?: TranscriptionOptions;
+  audioSettings?: AudioSettingsOptions;
 }
 
 export async function buildApp(options: AppOptions) {
@@ -45,7 +50,14 @@ export async function buildApp(options: AppOptions) {
   );
   const demo = createDemoModule(database, home.service);
   const search = createSearchModule(database);
-  const transcriptions = createTranscriptionsModule(options.transcriptions);
+  const audioSettings = createAudioSettingsModule(
+    database,
+    options.audioSettings,
+  );
+  const transcriptions = createTranscriptionsModule(
+    options.transcriptions,
+    audioSettings.service,
+  );
 
   registerErrorHandler(app);
   registerRequestSecurity(app, {
@@ -63,10 +75,11 @@ export async function buildApp(options: AppOptions) {
         process.env.GATEKEEPER_API_KEY?.trim() &&
         process.env.GATEKEEPER_API_URL?.trim(),
       );
+    const localReady = await audioSettings.service.localAvailable();
     return {
       otp: { email: deliveryAvailable, sms: deliveryAvailable },
-      recording: transcriptions.service.transcriptionAvailable,
-      transcription: transcriptions.service.transcriptionAvailable,
+      recording: localReady,
+      transcription: localReady,
       aiCapture: false,
       transcriptImport: false,
     };
@@ -82,6 +95,7 @@ export async function buildApp(options: AppOptions) {
     demo,
     search,
     transcriptions,
+    audioSettings,
   ])
     module.register(app);
   return app;

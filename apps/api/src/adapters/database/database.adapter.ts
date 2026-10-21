@@ -8,6 +8,7 @@ import {
   notes,
   idempotencyKeys,
   otpChallenges,
+  audioSettings,
   type Database,
 } from '@ordo/db';
 
@@ -21,6 +22,7 @@ export const tables = {
   notes,
   idempotencyKeys,
   otpChallenges,
+  audioSettings,
 };
 export type TransactionContext = Database;
 export type UserRecord = typeof users.$inferSelect;

@@ -1673,3 +1673,26 @@ fieldset:disabled select {
     white-space: normal;
   }
 }
+.settings-nav {
+  margin: 0 0 16px;
+}
+.audio-settings > p.muted {
+  font-size: 12px;
+  line-height: 1.8;
+}
+.audio-settings fieldset > p.muted {
+  font-size: 11px;
+  line-height: 1.8;
+}
+.voice-onboarding {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.voice-onboarding .text-button {
+  font-size: 11px;
+}

@@ -25,17 +25,22 @@ export class TranscriptionsService {
   constructor(
     private readonly transcriber?: Transcriber,
     timeoutMs = 65000,
+    private readonly resolveProvider?: (
+      owner: string,
+      expectedProvider?: 'local_whisper' | 'openai',
+    ) => Promise<Transcriber | undefined>,
   ) {
     this.timeoutMs = Math.max(1, Math.min(timeoutMs, 65000));
   }
   get transcriptionAvailable() {
-    return Boolean(this.transcriber);
+    return Boolean(this.transcriber || this.resolveProvider);
   }
   async transcribe(
     owner: string,
     mime: string,
     audio: Uint8Array,
     signal?: AbortSignal,
+    expectedProvider?: 'local_whisper' | 'openai',
   ): Promise<{ transcript: string }> {
     let active = false;
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -59,8 +64,15 @@ export class TranscriptionsService {
           'INVALID_AUDIO',
           'The recording does not match its audio format.',
         );
-      if (!this.transcriber)
-        fail(503, 'FEATURE_UNAVAILABLE', 'Transcription is coming soon.');
+      const transcriber =
+        this.transcriber ??
+        (await this.resolveProvider?.(owner, expectedProvider));
+      if (!transcriber)
+        fail(
+          503,
+          'FEATURE_UNAVAILABLE',
+          'Configure audio transcription in Settings.',
+        );
       if (signal?.aborted)
         return fail(
           499,
@@ -96,7 +108,7 @@ export class TranscriptionsService {
           signal?.addEventListener('abort', onCancel, { once: true });
         });
         const transcript = await Promise.race([
-          this.transcriber.transcribe(audio, mimeType, controller.signal),
+          transcriber.transcribe(audio, mimeType, controller.signal),
           deadline,
           cancelled,
         ]);

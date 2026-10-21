@@ -37,6 +37,9 @@
 
 | C21 | Use a simple sun/moon icon to toggle web light/dark mode instead of a dropdown | Edward’s appearance-control request, 21 October 2026 |
 
+| C22 | Use local Whisper now; audio provider and account-owned API key are configurable from Settings during/after onboarding. Distinguish local Mac/server from native phone on-device processing | Edward’s provider-setup annotation, 21 October 2026 |
+| C23 | OTP email needs proper Ordo branding. Owner confirmed both email and SMS arrived | Edward’s email-branding request and delivery confirmation, 21 October 2026 |
+
 ## Proposals and open choices
 
 | ID | Choice | Recommendation / next action | State |
@@ -63,3 +66,5 @@ Edward clarified the workflow in C07 and replaced C08 with the platform order in
 C10 extends the mobile scope to Android without removing C09’s urgent iOS priority. The React Native/Expo recommendation was followed by Edward’s C11 instruction to build; native implementation is still pending. Android release timing is undecided.
 
 Local foundation choices and authorization boundaries are recorded in [the active build plan](BUILD-PLAN.md). No merge or deployment approval has been given.
+
+- **C24 — My Day capture actions:** The full capture-card row and optional voice setup hint belong only on My Day. Other views keep contextual task/note creation controls without repeating the capture dashboard.

@@ -1,3 +1,5 @@
+> Latest: Settings now selects Local Whisper (running on this Mac/server) or an account-owned OpenAI key, with connection test and estimated pricing. OTP email has Ordo HTML branding and text fallback. Owner confirmed both original delivery tests arrived. Audio remains memory-only. Details/evidence below.
+
 > Current audio policy (C20): no stored audio or uploaded files. Record → transcribe in temporary memory → discard audio. Earlier storage evidence below is historical and superseded.
 
 # Ordo coordinator handoff
@@ -98,3 +100,13 @@ The sole locally stored recording was the exact generated test tone from the pre
 Correction checks: 41 tests pass (27 API + 14 client), typechecks/build/format/docs pass. Compiled app and running API updated; desktop/responsive screenshots refreshed. PR #1 is updated on the same branch; no merge/deploy. Record remains Coming soon locally because no transcription key is configured. Only explicit transcript notes may persist; no audio/files are saved.
 
 Latest UI change: sun/moon appearance icon replaces dropdown (C21). Toggle and reload persistence browser-verified; production web build passes. Updated desktop/responsive screenshots are included in PR #1.
+
+## Audio settings and email branding (C22/C23)
+
+Implemented per-account provider preferences, default local Whisper, encrypted own OpenAI keys, connection testing, optional onboarding entry, and provider-consent snapshots. Native on-device processing remains Coming soon. Local runtime4316 is running with existing base.en model and FFmpeg; `npm run dev:whisper` is the managed starter. Root API/web restarted with migration0004 after local backup.
+
+52 tests pass plus typechecks/build/format/docs. Real local inference and full API smoke passed using the already-installed public speech fixture, with no audio files/transcript logs or automatically saved notes. Browser settings save/test/online selection checked. Email/SMS delivery was owner-confirmed; branded email preview uses dummy code only. Cloud key/transcription and actual phone/microphone remain unverified.
+
+New guide: [Audio setup](../AUDIO-SETUP.md). Existing PR #1 is updated with these changes and fresh settings/email screenshots. Nothing merged or deployed. Waiting on owner: review PR, optional live branded-email test, actual microphone/phone verification.
+
+Latest UI correction: full capture cards and voice onboarding are My Day-only; other views retain contextual Add a task/New note controls. Browser checks and production web build passed.

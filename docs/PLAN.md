@@ -84,3 +84,7 @@ DAMSYN-style platform/capabilities/adapters/domains structure is implemented, do
 ## Passwordless/search/audio follow-up
 
 Implemented locally on `edw/ordo-passwordless-capture`: six-digit email/Ghana-phone OTP, contact verification, server full-text search, web recording-to-transcription without audio/file storage, and Coming soon labels for unavailable functionality. 39 automated tests and production build pass; see the verification record for browser screenshots and remaining live-provider/device gaps. A phone HTTPS proxy and actual-device checklist are prepared. Email-first onboarding with later verified phone linking is recommended; phone linking remains pending.
+
+## Configurable voice and email branding
+
+Per-account Settings now chooses Local Whisper (default, this Mac/server) or an account-owned OpenAI key, encrypted at rest. A connection test and optional setup hint are included; estimated hosted cost is shown. Local engine is running and real memory-only inference passed through the API. Provider snapshots prevent a stale tab switching local audio to the cloud. Branded OTP HTML/text templates are implemented and locally previewed; the owner confirmed earlier email and SMS delivery. 52 tests plus build/typechecks/format/docs pass. Native on-device, physical phone/microphone and trusted phone HTTPS remain unverified.

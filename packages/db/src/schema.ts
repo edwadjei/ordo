@@ -145,3 +145,15 @@ export const otpChallenges = pgTable('otp_challenges', {
   ready: boolean('ready').notNull().default(false),
   consumed: boolean('consumed').notNull().default(false),
 });
+
+export const audioSettings = pgTable('audio_settings', {
+  ownerUserId: uuid('owner_user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  provider: text('provider')
+    .$type<'local_whisper' | 'openai'>()
+    .notNull()
+    .default('local_whisper'),
+  encryptedApiKey: text('encrypted_api_key'),
+  ...timestampFields(),
+});

@@ -27,6 +27,7 @@ export async function createIdentityModule(
     new GatekeeperOtpDelivery({
       apiKey: process.env.GATEKEEPER_API_KEY,
       apiUrl: process.env.GATEKEEPER_API_URL,
+      emailHtml: process.env.GATEKEEPER_EMAIL_HTML !== 'false',
     });
   const otp = new OtpService(
     new OtpRepository(database),

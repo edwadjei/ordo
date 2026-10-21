@@ -42,10 +42,3 @@ export class OpenAiTranscriber extends Transcriber {
     return result.text;
   }
 }
-export function configuredTranscriber(
-  environment: NodeJS.ProcessEnv = process.env,
-): Transcriber | undefined {
-  return environment.OPENAI_API_KEY?.trim()
-    ? new OpenAiTranscriber(environment.OPENAI_API_KEY.trim())
-    : undefined;
-}

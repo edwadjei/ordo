@@ -91,3 +91,19 @@ Correction verification: 27 API tests plus 14 client tests (41 total), workspace
 ## Appearance icon simplification
 
 Replaced the Light/Dark/System dropdown with an accessible sun/moon button on Home and sign-in. Defaults still follow the OS until the user chooses; explicit light/dark preference persists locally. Browser verified dark → light → reload (light remained) → dark. Desktop/responsive screenshots: `design/evidence/theme-icon-desktop.jpg`, `theme-icon-light-responsive.jpg`, `theme-icon-dark-responsive.jpg`. Production web build including TypeScript passed. No new automated tests were added for this small reversible UI change.
+
+## Configurable audio and branded email — 21 October 2026
+
+Owner confirmed receipt of the previously requested email and SMS OTPs. This confirms delivery for those tests; the new branded HTML template was previewed locally with an obviously synthetic code, not resent. Transport regression checks HTML branding, text fallback, no remote/tracking assets, and no markup injection through the code. Preview source: `design/email/otp-preview.html`. Screenshots: `otp-email-branded-desktop.jpg` and `otp-email-branded-preview.jpg` under design/evidence. Sender identity remains the Gatekeeper account configuration; the application changes subject/body.
+
+52 tests pass (36 API + 16 client), workspace typechecks, production build, format check and docs link validation pass. Independent review checked owner isolation, AES-GCM credentials, HTTPS-only new keys, no browser key persistence, pipe-only FFmpeg, and the fixed provider-switch privacy race. Provider snapshot is mandatory when resolving account settings. Cloud connection tests check authentication, not paid transcription quota.
+
+Real local smoke: existing installed public JFK speech fixture was read into memory, decoded through FFmpeg pipes, and transcribed by loopback whisper-server with the installed English base model. Expected public-speech terms matched; no transcript was logged. A second smoke through Ordo's real API composition returned200 with default local provider/configuredtrue and zero notes automatically saved. No recorded audio was written. Whisper native logs are suppressed, --convert is not enabled, and .data/captures remains absent.
+
+Browser: Settings opened from sidebar; Local Whisper reported ready; Test connection passed; saving local preference succeeded; OpenAI option displayed own-key entry and estimated0.003USD/minute (~0.18USD/hour) with official pricing link. No real cloud key was entered. Recording dialog displayed its fixed local destination without requesting microphone access. Screenshot files: `audio-settings-desktop.jpg`, `audio-settings-local-responsive.jpg`, `audio-settings-online-responsive.jpg`, `voice-local-ready.jpg`. New model preferences were added by local migration0004 after private database backup `.data/backups/before-audio-settings-20261021.tar.gz`.
+
+Not verified: actual microphone/browser recording, physical devices, trusted phone HTTPS, real online transcription/key billing, or Gmail/Outlook rendering/delivery of the new HTML email. Local Whisper runs on the Mac/server, not the phone. Native phone on-device inference remains Coming soon. No merge/deployment occurred.
+
+## Capture actions scoped to My Day
+
+The full quick-capture card row and optional voice onboarding hint now render only on My Day. Browser verified My Day retains the row, while Inbox, Upcoming, workspace and project views omit it. Task lists keep Add a task; Notes keeps New note. Web production build passed after this change. Screenshots: `design/evidence/inbox-contextual-actions.jpg` and `design/evidence/project-contextual-actions.jpg`.

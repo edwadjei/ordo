@@ -28,6 +28,17 @@ export interface AppCapabilities {
   aiCapture: boolean;
   transcriptImport: boolean;
 }
+export interface AudioSettings {
+  provider: 'local_whisper' | 'openai';
+  localAvailable: boolean;
+  hasApiKey: boolean;
+  configured: boolean;
+}
+export interface AudioSettingsInput {
+  provider: AudioSettings['provider'];
+  apiKey?: string;
+  removeApiKey?: boolean;
+}
 export interface SearchResult {
   id: string;
   type: 'task' | 'note' | 'project';
@@ -107,6 +118,19 @@ export function createClient(
       accountId = id;
     },
     capabilities: () => request<AppCapabilities>('/capabilities'),
+    audioSettings: (signal?: AbortSignal) =>
+      request<AudioSettings>('/settings/audio', { signal }),
+    saveAudioSettings: (data: AudioSettingsInput, signal?: AbortSignal) =>
+      request<AudioSettings>('/settings/audio', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+        signal,
+      }),
+    testAudioSettings: (signal?: AbortSignal) =>
+      request<{ ok: boolean; message: string }>('/settings/audio/test', {
+        method: 'POST',
+        signal,
+      }),
     requestOtp: (contact: string) =>
       send<{
         challengeId: string;
@@ -123,12 +147,19 @@ export function createClient(
         `/search?q=${encodeURIComponent(query)}`,
         { signal },
       ),
-    transcribeAudio: (audio: Blob, signal?: AbortSignal) =>
+    transcribeAudio: (
+      audio: Blob,
+      signal: AbortSignal | undefined,
+      provider: AudioSettings['provider'],
+    ) =>
       request<{ transcript: string }>('/transcriptions', {
         method: 'POST',
         body: audio,
         signal,
-        headers: { 'Content-Type': audio.type || 'audio/webm' },
+        headers: {
+          'Content-Type': audio.type || 'audio/webm',
+          'X-Ordo-Audio-Provider': provider,
+        },
       }),
     home: () => request<HomeSnapshot>('/home'),
     me: () => request<{ user: User }>('/auth/me'),

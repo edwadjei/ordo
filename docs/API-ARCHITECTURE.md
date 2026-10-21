@@ -7,7 +7,7 @@
 | Area | Owns | Must not become |
 |---|---|---|
 | `apps/api/src/platform` | Configuration, request security, safe errors, session-cookie transport, health, and shared HTTP helpers | A home for task/workspace business rules or imports from a domain |
-| `apps/api/src/capabilities` | Abstract-class ports for passwords, sessions, hashing, OTP delivery/secrets and transcription | Empty future integrations or a generic port for every implementation detail |
+| `apps/api/src/capabilities` | Abstract-class ports for passwords, sessions, hashing, OTP delivery/secrets, audio providers, encrypted credentials, and transcription | Empty future integrations or a generic port for every implementation detail |
 | `apps/api/src/adapters` | Concrete Node cryptography and database access/transaction context | Product workflows or a global bag of services |
 | `apps/api/src/domains` | Identity, workspaces/projects, tasks, notes, home aggregation, and explicit fictional fixtures | Controllers containing database queries or a single all-purpose service |
 
@@ -71,3 +71,5 @@ The detailed implementation guide is `apps/api/docs/architecture.md`, with endpo
 ## Authentication, search, and audio extension
 
 Identity owns expiring single-use OTP challenges and Gatekeeper delivery through capability adapters. Search owns ranked, indexed PostgreSQL full-text queries over the current owner's active task/note/project content. Transcriptions owns bounded in-memory audio processing through a configured provider. No storage adapter, audio-file route, recording history, or stored audio metadata exists; only returned transcript text can be saved through Notes. See each domain concept note under `apps/api/src/domains`. No provider key or raw provider error is returned to clients. These remain one API process; transcription concurrency guards and rate buckets do not provide cross-replica coordination.
+
+Audio Settings owns per-account provider selection and encrypted key references. Transcriptions calls its owning service to resolve the selected provider, with a required provider snapshot before any key decryption or audio send. The server-side credential cipher and local decoder/provider details remain in adapters. See [audio setup](AUDIO-SETUP.md).

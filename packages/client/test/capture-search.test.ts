@@ -12,12 +12,17 @@ test('audio uses raw bytes, actual MIME type, account precondition, and cancella
     assert.equal(new Headers(init?.headers).get('Content-Type'), 'audio/mp4');
     assert.equal(new Headers(init?.headers).get('X-Ordo-Account'), 'owner');
     assert.equal(init?.signal, control.signal);
+    assert.equal(
+      new Headers(init?.headers).get('X-Ordo-Audio-Provider'),
+      'local_whisper',
+    );
     assert.equal(init?.credentials, 'include');
     return Response.json({ transcript: 'A transient voice thought.' });
   });
   client.setAccount('owner');
   assert.equal(
-    (await client.transcribeAudio(audio, control.signal)).transcript,
+    (await client.transcribeAudio(audio, control.signal, 'local_whisper'))
+      .transcript,
     'A transient voice thought.',
   );
 });
@@ -91,7 +96,11 @@ test('account-scoped reads carry the displayed owner while discovery remains unt
   });
   client.setAccount('alice');
   await client.search('private');
-  await client.transcribeAudio(new Blob(['audio'], { type: 'audio/webm' }));
+  await client.transcribeAudio(
+    new Blob(['audio'], { type: 'audio/webm' }),
+    undefined,
+    'local_whisper',
+  );
   await client.home();
   await client.me();
   await client.capabilities();
@@ -125,9 +134,89 @@ test('account mismatch invalidates current UI but a stale response cannot invali
   assert.equal(invalidations, 1);
   const stale = client.transcribeAudio(
     new Blob(['audio'], { type: 'audio/mp4' }),
+    undefined,
+    'local_whisper',
   );
   client.setAccount('bob');
   release!();
   await assert.rejects(stale);
   assert.equal(invalidations, 1);
+});
+
+test('audio provider settings are owner-scoped, cancellable, and key payload is write-only', async () => {
+  const control = new AbortController();
+  const calls: string[] = [];
+  const client = createClient('/api', async (url, init) => {
+    assert.equal(new Headers(init?.headers).get('X-Ordo-Account'), 'alice');
+    assert.equal(init?.signal, control.signal);
+    calls.push(String(url));
+    if (init?.method === 'PATCH') {
+      assert.deepEqual(JSON.parse(String(init.body)), {
+        provider: 'openai',
+        apiKey: 'fixture-key-not-real',
+      });
+      assert.equal(
+        new Headers(init?.headers).get('Content-Type'),
+        'application/json',
+      );
+    } else assert.equal(init?.body, undefined);
+    return Response.json(
+      String(url).endsWith('/test')
+        ? { ok: true, message: 'Fixture connection checked.' }
+        : {
+            provider: 'openai',
+            localAvailable: true,
+            hasApiKey: true,
+            configured: true,
+          },
+    );
+  });
+  client.setAccount('alice');
+  await client.audioSettings(control.signal);
+  const settings = await client.saveAudioSettings(
+    { provider: 'openai', apiKey: 'fixture-key-not-real' },
+    control.signal,
+  );
+  assert.equal('apiKey' in settings, false);
+  assert.equal(settings.hasApiKey, true);
+  await client.testAudioSettings(control.signal);
+  assert.deepEqual(calls, [
+    '/api/settings/audio',
+    '/api/settings/audio',
+    '/api/settings/audio/test',
+  ]);
+});
+
+test('transcription preserves the visible provider snapshot and rejects changed settings without fallback', async () => {
+  let visibleProvider: 'local_whisper' | 'openai' = 'local_whisper';
+  const headers: Headers[] = [];
+  let release: (() => void) | undefined;
+  const client = createClient('/api', async (_url, init) => {
+    headers.push(new Headers(init?.headers));
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return Response.json(
+      {
+        error: { code: 'AUDIO_SETTINGS_CHANGED', message: 'Settings changed.' },
+      },
+      { status: 409 },
+    );
+  });
+  client.setAccount('alice');
+  const pending = client.transcribeAudio(
+    new Blob(['audio'], { type: 'audio/webm' }),
+    undefined,
+    visibleProvider,
+  );
+  visibleProvider = 'openai';
+  release!();
+  await assert.rejects(
+    pending,
+    (cause: unknown) =>
+      cause instanceof RequestError && cause.code === 'AUDIO_SETTINGS_CHANGED',
+  );
+  assert.equal(headers.length, 1);
+  assert.equal(headers[0].get('X-Ordo-Audio-Provider'), 'local_whisper');
+  assert.equal(visibleProvider, 'openai');
 });

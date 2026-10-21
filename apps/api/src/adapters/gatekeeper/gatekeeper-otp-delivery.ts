@@ -1,3 +1,4 @@
+import { ordoSignInEmail } from './ordo-sign-in-email.js';
 import { OtpDelivery } from '../../capabilities/otp-delivery.contract.js';
 
 // Gatekeeper is a transport only. Ordo owns expiry, attempt limits and verification.
@@ -7,6 +8,7 @@ export class GatekeeperOtpDelivery extends OtpDelivery {
       apiKey?: string;
       apiUrl?: string;
       senderId?: string;
+      emailHtml?: boolean;
     },
     private readonly transport: typeof fetch = fetch,
   ) {
@@ -19,6 +21,7 @@ export class GatekeeperOtpDelivery extends OtpDelivery {
     if (!this.available()) throw new Error('Delivery unavailable');
     const message = `Your Ordo sign-in code is ${code}. It expires in 5 minutes. If you did not request this code, ignore this message.`;
     const phone = contact.startsWith('+');
+    const email = phone ? null : ordoSignInEmail(code);
     const response = await this.transport(
       `${this.settings.apiUrl!.replace(/\/$/, '')}/${phone ? 'send_sms' : 'send_email'}`,
       {
@@ -39,9 +42,10 @@ export class GatekeeperOtpDelivery extends OtpDelivery {
               }
             : {
                 email: contact,
-                subject: 'Your Ordo sign-in code',
-                message,
-                isHtml: false,
+                subject: email!.subject,
+                message:
+                  this.settings.emailHtml === false ? email!.text : email!.html,
+                isHtml: this.settings.emailHtml !== false,
               },
         ),
         signal: AbortSignal.timeout(20000),

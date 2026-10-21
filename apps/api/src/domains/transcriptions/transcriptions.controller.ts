@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { actorId } from '../../platform/http/request-context.js';
 import { fail } from '../../platform/http/api-failure.js';
 import {
@@ -33,8 +34,13 @@ export function registerTranscriptionsController(
           request.headers['content-type'] ?? '',
           request.body,
           control.signal,
+          z
+            .enum(['local_whisper', 'openai'])
+            .optional()
+            .parse(request.headers['x-ordo-audio-provider']),
         );
       } finally {
+        request.body.fill(0);
         request.raw.off('aborted', abort);
         reply.raw.off('close', closed);
       }

@@ -33,7 +33,7 @@ The current-account pointer and a last-loaded account snapshot are cached for an
 
 **No service worker is installed.** An already open app can queue tasks while offline, but a cold offline reload is not guaranteed to load the application shell. Only task creation is queued; task edits, workspaces/projects, and notes require the API. Note text is retained in the open editor after a failure and warns on closing/unloading; it is not a durable offline note queue. A full multi-device sync protocol and conflict resolution UI remain later work.
 
-With a configured provider, Record captures microphone audio into memory; Stop transcribes it and discards the audio. Only the transcript can be explicitly saved as a note. There is no audio file picker, recording history, playback, or audio persistence. Without transcription configuration, Record shows Coming soon and does not request microphone access. AI Capture and Upload Transcript are disabled with Coming soon labels. Project favorites, reassigning task destinations, and people fields remain pending. Light, Dark, and System themes are supported.
+Settings selects Local Whisper on this Mac/server (default) or an account-owned OpenAI key. With a ready provider, Record captures microphone audio into memory; Stop transcribes it and discards the audio. Only the transcript can be explicitly saved as a note. There is no audio file picker, recording history, playback, or audio persistence. Without a ready selected provider, Record shows Coming soon and does not request microphone access. AI Capture and Upload Transcript are disabled with Coming soon labels. Project favorites, reassigning task destinations, and people fields remain pending. Light, Dark, and System themes are supported.
 
 ## Checks
 
