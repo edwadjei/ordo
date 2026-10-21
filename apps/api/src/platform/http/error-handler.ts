@@ -16,6 +16,13 @@ export function registerErrorHandler(app: FastifyInstance) {
         },
       });
     const statusCode = (error as { statusCode?: number }).statusCode;
+    if (statusCode === 415)
+      return reply.code(415).send({
+        error: {
+          code: 'UNSUPPORTED_MEDIA_TYPE',
+          message: 'This upload format is not supported.',
+        },
+      });
     if (statusCode === 413)
       return reply.code(413).send({
         error: {

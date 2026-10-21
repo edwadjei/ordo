@@ -75,8 +75,16 @@ No hosted releases, deployments, backups, or rollback images exist. Database sch
 
 ## Remaining web acceptance work
 
-Cold offline app reload is not supported without an offline shell; queued task creation is durable, while notes/edits require the API. Full sync cursors/conflict resolution, dark mode, project favorites, destination editing UI, people fields, server-side full-text search/pagination, and production authentication/abuse-control hardening remain incomplete. Record explicit device/browser and performance results before claiming those acceptance scenarios. Native mobile, recording/imports, AI review, MCP, and Mac remain separate work.
+Cold offline app reload is not supported without an offline shell; queued task creation is durable, while notes/edits require the API. Full sync cursors/conflict resolution, project favorites, destination editing UI, people fields, pagination, and production authentication/abuse-control hardening remain incomplete. Dark mode and server-side full-text search are implemented. Record explicit device/browser and performance results before claiming those acceptance scenarios. Native mobile, transcript imports, AI review, MCP, and Mac remain separate work. Web recording-to-transcription uses temporary memory only; audio/files are not stored; live provider and physical-phone testing remain unverified.
 
 ## API structure follow-up
 
 DAMSYN-style platform/capabilities/adapters/domains structure is implemented, documented, and independently reviewed. All 26 routes remain intact; 12 API tests (including 4 architecture checks) and 8 client tests pass. White/orange UI and keyboard capture are verified in the compiled app. After restarting the modular API, the existing session/data loaded and a new task write succeeded. See [verification evidence](coordination/VERIFICATION.md) and [API architecture](API-ARCHITECTURE.md). No merge/deploy approval is implied.
+
+## Passwordless/search/audio follow-up
+
+Implemented locally on `edw/ordo-passwordless-capture`: six-digit email/Ghana-phone OTP, contact verification, server full-text search, web recording-to-transcription without audio/file storage, and Coming soon labels for unavailable functionality. 39 automated tests and production build pass; see the verification record for browser screenshots and remaining live-provider/device gaps. A phone HTTPS proxy and actual-device checklist are prepared. Email-first onboarding with later verified phone linking is recommended; phone linking remains pending.
+
+## Configurable voice and email branding
+
+Per-account Settings now chooses Local Whisper (default, this Mac/server) or an account-owned OpenAI key, encrypted at rest. A connection test and optional setup hint are included; estimated hosted cost is shown. Local engine is running and real memory-only inference passed through the API. Provider snapshots prevent a stale tab switching local audio to the cloud. Branded OTP HTML/text templates are implemented and locally previewed; the owner confirmed earlier email and SMS delivery. 52 tests plus build/typechecks/format/docs pass. Native on-device, physical phone/microphone and trusted phone HTTPS remain unverified.

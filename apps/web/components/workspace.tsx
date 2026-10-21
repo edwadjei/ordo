@@ -24,8 +24,15 @@ import {
   Folder,
   NotebookPen,
   LoaderCircle,
+  Settings,
 } from 'lucide-react';
-import type { HomeSnapshot, Note, Task } from '@ordo/client';
+import type {
+  AudioSettings,
+  HomeSnapshot,
+  Note,
+  Task,
+  SearchResult,
+} from '@ordo/client';
 import { api, useWorkspace } from '../lib/workspace';
 import {
   localDate,
@@ -38,6 +45,8 @@ import { Auth } from './auth';
 import { Dialog } from './dialog';
 import { TaskDetail } from './task-detail';
 import { NoteEditor } from './note-editor';
+import { Recorder } from './recorder';
+import { AudioSettingsDialog } from './audio-settings';
 const viewNames: Record<View, string> = {
   day: 'My Day',
   inbox: 'Inbox',
@@ -49,6 +58,27 @@ const viewNames: Record<View, string> = {
 export function WorkspaceApp() {
   const work = useWorkspace(),
     { snapshot: data } = work;
+  const [audioConfig, setAudioConfig] = useState<{
+    ownerId: string;
+    settings: AudioSettings;
+  } | null>(null);
+  useEffect(() => {
+    const ownerId = data?.user.id;
+    const control = new AbortController();
+    let active = true;
+    setAudioConfig(null);
+    if (ownerId)
+      api
+        .audioSettings(control.signal)
+        .then((settings) => {
+          if (active) setAudioConfig({ ownerId, settings });
+        })
+        .catch(() => {});
+    return () => {
+      active = false;
+      control.abort();
+    };
+  }, [data?.user.id]);
   const [view, setView] = useState<View>('day'),
     [workspaceId, setWorkspaceId] = useState<string | null>(null),
     [projectId, setProjectId] = useState<string | null>(null),
@@ -59,9 +89,8 @@ export function WorkspaceApp() {
     [selectedTask, setSelectedTask] = useState<string | null>(null),
     [selectedNote, setSelectedNote] = useState<string | null>(null),
     [modal, setModal] = useState<
-      'task' | 'workspace' | 'project' | 'search' | 'planned' | null
+      'task' | 'workspace' | 'project' | 'search' | 'record' | 'settings' | null
     >(null),
-    [planned, setPlanned] = useState(''),
     [query, setQuery] = useState(''),
     [busy, setBusy] = useState(false),
     [taskBusy, setTaskBusy] = useState<string[]>([]);
@@ -173,6 +202,9 @@ export function WorkspaceApp() {
       : view === 'workspace'
         ? workspace?.name || 'Workspace'
         : viewNames[view];
+  const audioSettings =
+    audioConfig?.ownerId === data.user.id ? audioConfig.settings : null;
+  const audioReady = !!audioSettings?.configured;
   const activeTask = data.tasks.find((task) => task.id === selectedTask),
     activeNote = data.notes.find((note) => note.id === selectedNote);
   const pending = work.pending.filter(
@@ -314,6 +346,16 @@ export function WorkspaceApp() {
           )}
         </div>
         <div className="sidebar-bottom">
+          <button
+            className="nav-item settings-nav"
+            onClick={() => {
+              setMobileMenu(false);
+              setModal('settings');
+            }}
+          >
+            <Settings size={16} />
+            <span>Settings</span>
+          </button>
           <div className="profile">
             <span className="avatar">
               {data.user.displayName
@@ -437,60 +479,83 @@ export function WorkspaceApp() {
               </button>
             </div>
           )}
-          <div className="quick-actions">
-            {[
-              {
-                title: 'Add Task',
-                hint: 'One thing at a time',
-                icon: Plus,
-                action: () => setModal('task'),
-              },
-              {
-                title: 'Record',
-                hint: 'Planned · voice capture',
-                icon: Mic,
-                action: () => {
-                  setPlanned('Record');
-                  setModal('planned');
+          {view === 'day' &&
+            audioSettings &&
+            !audioReady &&
+            !data.workspaces.length &&
+            !data.tasks.length &&
+            !data.notes.length && (
+              <div className="voice-onboarding">
+                <span>
+                  Want to capture a thought by voice? Choose local Whisper or
+                  your own provider.
+                </span>
+                <button
+                  className="text-button"
+                  onClick={() => setModal('settings')}
+                >
+                  Set up voice
+                </button>
+              </div>
+            )}
+          {view === 'day' && (
+            <div className="quick-actions">
+              {[
+                {
+                  title: 'Add Task',
+                  hint: 'One thing at a time',
+                  icon: Plus,
+                  action: () => setModal('task'),
                 },
-              },
-              {
-                title: 'Quick Note',
-                hint: 'Get it out of your head',
-                icon: NotebookPen,
-                action: quickNote,
-              },
-              {
-                title: 'Upload Transcript',
-                hint: 'Planned · import a source',
-                icon: Upload,
-                action: () => {
-                  setPlanned('Upload Transcript');
-                  setModal('planned');
+                {
+                  title: 'Record',
+                  hint: audioReady ? 'A thought, out loud' : 'Coming soon',
+                  unavailable: !audioReady,
+                  icon: Mic,
+                  action: () => setModal('record'),
                 },
-              },
-              {
-                title: 'AI Capture',
-                hint: 'Planned · review suggestions',
-                icon: Sparkles,
-                action: () => {
-                  setPlanned('AI Capture');
-                  setModal('planned');
+                {
+                  title: 'Quick Note',
+                  hint: 'Get it out of your head',
+                  icon: NotebookPen,
+                  action: quickNote,
                 },
-              },
-            ].map((action) => (
-              <button
-                className="action-card"
-                key={action.title}
-                onClick={action.action}
-                disabled={busy && action.title === 'Quick Note'}
-              >
-                <action.icon size={23} strokeWidth={1.4} />
-                <strong>{action.title}</strong>
-                <small>{action.hint}</small>
-              </button>
-            ))}
-          </div>
+                {
+                  title: 'Upload Transcript',
+                  hint: 'Coming soon',
+                  unavailable: true,
+                  icon: Upload,
+                  action: () => {},
+                },
+                {
+                  title: 'AI Capture',
+                  hint: 'Coming soon',
+                  unavailable: true,
+                  icon: Sparkles,
+                  action: () => {},
+                },
+              ].map((action) => (
+                <button
+                  className="action-card"
+                  key={action.title}
+                  onClick={action.action}
+                  disabled={
+                    action.unavailable ||
+                    (busy && action.title === 'Quick Note')
+                  }
+                  aria-label={
+                    action.unavailable
+                      ? `${action.title} — Coming soon`
+                      : undefined
+                  }
+                >
+                  <action.icon size={23} strokeWidth={1.4} />
+                  <strong>{action.title}</strong>
+                  <small>{action.hint}</small>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="workspace-layout">
             <section className="primary-column">
               <div className="section-heading">
@@ -780,37 +845,32 @@ export function WorkspaceApp() {
           onSave={work.refresh}
         />
       )}
-      {modal === 'planned' && (
-        <Dialog title={planned} onClose={() => setModal(null)}>
-          <p className="muted">
-            {planned === 'Record'
-              ? 'Voice recording and transcription are planned for intelligent capture. Microphone access is not requested in this build.'
-              : planned === 'Upload Transcript'
-                ? 'Transcript import and source review are planned for intelligent capture. No file is uploaded in this build.'
-                : 'AI extraction and editable suggestions are planned for a later slice. Your content is not sent to any AI provider.'}
-          </p>
-          <p className="muted">
-            For now, capture it as a task or a note. Your everyday workspace
-            works without AI.
-          </p>
-          <div className="form-actions">
-            <button className="primary" onClick={() => setModal('task')}>
-              Add a task
-            </button>
-            <button
-              className="secondary"
-              onClick={() => {
-                setModal(null);
-                void quickNote();
-              }}
-            >
-              Quick Note
-            </button>
-          </div>
-        </Dialog>
+      {modal === 'settings' && (
+        <AudioSettingsDialog
+          key={data.user.id}
+          initial={audioSettings}
+          onClose={() => setModal(null)}
+          onChange={(settings) =>
+            setAudioConfig({ ownerId: data.user.id, settings })
+          }
+        />
+      )}
+      {modal === 'record' && (
+        <Recorder
+          key={data.user.id}
+          transcription={audioReady}
+          provider={audioSettings?.provider || 'local_whisper'}
+          onClose={() => setModal(null)}
+          onNote={async (id) => {
+            await work.refresh();
+            setModal(null);
+            setSelectedNote(id);
+          }}
+        />
       )}
       {modal === 'search' && (
         <SearchDialog
+          key={data.user.id}
           data={data}
           query={query}
           setQuery={setQuery}
@@ -1164,32 +1224,38 @@ function SearchDialog({
   note: (id: string) => void;
   project: (id: string) => void;
 }) {
-  const q = query.trim().toLowerCase(),
-    results = [
-      ...data.tasks.map((t) => ({
-        id: t.id,
-        title: t.title,
-        type: 'Task',
-        scope: t.workspaceId,
-        open: () => task(t.id),
-      })),
-      ...data.notes.map((n) => ({
-        id: n.id,
-        title: n.title,
-        type: 'Note',
-        scope: n.workspaceId,
-        open: () => note(n.id),
-      })),
-      ...data.projects.map((p) => ({
-        id: p.id,
-        title: p.name,
-        type: 'Project',
-        scope: p.workspaceId,
-        open: () => project(p.id),
-      })),
-    ]
-      .filter((item) => !q || item.title.toLowerCase().includes(q))
-      .slice(0, 20);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const control = new AbortController();
+    let active = true;
+    setResults([]);
+    setError('');
+    if (!query.trim()) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const timer = window.setTimeout(() => {
+      api
+        .search(query.trim(), control.signal)
+        .then((value) => {
+          if (active) setResults(value.results);
+        })
+        .catch((cause) => {
+          if (active) setError((cause as Error).message);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }, 200);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      control.abort();
+    };
+  }, [query]);
   return (
     <Dialog title="Find a little clarity." onClose={onClose}>
       <div className="search-input">
@@ -1200,23 +1266,48 @@ function SearchDialog({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search tasks, notes, projects…"
+          maxLength={200}
         />
       </div>
       <div className="search-results">
         {results.map((item) => (
-          <button key={`${item.type}:${item.id}`} onClick={item.open}>
+          <button
+            key={`${item.type}:${item.id}`}
+            onClick={() => {
+              if (item.type === 'task') task(item.id);
+              else if (item.type === 'note') note(item.id);
+              else project(item.id);
+            }}
+          >
             <span>
               {item.title}
+              {item.excerpt && (
+                <small className="search-excerpt">{item.excerpt}</small>
+              )}
               <small>
-                {data.workspaces.find((w) => w.id === item.scope)?.name ||
+                {data.workspaces.find((w) => w.id === item.workspaceId)?.name ||
                   'Personal Inbox'}
               </small>
             </span>
             <em>{item.type}</em>
           </button>
         ))}
-        {!results.length && (
-          <p className="muted">No matches yet. Try a different word.</p>
+        {loading && (
+          <p className="muted" role="status">
+            Searching…
+          </p>
+        )}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        {!loading && !error && !results.length && (
+          <p className="muted">
+            {query.trim()
+              ? 'No matches. Try a different word.'
+              : 'Search task descriptions, notes, and projects.'}
+          </p>
         )}
       </div>
     </Dialog>

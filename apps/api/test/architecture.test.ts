@@ -90,6 +90,8 @@ function resolved(filename: string, specifier: string) {
 
 const crossDomainServices: Record<string, Set<string>> = {
   identity: new Set(),
+  'audio-settings': new Set(),
+  transcriptions: new Set(['audio-settings']),
   workspaces: new Set(),
   tasks: new Set(['workspaces']),
   notes: new Set(['workspaces']),

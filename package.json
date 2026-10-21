@@ -19,7 +19,9 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "format": "prettier --write \"{apps,packages,scripts}/**/*.{ts,tsx,mjs,css,json}\" package.json .github/workflows/ci.yml",
-    "format:check": "prettier --check \"{apps,packages,scripts}/**/*.{ts,tsx,mjs,css,json}\" package.json .github/workflows/ci.yml"
+    "format:check": "prettier --check \"{apps,packages,scripts}/**/*.{ts,tsx,mjs,css,json}\" package.json .github/workflows/ci.yml",
+    "phone:https": "node scripts/phone-https.mjs",
+    "dev:whisper": "node scripts/local-whisper.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

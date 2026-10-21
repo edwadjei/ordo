@@ -1,9 +1,13 @@
 import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { openDatabase } from '@ordo/db';
 import { buildApp } from './app.js';
 import { readApiConfig } from './platform/config/api-config.js';
 
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const environmentFile = resolve(repositoryRoot, '.env');
+if (existsSync(environmentFile)) process.loadEnvFile(environmentFile);
 const config = readApiConfig(process.env, repositoryRoot);
 const connection = await openDatabase({
   url: config.databaseUrl,

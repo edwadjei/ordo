@@ -31,6 +31,15 @@
 
 | C18 | Reuse Gatekeeper Pro key and API URL from Unwrap for Ordo authentication delivery; only those two settings copied into ignored local `.env` | Edward’s verification annotation, 21 October 2026; delivery integration and provider validation still pending |
 
+| C19 | Implement email/phone OTP, server search, web recording, configurable transcription, and phone-test preparation; unavailable features must say Coming soon | Edward’s implementation request, 21 October 2026 |
+
+| C20 | Do not store audio or uploaded files. Record, transcribe using temporary memory, discard audio, and save transcript text only when requested. Supersedes earlier audio persistence plans and C19 implementation details | Edward’s explicit audio-retention correction, 21 October 2026 |
+
+| C21 | Use a simple sun/moon icon to toggle web light/dark mode instead of a dropdown | Edward’s appearance-control request, 21 October 2026 |
+
+| C22 | Use local Whisper now; audio provider and account-owned API key are configurable from Settings during/after onboarding. Distinguish local Mac/server from native phone on-device processing | Edward’s provider-setup annotation, 21 October 2026 |
+| C23 | OTP email needs proper Ordo branding. Owner confirmed both email and SMS arrived | Edward’s email-branding request and delivery confirmation, 21 October 2026 |
+
 ## Proposals and open choices
 
 | ID | Choice | Recommendation / next action | State |
@@ -38,7 +47,7 @@
 | P01 | Build sequence | Responsive web → native iOS (urgent) → macOS; AI/MCP feature scope is planned separately and does not block starting iOS | Platform priority confirmed in C09; detailed feature milestones proposed |
 | P02 | Framework/ORM direction | Retain supplied Next.js + Fastify + PostgreSQL/Drizzle + Tauri direction; validate versions during planning | Proposed; do not substitute reference-project stacks automatically |
 | P03 | Runtime and package manager | Select compatible runtime/package manager during foundation planning; docs currently use npm only | Open |
-| P04 | Authentication | Edward proposed passwordless email/phone → OTP, with an optional PIN. Recommend six-digit single-use OTP, expiry, resend/attempt limits, and verified contact linking; retain current accounts during migration. Optional device unlock PIN/biometrics is separate. Gatekeeper selected in C18 | Flow proposed; implementation pending |
+| P04 | Authentication | Edward proposed passwordless email/phone → OTP, with an optional PIN. Recommend six-digit single-use OTP, expiry, resend/attempt limits, and verified contact linking; retain current accounts during migration. Optional device unlock PIN/biometrics is separate. Gatekeeper selected in C18 | Email/phone OTP implemented; contact linking and optional PIN pending |
 | P05 | Personal Inbox ownership | Define owner-bound unscoped records and explicit movement into workspace context | Open; schema blocker |
 | P06 | Branch/environment policy | `dev` for integration/staging, `main` for production releases, `edw/` feature branches | Proposed; no branch/environment provisioning authorized by this entry |
 | P07 | Hosting, region, storage, and deployment | Choose actual providers and record costs/data boundaries before provisioning | Open; no environments exist |
@@ -57,3 +66,5 @@ Edward clarified the workflow in C07 and replaced C08 with the platform order in
 C10 extends the mobile scope to Android without removing C09’s urgent iOS priority. The React Native/Expo recommendation was followed by Edward’s C11 instruction to build; native implementation is still pending. Android release timing is undecided.
 
 Local foundation choices and authorization boundaries are recorded in [the active build plan](BUILD-PLAN.md). No merge or deployment approval has been given.
+
+- **C24 — My Day capture actions:** The full capture-card row and optional voice setup hint belong only on My Day. Other views keep contextual task/note creation controls without repeating the capture dashboard.

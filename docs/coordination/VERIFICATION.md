@@ -67,3 +67,43 @@ Added Light, Dark, and System appearance to signed-in web and sign-in screens. T
 Browser checks: switched light/dark, reloaded and confirmed Dark remained selected, opened capture with title focus, and inspected responsive Home and dialog. Desktop Home was visually inspected at 1280px; committed responsive screenshots were captured at 550px. System mode is implemented but OS switching and cross-tab changes have not been manually exercised. Sign-in styling has not had a separate visual check in this change.
 
 Evidence: `design/evidence/home-dark-responsive.png`, `design/evidence/home-light-responsive.png`, and `design/evidence/capture-dark.png`.
+
+## Passwordless, search, and audio slice — 21 October 2026
+
+Branch: `edw/ordo-passwordless-capture`, based on pushed `edw/ordo-web-foundation`; PR targets that nonproduction foundation branch. No merge or deployment performed.
+
+Verification passed: 25 API tests plus 14 client tests (39 total), all-workspace typechecks, production build, formatting check, and documentation generation/link validation. Independent review found and fixed stale-account read leakage and first-email-proof password/session revocation. The first API test run while files were still under construction had temporary fixture/boundary failures; the final complete suite passes.
+
+Browser checks against the compiled app and migrated local API: existing session/data survived startup; search returned note titles and task descriptions from PostgreSQL; a generated one-second WAV tone uploaded, saved, and reappeared after a page reload; saved audio loaded a one-second preview; unavailable transcription said Coming soon. Signed out to inspect email/phone OTP entry without requesting a message, then signed back into the fictional legacy demo account. AI Capture and Upload Transcript show disabled Coming soon labels, including the narrow layout. No microphone prompt or real provider call was made.
+
+Screenshots committed: `design/evidence/home-coming-soon-desktop.jpg` (1280×720), `home-coming-soon-responsive.jpg` (550×717), `passwordless-entry.jpg`, `server-search.jpg`, `recording-saved.jpg`. The 550px screenshots are responsive browser evidence, not actual-phone evidence.
+
+Before local migrations, the API was stopped and local embedded database backup was saved privately under `.data/backups/before-passwordless-capture-20261021.tar.gz`. Migrations 0002 (OTP/contact verification) and 0003 (search indexes) ran locally. The recording test uses fictional audio and the existing demo account only.
+
+Not verified: real Gatekeeper delivery or key validity, real OpenAI transcription, microphone capture, actual iPhone/Android hardware, trusted phone HTTPS certificate, external PostgreSQL, multi-replica safety, deployment. Transcription has an adapter and tests but stays Coming soon until OPENAI_API_KEY is configured. Capture storage/transcription is single-process filesystem-backed with bounded synchronous provider requests, not a distributed job queue. Optional PIN, verified phone linking to an existing email account, AI extraction and transcript import remain pending. See [phone testing](../PHONE-TESTING.md).
+
+## Superseding audio-retention correction — C20
+
+Earlier saved-recording checks and screenshots describe an implementation rejected by Edward and are historical evidence only. Current API is `POST /v1/transcriptions` with request-scoped audio; saved-capture routes/store/capability are removed. Current UI has no file picker, audio save/history/playback, or persistent audio retries. Only transcript text is returned, edited, and optionally saved as a note. Record is Coming soon when no transcription provider is configured. The exact local synthetic recording and metadata were removed, no other audio existed, and `.data/captures` no longer exists. No live provider, microphone or actual phone was exercised for this correction.
+
+Correction verification: 27 API tests plus 14 client tests (41 total), workspace typechecks, production build, formatting, docs link validation, and whitespace checks pass. Tests cover no-file success/failure/no-provider behavior, removed storage endpoints, byte-buffer cleanup, bounded concurrent work, timeout, and real loopback client-disconnect cancellation with provider abort. UI screenshots: `design/evidence/home-transcription-only-desktop.jpg` (1280px) and `home-transcription-only-responsive.jpg` (550px). The compiled local app confirms Record is disabled with Coming soon when no provider is configured. Only injected providers were tested; no live microphone/provider/phone claim is made.
+
+## Appearance icon simplification
+
+Replaced the Light/Dark/System dropdown with an accessible sun/moon button on Home and sign-in. Defaults still follow the OS until the user chooses; explicit light/dark preference persists locally. Browser verified dark → light → reload (light remained) → dark. Desktop/responsive screenshots: `design/evidence/theme-icon-desktop.jpg`, `theme-icon-light-responsive.jpg`, `theme-icon-dark-responsive.jpg`. Production web build including TypeScript passed. No new automated tests were added for this small reversible UI change.
+
+## Configurable audio and branded email — 21 October 2026
+
+Owner confirmed receipt of the previously requested email and SMS OTPs. This confirms delivery for those tests; the new branded HTML template was previewed locally with an obviously synthetic code, not resent. Transport regression checks HTML branding, text fallback, no remote/tracking assets, and no markup injection through the code. Preview source: `design/email/otp-preview.html`. Screenshots: `otp-email-branded-desktop.jpg` and `otp-email-branded-preview.jpg` under design/evidence. Sender identity remains the Gatekeeper account configuration; the application changes subject/body.
+
+52 tests pass (36 API + 16 client), workspace typechecks, production build, format check and docs link validation pass. Independent review checked owner isolation, AES-GCM credentials, HTTPS-only new keys, no browser key persistence, pipe-only FFmpeg, and the fixed provider-switch privacy race. Provider snapshot is mandatory when resolving account settings. Cloud connection tests check authentication, not paid transcription quota.
+
+Real local smoke: existing installed public JFK speech fixture was read into memory, decoded through FFmpeg pipes, and transcribed by loopback whisper-server with the installed English base model. Expected public-speech terms matched; no transcript was logged. A second smoke through Ordo's real API composition returned200 with default local provider/configuredtrue and zero notes automatically saved. No recorded audio was written. Whisper native logs are suppressed, --convert is not enabled, and .data/captures remains absent.
+
+Browser: Settings opened from sidebar; Local Whisper reported ready; Test connection passed; saving local preference succeeded; OpenAI option displayed own-key entry and estimated0.003USD/minute (~0.18USD/hour) with official pricing link. No real cloud key was entered. Recording dialog displayed its fixed local destination without requesting microphone access. Screenshot files: `audio-settings-desktop.jpg`, `audio-settings-local-responsive.jpg`, `audio-settings-online-responsive.jpg`, `voice-local-ready.jpg`. New model preferences were added by local migration0004 after private database backup `.data/backups/before-audio-settings-20261021.tar.gz`.
+
+Not verified: actual microphone/browser recording, physical devices, trusted phone HTTPS, real online transcription/key billing, or Gmail/Outlook rendering/delivery of the new HTML email. Local Whisper runs on the Mac/server, not the phone. Native phone on-device inference remains Coming soon. No merge/deployment occurred.
+
+## Capture actions scoped to My Day
+
+The full quick-capture card row and optional voice onboarding hint now render only on My Day. Browser verified My Day retains the row, while Inbox, Upcoming, workspace and project views omit it. Task lists keep Add a task; Notes keeps New note. Web production build passed after this change. Screenshots: `design/evidence/inbox-contextual-actions.jpg` and `design/evidence/project-contextual-actions.jpg`.

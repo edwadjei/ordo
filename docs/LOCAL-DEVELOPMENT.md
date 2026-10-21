@@ -15,9 +15,9 @@ Open [Ordo Web](http://127.0.0.1:3318). The API listens on `127.0.0.1:4318`; the
 
 No Docker, external database account, AI key, or `.env` file is required for this local setup. Embedded PostgreSQL persists application data in repository `.data/ordo`. Keep one API process per data directory. Stop with Ctrl+C so database state closes cleanly. Do not delete `.data` when updating dependencies; it contains local account data.
 
-Register a local account with a password of at least 12 characters. No email is sent and email ownership is not verified. Workspaces start empty. The sample-data action explicitly creates fictional MTN, DAMSYN, Dorsh, and Personal examples for the signed-in account; no real project data is imported.
+Sign in with email or a Ghana phone number and a six-digit OTP. Gatekeeper delivery requires a privately configured key and URL; unavailable delivery shows Coming soon. Existing password accounts remain accessible, and successful first email OTP verification converts that account to passwordless access. Automated tests use injected delivery and never send real messages. Workspaces start empty. The sample-data action explicitly creates fictional MTN, DAMSYN, Dorsh, and Personal examples for the signed-in account; no real project data is imported.
 
-Individual servers can be started with `npm run dev:api` and `npm run dev:web`. The combined `npm run dev` script loads optional repository-root `.env` before launching both processes. Individual server commands use their process environment; they do not automatically load root `.env`.
+Individual servers can be started with `npm run dev:api` and `npm run dev:web`. The combined `npm run dev` script loads optional repository-root `.env` before launching both processes. The API also loads optional root `.env` when started individually; web-only commands use their process environment.
 
 ## Configuration names
 
@@ -55,4 +55,10 @@ The first local startup initializes that schema and records its checksum. An app
 
 ## Current release limits
 
-This build is local development, not a hosted release. Production proxy-aware abuse controls, password recovery/email verification, operational backup/restore, native-client authentication, and multi-instance migrations need release work. AI, recording/import processing, MCP, native mobile packages, and Mac packaging remain separate slices. A visible planned capture control does not mean that capability is implemented.
+This build is local development, not a hosted release. Production proxy-aware abuse controls, contact linking/recovery, operational backup/restore, native-client authentication, and multi-instance migrations need release work. Recording-to-transcription uses temporary memory only; Ordo stores no audio or uploaded files. AI extraction and transcript imports show Coming soon. MCP, native mobile packages, and Mac packaging remain separate slices. See [phone verification](PHONE-TESTING.md) for HTTPS requirements and the actual-device checklist.
+
+## Delivery and audio settings
+
+`GATEKEEPER_API_KEY` and `GATEKEEPER_API_URL` enable OTP delivery. HTML email branding is enabled by default; `GATEKEEPER_EMAIL_HTML=false` selects the plain-text fallback. Audio settings default to local Whisper; optional online keys are entered per account in Settings. See [audio setup](AUDIO-SETUP.md). These credentials are server-only. There is no audio data directory or file storage. Recording bytes exist only in memory while a transcription request is processed, then are cleared on success, failure, or timeout. The configured provider receives audio for transcription; provider-side retention is governed separately by that provider. Only transcript text explicitly saved as a note persists in PostgreSQL. Provider calls are not part of automated tests.
+
+`ORDO_TLS_KEY`, `ORDO_TLS_CERT`, and optional `ORDO_HTTPS_PORT` configure the local phone HTTPS proxy. Certificate/device trust is not installed automatically. API origin checks still require the exact HTTPS origin in `TRUSTED_ORIGINS`.

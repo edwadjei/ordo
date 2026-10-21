@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import {
   users,
   sessions,
@@ -7,10 +7,12 @@ import {
   tasks,
   notes,
   idempotencyKeys,
+  otpChallenges,
+  audioSettings,
   type Database,
 } from '@ordo/db';
 
-export { and, asc, eq, gt, isNull };
+export { and, asc, desc, eq, gt, isNull, sql };
 export const tables = {
   users,
   sessions,
@@ -19,6 +21,8 @@ export const tables = {
   tasks,
   notes,
   idempotencyKeys,
+  otpChallenges,
+  audioSettings,
 };
 export type TransactionContext = Database;
 export type UserRecord = typeof users.$inferSelect;
@@ -54,3 +58,5 @@ export class DatabaseAdapter {
     });
   }
 }
+
+export type OtpChallengeRecord = typeof otpChallenges.$inferSelect;

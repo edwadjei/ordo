@@ -6,11 +6,13 @@ export function Dialog({
   children,
   onClose,
   drawer = false,
+  eyebrow,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   drawer?: boolean;
+  eyebrow?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -42,7 +44,7 @@ export function Dialog({
       <div className="dialog-inner">
         <header className="dialog-header">
           <span className="eyebrow">
-            {drawer ? 'THE DETAILS' : 'QUICK CAPTURE'}
+            {eyebrow ?? (drawer ? 'THE DETAILS' : 'QUICK CAPTURE')}
           </span>
           <button className="icon-button" aria-label="Close" onClick={onClose}>
             <X size={18} />

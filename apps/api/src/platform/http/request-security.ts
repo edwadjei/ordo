@@ -29,7 +29,14 @@ export function registerRequestSecurity(
           'ORIGIN_REJECTED',
           'This request did not come from an allowed app origin.',
         );
-      if (pathname === '/v1/auth/register' || pathname === '/v1/auth/login') {
+      if (
+        [
+          '/v1/auth/register',
+          '/v1/auth/login',
+          '/v1/auth/otp/request',
+          '/v1/auth/otp/verify',
+        ].includes(pathname)
+      ) {
         const now = Date.now();
         if (rate.size > 10000)
           for (const [key, bucket] of rate)
@@ -53,6 +60,9 @@ export function registerRequestSecurity(
     }
     if (
       pathname === '/health' ||
+      pathname === '/v1/capabilities' ||
+      pathname === '/v1/auth/otp/request' ||
+      pathname === '/v1/auth/otp/verify' ||
       pathname === '/v1/auth/register' ||
       pathname === '/v1/auth/login'
     )
@@ -62,7 +72,7 @@ export function registerRequestSecurity(
     request.actor = await options.authenticator.resolveSession(token);
     const actor = currentUser(request);
     const expectedAccount = request.headers['x-ordo-account'];
-    if (mutation && expectedAccount && expectedAccount !== actor.id)
+    if (expectedAccount && expectedAccount !== actor.id)
       fail(
         409,
         'SESSION_CHANGED',

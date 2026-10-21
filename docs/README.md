@@ -51,3 +51,5 @@ Keep setup commands runnable as written. Document environment variable names onl
 ## Local documentation site
 
 From the repository root, run `npm ci` then `npm run docs`. Open `docs/html/index.html`. The output is generated and ignored by Git. The builder reads only reviewed repository Markdown; it is not an upload renderer for user-supplied content. It renders all Markdown under `docs/`, including nested specs and coordination records, so new documents appear automatically.
+
+Voice provider setup: [Audio setup](AUDIO-SETUP.md) covers local Whisper, per-account online keys, transient audio, and phone requirements.

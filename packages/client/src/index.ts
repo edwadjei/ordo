@@ -1,3 +1,4 @@
+import { requestId } from './request-id.ts';
 import type {
   ApiError,
   HomeSnapshot,
@@ -20,25 +21,61 @@ export class RequestError extends Error {
     this.name = 'RequestError';
   }
 }
+export interface AppCapabilities {
+  otp: { email: boolean; sms: boolean };
+  recording: boolean;
+  transcription: boolean;
+  aiCapture: boolean;
+  transcriptImport: boolean;
+}
+export interface AudioSettings {
+  provider: 'local_whisper' | 'openai';
+  localAvailable: boolean;
+  hasApiKey: boolean;
+  configured: boolean;
+}
+export interface AudioSettingsInput {
+  provider: AudioSettings['provider'];
+  apiKey?: string;
+  removeApiKey?: boolean;
+}
+export interface SearchResult {
+  id: string;
+  type: 'task' | 'note' | 'project';
+  title: string;
+  excerpt: string;
+  workspaceId: string | null;
+  projectId?: string | null;
+}
 export type TaskChanges = Partial<TaskInput> & { expectedRevision: number };
 export type NoteChanges = Partial<NoteInput> & { expectedRevision: number };
-export function createClient(base = '/api', transport: typeof fetch = fetch) {
+export function createClient(
+  base = '/api',
+  transport: typeof fetch = fetch,
+  onSessionInvalid?: () => void,
+) {
   let accountId: string | null = null;
   async function request<T>(
     route: string,
     options: RequestInit = {},
   ): Promise<T> {
-    const authenticatedWrite =
-      options.method &&
-      options.method !== 'GET' &&
-      !['/auth/register', '/auth/login'].includes(route);
+    const authenticatedRequest = ![
+      '/auth/register',
+      '/auth/login',
+      '/auth/otp/request',
+      '/auth/otp/verify',
+      '/auth/me',
+      '/home',
+      '/capabilities',
+    ].includes(route);
+    const requestAccount = accountId;
     const response = await transport(`${base}${route}`, {
       credentials: 'include',
       ...options,
       headers: {
         ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(authenticatedWrite && accountId
-          ? { 'X-Ordo-Account': accountId }
+        ...(authenticatedRequest && requestAccount
+          ? { 'X-Ordo-Account': requestAccount }
           : {}),
         ...options.headers,
       },
@@ -50,6 +87,13 @@ export function createClient(base = '/api', transport: typeof fetch = fetch) {
         payload && 'error' in Object(payload)
           ? (payload as ApiError).error
           : null;
+      if (
+        authenticatedRequest &&
+        requestAccount &&
+        requestAccount === accountId &&
+        (response.status === 401 || error?.code === 'SESSION_CHANGED')
+      )
+        onSessionInvalid?.();
       throw new RequestError(
         response.status,
         error?.code || 'REQUEST_FAILED',
@@ -73,6 +117,50 @@ export function createClient(base = '/api', transport: typeof fetch = fetch) {
     setAccount: (id: string | null) => {
       accountId = id;
     },
+    capabilities: () => request<AppCapabilities>('/capabilities'),
+    audioSettings: (signal?: AbortSignal) =>
+      request<AudioSettings>('/settings/audio', { signal }),
+    saveAudioSettings: (data: AudioSettingsInput, signal?: AbortSignal) =>
+      request<AudioSettings>('/settings/audio', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+        signal,
+      }),
+    testAudioSettings: (signal?: AbortSignal) =>
+      request<{ ok: boolean; message: string }>('/settings/audio/test', {
+        method: 'POST',
+        signal,
+      }),
+    requestOtp: (contact: string) =>
+      send<{
+        challengeId: string;
+        retryAfterSeconds: number;
+        expiresInSeconds: number;
+      }>('/auth/otp/request', 'POST', { contact }),
+    verifyOtp: (data: {
+      challengeId: string;
+      code: string;
+      displayName?: string;
+    }) => send<{ user: User }>('/auth/otp/verify', 'POST', data),
+    search: (query: string, signal?: AbortSignal) =>
+      request<{ results: SearchResult[] }>(
+        `/search?q=${encodeURIComponent(query)}`,
+        { signal },
+      ),
+    transcribeAudio: (
+      audio: Blob,
+      signal: AbortSignal | undefined,
+      provider: AudioSettings['provider'],
+    ) =>
+      request<{ transcript: string }>('/transcriptions', {
+        method: 'POST',
+        body: audio,
+        signal,
+        headers: {
+          'Content-Type': audio.type || 'audio/webm',
+          'X-Ordo-Audio-Provider': provider,
+        },
+      }),
     home: () => request<HomeSnapshot>('/home'),
     me: () => request<{ user: User }>('/auth/me'),
     register: (data: {
@@ -93,7 +181,7 @@ export function createClient(base = '/api', transport: typeof fetch = fetch) {
     }) => send<Project>('/projects', 'POST', data),
     createTask: (
       data: Partial<TaskInput> & { title: string },
-      key: string = crypto.randomUUID(),
+      key: string = requestId(),
       ownerId?: string,
     ) =>
       send<Task>('/tasks', 'POST', data, {
