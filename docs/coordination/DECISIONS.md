@@ -27,6 +27,8 @@
 | C15 | Include the supplied orange treatment as a restrained accent within the white design | Edward’s orange reference and request, 21 October 2026 |
 | C16 | Every PR must include screenshots, especially UI PRs; `gh` CLI may be used | Edward’s explicit PR-evidence instruction, 21 October 2026 |
 
+| C17 | Web dark mode is required now, alongside light and system appearance | Edward’s annotated dark-mode instruction, 21 October 2026 |
+
 ## Proposals and open choices
 
 | ID | Choice | Recommendation / next action | State |

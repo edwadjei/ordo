@@ -46,3 +46,7 @@ npm run test --workspace @ordo/client
 ```
 
 The shared-client tests cover account isolation, idempotency preservation, storage failure, authenticated mutation preconditions, session-change propagation, and an autosave regression for edits made during a slow request. Browser verification is recorded by the coordinator separately; compilation alone does not prove user journeys.
+
+## Appearance
+
+Use the Appearance selector in the top bar or sign-in screen to choose Light, Dark, or System. The choice is saved in this browser; System follows the operating system appearance. Both themes retain orange accents and workspace colors. CSS light-dark() requires a current browser.

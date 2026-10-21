@@ -59,3 +59,11 @@ There is no offline app shell for cold offline reload, full incremental sync pro
 Documentation (`7c3715a`), persistent web foundation (`8e5b837`), and orange/capture-focus refinement (`251efa8`) were pushed as separate checkpoints. The modular API and this evidence form a separate checkpoint; use the Git log for its exact revision. All use `edwadjei <edd.net49@gmail.com>`, with no AI attribution.
 
 No merge, deployment, shared-environment migration, or production action has occurred. Those remain subject to Edward's explicit approval for the particular change.
+
+## Web appearance — 21 October 2026
+
+Added Light, Dark, and System appearance to signed-in web and sign-in screens. The browser remembers the choice locally, applies it before page paint, and follows OS changes in System mode through CSS color-scheme. No account data is stored with this preference. Modern browsers supporting CSS light-dark() are required.
+
+Browser checks: switched light/dark, reloaded and confirmed Dark remained selected, opened capture with title focus, and inspected responsive Home and dialog. Desktop Home was visually inspected at 1280px; committed responsive screenshots were captured at 550px. System mode is implemented but OS switching and cross-tab changes have not been manually exercised. Sign-in styling has not had a separate visual check in this change.
+
+Evidence: `design/evidence/home-dark-responsive.png`, `design/evidence/home-light-responsive.png`, and `design/evidence/capture-dark.png`.

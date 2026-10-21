@@ -1,4 +1,5 @@
 'use client';
+import { ThemeSelector } from './theme-selector';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   Sun,
@@ -356,6 +357,7 @@ export function WorkspaceApp() {
             <strong>{title}</strong>
           </div>
           <div className="top-actions">
+            <ThemeSelector />
             <button
               className="search-trigger"
               onClick={() => {
@@ -367,7 +369,11 @@ export function WorkspaceApp() {
               <span>Search anything</span>
               <kbd>⌘ K</kbd>
             </button>
-            <button className="quick-capture" onClick={() => setModal('task')}>
+            <button
+              className="quick-capture"
+              aria-label="Quick Capture"
+              onClick={() => setModal('task')}
+            >
               <Plus size={15} />
               <span>Quick Capture</span>
             </button>

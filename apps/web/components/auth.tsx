@@ -1,4 +1,5 @@
 'use client';
+import { ThemeSelector } from './theme-selector';
 import { useState, type FormEvent } from 'react';
 import { ArrowRight, Leaf } from 'lucide-react';
 import { api } from '../lib/workspace';
@@ -58,6 +59,7 @@ export function Auth({
         <small>Your thoughts. Your space. Your next step.</small>
       </div>
       <section className="auth-form">
+        <ThemeSelector />
         <div className="eyebrow">FROM THOUGHT TO DONE</div>
         <h2>{register ? 'A calmer place to start.' : 'Welcome back.'}</h2>
         <p className="muted">

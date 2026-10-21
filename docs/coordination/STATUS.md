@@ -64,3 +64,7 @@ The documentation site is generated into `docs/html`, and a preview may be runni
 ## Waiting on Edward
 
 Nothing is needed to continue local implementation and verification. Integration branch policy (`dev` for staging / `main` for production) and hosting remain to be settled before PR integration/deployment. Do not infer those decisions from the instruction to build or push a feature branch.
+
+## Latest web appearance change
+
+Edward requested dark mode immediately. Web now has Light / Dark / System selection, browser-local persistence, and themed forms, dialogs, navigation, and content. Browser verification and screenshots are recorded in VERIFICATION.md. Native mobile remains pending.
