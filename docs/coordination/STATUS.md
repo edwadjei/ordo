@@ -84,3 +84,5 @@ Implemented email/Ghana-phone OTP with verified contact timestamps, account-pres
 Edward asked whether onboarding should collect both phone/email or email alone with later linking. Recommendation given: email-first onboarding and optional verified phone linking to the same account later. Current implementation accepts either contact separately; linking is not implemented and is not automatic.
 
 Waiting on Edward: review the PR. Live delivery needs an intended test recipient, transcription needs a provider key, and actual phone microphone testing needs trusted HTTPS and a real device. These do not imply approval to merge or deploy.
+
+PR: [#1 — Add passwordless sign-in, server search and audio capture](https://github.com/edwadjei/ordo/pull/1), `edw/ordo-passwordless-capture` → `edw/ordo-web-foundation`. Mergeable when opened; screenshots embedded in the description and their remote asset URL verified accessible. GitHub validation started; local checks passed. No merge/deployment approval given.
