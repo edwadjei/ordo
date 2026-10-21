@@ -1,7 +1,9 @@
 # Responsive web foundation delivery
 
-**Started:** 21 October 2026.  
-**Authorization:** Edward: “Yes build.”  
+**Started:** 21 October 2026.
+
+**Authorization:** Edward: “Yes build.”
+
 **Method:** Coordinated-development; local implementation, reviewable before merge/deploy.
 
 ## Working choices
@@ -25,7 +27,7 @@ These are local build choices, not authorization to provision services, send sen
 | Web/client | `web_app` | `apps/web`, `packages/client` | Responsive authenticated task/note workflow and durable queued capture |
 | Coordination | This chat | Root tooling, `docs`, `design`, integration checks | Design preview, runnable setup, review and evidence |
 
-Specialists share this local feature checkout with separate file ownership. No specialist may change branches or root dependencies concurrently. The coordinator performs dependency installation after workspace manifests are ready. Edward requested branch checkpoints while building. The coordinator commits and pushes coherent checkpoints to `codex/ordo-web-foundation`; no merge or deployment is authorized by this. Integration branch policy remains unresolved; local build work does not infer permission to change `main` or provision `dev`.
+Specialists share this local feature checkout with separate file ownership. No specialist may change branches or root dependencies concurrently. The coordinator performs dependency installation after workspace manifests are ready. Edward requested branch checkpoints while building. The coordinator commits and pushes coherent checkpoints to `edw/ordo-web-foundation`; no merge or deployment is authorized by this. Integration branch policy remains unresolved; local build work does not infer permission to change `main` or provision `dev`.
 
 ## Sequence and checks
 

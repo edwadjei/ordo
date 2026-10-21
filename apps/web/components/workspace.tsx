@@ -378,7 +378,7 @@ export function WorkspaceApp() {
             <div>
               <div className="eyebrow">
                 {view === 'day'
-                  ? 'A LITTLE CLARITY GOES A LONG WAY'
+                  ? '01 / MY DAY'
                   : workspace?.name || 'YOUR PERSONAL WORKSPACE'}
               </div>
               <h1>{view === 'day' ? 'Make room for what matters.' : title}</h1>

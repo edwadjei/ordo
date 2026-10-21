@@ -1,16 +1,18 @@
 # Ordo — delivery ledger
 
-**Updated:** 21 October 2026.  
-**Current milestone:** Documentation foundation.  
-**Application status:** Not implemented.
+**Updated:** 21 October 2026.
+
+**Current milestone:** Persistent responsive web foundation; API structure and UI refinement.
+
+**Application status:** Working locally; baseline pushed on `edw/ordo-web-foundation`, not merged or deployed.
 
 ## Milestones
 
 | ID | Deliverable | State | Exit evidence |
 |---|---|---|---|
-| D0 | Import briefs, document workflow, create local documentation site | Verified locally | Identical source copies; 11 pages built; 252 links checked; owner review pending |
-| F0 | Responsive web/API foundation, local database/auth, CI | Proposed | Scope/design decisions recorded; concrete specialist briefs; runnable setup; successful automated checks; phone-browser test matrix recorded |
-| W1 | Responsive web everyday core | Proposed | [Everyday core acceptance scenarios](specs/01-everyday-core.md#acceptance-scenarios) verified without AI keys, including phone-browser touch workflows and durable capture |
+| D0 | Import briefs, document workflow, create local documentation site | Verified locally | Identical source copies; documentation generation/link checks pass; checkpoint pushed |
+| F0 | Responsive web/API foundation, local database/auth, CI | Verified locally | Fresh install, format, typechecks, 16 tests, production build, and docs checks pass; no hosted CI/deployment claim |
+| W1 | Responsive web everyday core | Working baseline; remaining acceptance work | [Everyday core acceptance scenarios](specs/01-everyday-core.md#acceptance-scenarios) verified without AI keys, including phone-browser touch workflows and durable capture |
 | I2 | Shared iOS/Android mobile app — iOS urgent and prioritized | Priority confirmed; implementation pending | Native installation and authenticated task/note workflows against the same API; device, offline, lifecycle, and accessibility evidence |
 | D3 | macOS app — after iOS | Priority confirmed; implementation pending | Packaged Mac app with verified authentication, supported core workflows, permissions, and release/distribution evidence |
 | A | Intelligent capture and review | Proposed feature stream | Durable source → validated suggestions → edited selected commit; provider policy, provenance, permissions, and failure checks on each supported client |
@@ -50,7 +52,7 @@ Responsive phone-browser behavior is verified in W1; native app behavior is veri
 | 6 | Add durable offline text capture and reconcile failures | Stable write/revision contracts | Web + API |
 | 7 | Independently review, verify, and propose PR integration | Acceptance evidence | Reviewer + coordinator |
 
-These rows are sequencing guidance for coordinated-development. The coordinator turns settled scope/design decisions into specialist briefs; no separate Superpowers plan-approval stage applies. No specialists have been started or assigned implementation authorization.
+These rows are sequencing guidance for coordinated-development. The coordinator turns settled scope/design decisions into specialist briefs; no separate Superpowers plan-approval stage applies. API and web specialists implemented the authorized foundation; review findings were corrected. Follow-up restructuring and integration verification are active.
 
 ## Verification record
 
@@ -65,8 +67,12 @@ Verified on 21 October 2026:
 | `git diff --check` and added-file whitespace inspection | Passed |
 | Local docs browser review | Index rendered with branding, reading map, and navigation at the available narrow browser width |
 
-No application tests, builds, migrations, signed-in journeys, or Mac/mobile performance measurements exist yet. D0 completion means locally verified documentation, not merge approval.
+Application baseline verification: fresh `npm ci`, `npm run format:check`, all workspace typechecks, 8 API integration tests, 8 client tests, `npm run build`, docs link checks, and diff whitespace passed before checkpoint `8e5b837`. Signed-in browser checks confirmed account creation, fixture loading, task create/reload/edit/subtask/complete, note saving, and command search. Native devices, p95 performance, standard external PostgreSQL, hosted CI, and deployed environments remain unverified. Re-run relevant checks after the active restructuring.
 
 ## Release record
 
-No releases, deployments, database migrations, backups, or rollback images exist. Add a release entry only after an approved integration/deploy, with revision, checks, migration backup if relevant, rollback point, and post-deploy evidence.
+No hosted releases, deployments, backups, or rollback images exist. Database schema initialization/migrations have run locally only. Feature checkpoints `7c3715a` (docs) and `8e5b837` (persistent web foundation) are pushed on `edw/ordo-web-foundation`. Add a release entry only after an approved integration/deploy, with revision, checks, migration backup if relevant, rollback point, and post-deploy evidence.
+
+## Remaining web acceptance work
+
+Cold offline app reload is not supported without an offline shell; queued task creation is durable, while notes/edits require the API. Full sync cursors/conflict resolution, dark mode, project favorites, destination editing UI, people fields, server-side full-text search/pagination, and production authentication/abuse-control hardening remain incomplete. Record explicit device/browser and performance results before claiming those acceptance scenarios. Native mobile, recording/imports, AI review, MCP, and Mac remain separate work.

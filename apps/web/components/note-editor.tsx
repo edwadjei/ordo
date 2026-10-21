@@ -132,6 +132,7 @@ export function NoteEditor({
         Note
         <textarea
           autoFocus
+          data-autofocus
           className="note-body"
           value={body}
           onChange={(event) => setBody(event.target.value)}

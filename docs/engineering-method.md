@@ -25,7 +25,7 @@ Use one specialist per substantial area, rather than one session per small issue
 ## Repository and documentation hygiene
 
 - Keep changes focused and reviewable. Introduce runtime directories when working code needs them; avoid empty scaffolds pretending a feature exists.
-- No AI attribution in commits or PR descriptions. Names of agent tools in workflow documentation are descriptive, not commit attribution.
+- Commit author and committer identity: `edwadjei <edd.net49@gmail.com>`. Use `edw/` feature branches. No AI attribution in commits or PR descriptions. Names of agent tools in workflow documentation are descriptive, not commit attribution.
 - Never print or commit secrets. Environment guides contain variable names, purposes, and required/optional status only.
 - Use Context7 to resolve and query current library documentation before library-specific setup or implementation. Version pins must be based on verified compatibility, not copied blindly from another project.
 - Update docs in the same change as behavior. Setup commands must work as written; label future guides and proposed configuration clearly.
@@ -39,7 +39,7 @@ For UI, show real screenshots at Mac and mobile widths, keyboard navigation, and
 
 ## Integration and release
 
-The repository currently has `main` only. Proposed policy: `dev` for integration/staging, `main` for production releases, and `codex/` feature branches. Do not create deployment bindings or infer an existing staging environment from branch names. Edward must settle the policy before implementation PRs target an integration branch.
+At kickoff the repository had `main` only; work now uses the pushed `edw/ordo-web-foundation` feature branch. Proposed integration policy: `dev` for integration/staging, `main` for production releases, and `edw/` feature branches. Do not create deployment bindings or infer an existing staging environment from branch names. Edward must settle the policy before implementation PRs target an integration branch.
 
 Each merge and deploy needs Edward's direct approval for that change. Shared-environment data edits, secrets, DNS, and provider configuration need direct approval too. Production requires an explicit production release request.
 

@@ -1,6 +1,7 @@
 # Ordo decision register
 
-**Updated:** 21 October 2026.  
+**Updated:** 21 October 2026.
+
 **Rule:** Proposed is not approved. Record the owner's words and date when a proposal becomes a decision.
 
 ## Confirmed facts and instructions
@@ -21,6 +22,10 @@
 
 | C12 | Home layout direction accepted; use white backgrounds and neutral chrome so varied task/workspace colors remain clear, rather than a green theme | Edward’s design-preview feedback, 21 October 2026 |
 
+| C13 | All commits use `edwadjei <edd.net49@gmail.com>`; feature branches use `edw/`; no AI attribution in commits or PR descriptions | Edward’s explicit attribution/branch instruction, 21 October 2026 |
+| C14 | Structure API and concept documentation like the local DAMSYN API: platform, capabilities, adapters, domains | Edward’s API-structure request, 21 October 2026 |
+| C15 | Include the supplied orange treatment as a restrained accent within the white design | Edward’s orange reference and request, 21 October 2026 |
+
 ## Proposals and open choices
 
 | ID | Choice | Recommendation / next action | State |
@@ -30,7 +35,7 @@
 | P03 | Runtime and package manager | Select compatible runtime/package manager during foundation planning; docs currently use npm only | Open |
 | P04 | Authentication | Choose secure web authentication with an explicit native-client API boundary; settle native iOS session/token handling for I2 | Open |
 | P05 | Personal Inbox ownership | Define owner-bound unscoped records and explicit movement into workspace context | Open; schema blocker |
-| P06 | Branch/environment policy | `dev` for integration/staging, `main` for production releases, `codex/` feature branches | Proposed; no branch/environment provisioning authorized by this entry |
+| P06 | Branch/environment policy | `dev` for integration/staging, `main` for production releases, `edw/` feature branches | Proposed; no branch/environment provisioning authorized by this entry |
 | P07 | Hosting, region, storage, and deployment | Choose actual providers and record costs/data boundaries before provisioning | Open; no environments exist |
 | P08 | Queue | Choose Postgres queue or BullMQ/Redis before AI workers; only one job backend | Open; not required for manual first task flow |
 | P09 | My Day and parent completion | Review behavior table in slice spec | Proposed |

@@ -15,8 +15,16 @@ export function Dialog({
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current;
+    const previousFocus = document.activeElement as HTMLElement | null;
     dialog?.showModal();
-    return () => dialog?.close();
+    const input = dialog?.querySelector<HTMLElement>(
+      '[data-autofocus], input:not([type="hidden"]), textarea, select',
+    );
+    input?.focus();
+    return () => {
+      dialog?.close();
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
   }, []);
   return (
     <dialog

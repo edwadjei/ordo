@@ -1,7 +1,9 @@
 # Ordo documentation
 
-**Product:** Ordo — From thought to done.  
-**Owner:** Edward Adjei.  
+**Product:** Ordo — From thought to done.
+
+**Owner:** Edward Adjei.
+
 **State:** Responsive web foundation implementation and local integration verification.
 
 ## Platforms

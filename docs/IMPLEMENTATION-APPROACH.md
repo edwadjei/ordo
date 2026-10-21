@@ -1,7 +1,9 @@
 # Ordo — implementation approach
 
-**Status:** Proposal for owner review.  
-**Baseline:** [Product](PRODUCT.md) and [technical](TECHNICAL.md) briefs.  
+**Status:** Proposal for owner review.
+
+**Baseline:** [Product](PRODUCT.md) and [technical](TECHNICAL.md) briefs.
+
 **Principle:** Ship the reliable everyday workflow before adding intelligence.
 
 ## What we are building

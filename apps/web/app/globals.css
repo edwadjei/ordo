@@ -7,6 +7,7 @@
   --line: #eceeef;
   --soft: #f4f5f5;
   --primary: #303538;
+  --brand-orange: #ff6a00;
   --danger: #ad584c;
   --font: Arial, Helvetica, sans-serif;
 }
@@ -70,7 +71,7 @@ svg {
   letter-spacing: -2px;
 }
 .brand span {
-  color: #9ba1a5;
+  color: var(--brand-orange);
 }
 .eyebrow {
   font-size: 10px;
@@ -435,15 +436,27 @@ svg {
   color: #a0a7ae;
 }
 .quick-capture {
-  background: #f6f7f7;
+  background: var(--brand-orange);
   display: flex;
   gap: 6px;
   align-items: center;
   padding: 8px 10px;
-  border: 1px solid #e9edee;
+  border: 1px solid var(--brand-orange);
   border-radius: 6px;
   font-size: 10px;
-  color: #66727b;
+  color: #202224;
+}
+.quick-capture:hover {
+  background: #f05e00;
+}
+.page-heading .eyebrow {
+  display: inline-block;
+  background: var(--brand-orange);
+  color: #202224;
+  padding: 5px 9px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
 }
 .content {
   max-width: 1200px;

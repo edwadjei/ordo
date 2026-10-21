@@ -1,7 +1,9 @@
 # Web foundation specialist brief
 
-**State:** Active implementation; layout accepted, palette revision requested by Edward.  
-**Owner:** Edward Adjei. **Coordinator:** This Ordo chat.  
+**State:** Active implementation; layout accepted, palette revision requested by Edward.
+
+**Owner:** Edward Adjei. **Coordinator:** This Ordo chat.
+
 **Area:** `apps/web` and `packages/client` only.
 
 ## Context

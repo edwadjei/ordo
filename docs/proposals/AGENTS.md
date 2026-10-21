@@ -20,11 +20,11 @@ Use Context7 for library, framework, SDK, API, CLI, and cloud-service syntax, co
 
 ## Commits and pull requests
 
-No AI attribution in commits or PR descriptions: no AI co-author trailers, generated-by lines, or AI-tool sign-offs. Keep changes focused, run applicable checks, and report actual results. The coordinator checks each specialist PR before presenting it to Edward. Do not claim runtime tests exist for a documentation-only change.
+Use commit author/committer `edwadjei <edd.net49@gmail.com>` and `edw/` feature branches. No AI attribution in commits or PR descriptions: no AI co-author trailers, generated-by lines, or AI-tool sign-offs. Keep changes focused, run applicable checks, and report actual results. The coordinator checks each specialist PR before presenting it to Edward. Do not claim runtime tests exist for a documentation-only change.
 
 ## Branches — pending owner adoption
 
-Proposed: `dev` is the integration branch and staging source; `main` is for explicitly approved production releases. Feature branches use `codex/` and target the agreed integration branch by PR. At kickoff only `main` is known locally; verify policy and branch availability before depending on `dev`.
+Proposed: `dev` is the integration branch and staging source; `main` is for explicitly approved production releases. Feature branches use `edw/` and target the agreed integration branch by PR. At kickoff only `main` is known locally; verify policy and branch availability before depending on `dev`.
 
 ## Working with the coordinator
 

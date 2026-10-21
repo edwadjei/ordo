@@ -1,56 +1,66 @@
 # Ordo coordinator handoff
 
-**Updated:** 21 October 2026.  
-**Owner:** Edward Adjei.  
-**Repository:** `git@github.com:edwadjei/ordo.git`.  
+**Updated:** 21 October 2026.
+
+**Owner and commit identity:** `edwadjei <edd.net49@gmail.com>`.
+
+**Repository:** `git@github.com:edwadjei/ordo.git`.
+
 **Workspace:** `/Users/edwadjei/projects/ordo`.
+
+**Feature branch:** `edw/ordo-web-foundation`.
 
 ## Current work
 
-This chat is the coordinator for Ordo's documentation-first kickoff. The current local branch is `codex/ordo-web-foundation`, created from the clean `main` checkout. Edward explicitly requested commit/push checkpoints while work proceeds. Documentation is the first checkpoint; verified application changes follow the active API restructuring. No PR, merge, deployment, infrastructure change, or external message has been made. Consult the Git log and branch tracking state for exact checkpoint revisions.
+The first persistent responsive web foundation is implemented and pushed at `8e5b837`, after documentation checkpoint `7c3715a`. Both commits already use Edward's requested author and committer identity, with no AI attribution. The feature branch was renamed to `edw/ordo-web-foundation` locally and remotely; its old remote name was removed. `main` has not changed.
 
-Edward explicitly selected coordinated-development as the sole delivery workflow. Brainstorming is optional design support only. Do not resume a Superpowers development sequence, require a separate plan-approval stage, or impose per-task implementer/reviewer agent cycles. The coordinator prepares briefs and checks specialist PRs; Edward approves scope/design choices and each merge/deployment/shared-data change.
+Current follow-up work: adapt API structure and concept documentation to Edward's local DAMSYN API conventions, retain the functioning endpoint contract and Fastify/Drizzle stack, and incorporate the orange reference as a restrained brand accent on white surfaces. Re-run applicable checks and commit/push these changes separately. No merge, deployment, or shared-environment data change is authorized.
 
-The supplied briefs are preserved in `docs/PRODUCT.md` and `docs/TECHNICAL.md`. Supporting docs adapt the organization of Unwrap and Bethel ChurchSuite, without inheriting their application stacks or environmental assumptions. Proposed architecture and first-slice details need owner review.
+Use coordinated-development exclusively: coordinator planning and standalone specialist briefs, specialist implementation, coordinator review, and Edward's per-change merge/deploy approval. Brainstorming is optional design support. Do not resume a Superpowers development sequence or impose a separate plan-approval stage.
 
-Documentation verified locally: exact source copies, clean lockfile install, 11 generated pages, 252 valid local links/fragments, script syntax, and diff whitespace. The local docs index was visually inspected in the browser. A loopback-only preview is available at `http://127.0.0.1:4317` while the documentation preview process remains running; the generated site also opens directly from `docs/html/index.html` without a server.
+## Work areas
 
-## Sessions and ownership
+| Area | State |
+|---|---|
+| Coordination/docs | Maintaining branch checkpoints, decisions, setup, and evidence |
+| API/domain/database | Persistent authorized baseline complete; DAMSYN-style modularization in progress |
+| Responsive web/client | Working local foundation; white palette accepted, orange accent and keyboard focus follow-up |
+| Review | Baseline API and client reviewed; reported persistence/session/editor defects fixed and tested |
+| Mobile iOS/Android | Not implemented; React Native/Expo direction selected, iOS urgent and prioritized |
+| macOS | Not implemented; follows priority mobile delivery |
+| AI/worker/MCP | Not implemented; separate feature streams |
 
-| Area | Session | State |
-|---|---|---|
-| Coordination/documentation | This chat | Documentation kickoff |
-| Foundation/API | Not started | [Brief prepared](FOUNDATION-BRIEF.md); foundation decisions and concrete task scope pending |
-| Responsive web | Not started | First platform; laptop and phone-browser UX/acceptance evidence |
-| Mobile iOS/Android | Not started | Urgent iOS priority; shared React Native/Expo stack recommended; framework/distribution decision and specialist brief pending |
-| AI/worker | Not started | Later slice |
-| macOS | Not started | Third platform, after iOS; packaging deferred |
-| MCP | Not started | Separate feature stream |
+Specialists were dispatched within this coordinator task, with separate file ownership. Do not assume a separate user-owned chat exists. The API specialist owns `apps/api`, `packages/core`, and `packages/db`; the web specialist owns `apps/web` and `packages/client`; the coordinator owns root tooling, docs, and integration evidence. Check active work before editing the same paths.
 
-Edward’s latest priority is **responsive web → native iOS (urgent) → macOS**. This replaces the earlier PWA-first decision. Web owns responsive phone-browser behavior; an iOS specialist owns the distinct native client. Select its framework and distribution method before implementation. Mac packaging, AI/MCP completion, Android, and PWA installability do not block starting iOS. No deadline or native framework has been selected.
+## Verified baseline
 
-No specialist has been dispatched. Start specialist work only with an approved bounded brief. If using child agents, return reports within this coordinator task. Separate user-visible chats require Edward's request; otherwise prepare a pasteable brief.
+Fresh dependency installation, formatting check, all workspace typechecks, 8 API integration tests, 8 client tests, the production build, documentation build/link check, and whitespace check passed for the pushed web foundation.
 
-## Environments and releases
+Browser evidence using a fictional local account: signup, explicit fictional fixture loading, title+Enter task creation, persistence after reload, task edit, subtask creation, parent completion with child still open, note save state, and command-search opening. Continue verifying follow-up code after rebuilding; this is not a claim of phone-device or production verification.
+
+Review fixed omitted PATCH defaults clearing fields, logout being caught by sign-in throttling, fresh database directories, account-switch mutation preconditions, stale logout responses, and edits during saves. Detailed runtime limits live in the API/web workspace guides and local development guide.
+
+## Environments
 
 | Environment | State | Release / rollback |
 |---|---|---|
-| Local | Documentation tooling only | No app release |
+| Local | Web `http://127.0.0.1:3318`; API `http://127.0.0.1:4318`; embedded PostgreSQL `.data/ordo` | Local build only |
 | Staging | Not provisioned | None |
 | Production | Not provisioned | None |
 
-No databases, backups, object stores, provider credentials, DNS, or CI secrets have been set up. Record actual details only when verified. Never include credential values here.
+The local database contains fictional browser-verification content. No provider credentials, object store, DNS, hosted database, or CI secrets were provisioned. Schema migrations have run locally only. Keep `.data` and private `.env` values out of Git. The CI workflow is committed; hosted CI has not run through a PR yet.
+
+The documentation site is generated into `docs/html`, and a preview may be running on port 4317. The prototype is `design/home-preview.html` on port 4319 when its preview process is active. The working app is port 3318; do not confuse the static prototype with persisted application behavior.
 
 ## Resume here
 
-1. Read `docs/README.md`, the supplied briefs, `docs/PLAN.md`, and `docs/coordination/DECISIONS.md`.
-2. Check the current working tree; preserve local work and do not assume these docs were committed or approved.
-3. Review the everyday core design with Edward and resolve foundation choices, especially Inbox ownership, authentication, and runtime.
-4. Settle integration branch policy before creating PRs. The invoked workflow requires proposed repo rules to go through a PR rather than direct adoption on the default branch.
-5. Prepare and assign standalone API/web briefs with explicit dependencies under coordinated-development once the relevant scope/design choices are settled.
+1. Inspect Git status/log and current live processes; preserve uncommitted work. Use `edw/` for new branches and Edward's requested Git identity.
+2. Read the active build plan, decision register, and relevant specialist briefs.
+3. Complete and verify the active API restructure without changing endpoint semantics or baseline migration history.
+4. Verify the orange/white UI and fast keyboard capture in the rebuilt app; save concrete screenshots and update delivery evidence.
+5. Commit and push coherent verified checkpoints. Do not merge or deploy without Edward's explicit approval for that change.
+6. Prepare the next mobile brief with React Native/Expo, iOS-first design/testing/release, separate Android checks, and secure native authentication/distribution decisions.
 
 ## Waiting on Edward
 
-Review [the everyday core proposal](../specs/01-everyday-core.md) and confirm whether to adopt `dev` → staging / `main` → production as the future integration policy. No hosting or paid service choice is needed to finish this documentation change.
-
-Latest mobile scope: Android is included, with iOS bias. Recommend React Native + Expo + TypeScript in `apps/mobile`; iOS leads design, device tests, and release readiness, and Android must not delay it. Responsive web remains first, macOS later. Framework adoption and Android release timing are not yet settled.
+Nothing is needed to continue local implementation and verification. Integration branch policy (`dev` for staging / `main` for production) and hosting remain to be settled before PR integration/deployment. Do not infer those decisions from the instruction to build or push a feature branch.

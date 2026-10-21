@@ -1,7 +1,9 @@
 # Slice 01 — Ordo everyday core
 
-**Status:** Implementation started under Edward’s “Yes build”; acceptance evidence and outstanding work are tracked in the delivery ledger.  
-**Goal:** Capture and complete work across personal portfolios without requiring AI.  
+**Status:** Implementation started under Edward’s “Yes build”; acceptance evidence and outstanding work are tracked in the delivery ledger.
+
+**Goal:** Capture and complete work across personal portfolios without requiring AI.
+
 **References:** [Product](../PRODUCT.md), [technical architecture](../TECHNICAL.md), [approach](../IMPLEMENTATION-APPROACH.md).
 
 ## User outcome
