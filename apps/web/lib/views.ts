@@ -1,16 +1,282 @@
 import type { HomeSnapshot, Task } from '@ordo/client';
 export type View =
   'day' | 'inbox' | 'upcoming' | 'waiting' | 'workspace' | 'project';
-export function localDate(timezone = 'Africa/Accra', date = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
+export const defaultTimezone = 'Africa/Accra';
+
+export type EverydayTask = Task;
+
+export function localDate(timezone = defaultTimezone, date = new Date()) {
+  return localNow(timezone, date).date;
+}
+/** Wall-clock date ("YYYY-MM-DD"), time ("HH:MM") and hour in a timezone. */
+export function localNow(timezone = defaultTimezone, date = new Date()) {
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = formatter(timezone).formatToParts(date);
+  } catch {
+    parts = formatter(defaultTimezone).formatToParts(date);
+  }
+  const get = (type: string) =>
+    parts.find((part) => part.type === type)?.value || '00';
+  // Some engines report midnight as "24" even with hourCycle h23.
+  const hour = get('hour') === '24' ? '00' : get('hour');
+  return {
+    date: `${get('year')}-${get('month')}-${get('day')}`,
+    time: `${hour}:${get('minute')}`,
+    hour: Number(hour),
+  };
+}
+function formatter(timeZone: string) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).formatToParts(date);
-  const get = (type: string) => parts.find((part) => part.type === type)?.value;
-  return `${get('year')}-${get('month')}-${get('day')}`;
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
 }
+export function addDays(date: string, days: number) {
+  const next = new Date(`${date}T12:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next.toISOString().slice(0, 10);
+}
+
+export function firstName(displayName: string | null | undefined) {
+  return displayName?.trim().split(/\s+/)[0] || '';
+}
+export function greeting(hour: number, displayName?: string | null) {
+  const part =
+    hour >= 5 && hour < 12
+      ? 'Good morning'
+      : hour >= 12 && hour < 17
+        ? 'Good afternoon'
+        : 'Good evening';
+  const name = firstName(displayName);
+  return name ? `${part}, ${name}` : part;
+}
+
+export type MomentKind = 'due' | 'follow-up';
+export interface Moment {
+  task: EverydayTask;
+  kind: MomentKind;
+  date: string;
+  time: string | null;
+}
+export function moments(task: EverydayTask): Moment[] {
+  const list: Moment[] = [];
+  if (task.dueDate)
+    list.push({
+      task,
+      kind: 'due',
+      date: task.dueDate,
+      time: task.dueTime || null,
+    });
+  if (task.followUpDate)
+    list.push({
+      task,
+      kind: 'follow-up',
+      date: task.followUpDate,
+      time: task.followUpTime || null,
+    });
+  return list;
+}
+export interface Clock {
+  date: string;
+  time: string;
+}
+/** A moment has passed once its day is over, or its time today has arrived. */
+export function hasPassed(moment: Pick<Moment, 'date' | 'time'>, now: Clock) {
+  if (moment.date < now.date) return true;
+  return moment.date === now.date && !!moment.time && moment.time <= now.time;
+}
+const open = (task: Task) => task.status !== 'done';
+const inScope = (workspaceId: string | null) => (task: Task) =>
+  !workspaceId || task.workspaceId === workspaceId;
+
+export interface DaySections {
+  dueNow: EverydayTask[];
+  overdue: EverydayTask[];
+  today: EverydayTask[];
+}
+/**
+ * Splits open tasks for My Day. Each task appears once, in the first matching
+ * section: Due now (a timed moment today has arrived), Overdue (a moment on an
+ * earlier day), Today (anything else dated today).
+ */
+export function daySections(
+  tasks: EverydayTask[],
+  now: Clock,
+  workspaceId: string | null = null,
+): DaySections {
+  const result: DaySections = { dueNow: [], overdue: [], today: [] };
+  for (const task of tasks.filter(open).filter(inScope(workspaceId))) {
+    const list = moments(task);
+    if (list.some((m) => m.date === now.date && m.time && hasPassed(m, now)))
+      result.dueNow.push(task);
+    else if (list.some((m) => m.date < now.date)) result.overdue.push(task);
+    else if (list.some((m) => m.date === now.date)) result.today.push(task);
+  }
+  const first = (task: EverydayTask) =>
+    moments(task)
+      .map((m) => `${m.date}T${m.time || '99:99'}`)
+      .sort()[0] || '';
+  for (const list of [result.dueNow, result.overdue, result.today])
+    list.sort((a, b) => first(a).localeCompare(first(b)));
+  return result;
+}
+
+export interface DayCounts {
+  today: number;
+  overdue: number;
+  upcoming: number;
+  waiting: number;
+  inbox: number;
+}
+export function dayCounts(
+  tasks: EverydayTask[],
+  now: Clock,
+  workspaceId: string | null = null,
+): DayCounts {
+  const active = tasks.filter(open).filter(inScope(workspaceId));
+  const end = addDays(now.date, 7);
+  const has = (task: EverydayTask, test: (date: string) => boolean) =>
+    moments(task).some((m) => test(m.date));
+  return {
+    today: active.filter((t) => has(t, (d) => d === now.date)).length,
+    overdue: active.filter((t) => has(t, (d) => d < now.date)).length,
+    upcoming: active.filter((t) => has(t, (d) => d > now.date && d <= end))
+      .length,
+    waiting: active.filter((t) => t.status === 'waiting').length,
+    inbox: active.filter((t) => !t.projectId).length,
+  };
+}
+export function daySummary(counts: DayCounts, dueNow: number) {
+  const parts: string[] = [];
+  if (dueNow) parts.push(`${dueNow} due now`);
+  // Due-now tasks are also today's; count the rest so nothing is said twice.
+  const rest = Math.max(counts.today - dueNow, 0);
+  if (rest)
+    parts.push(
+      `${rest} ${dueNow ? 'more' : rest === 1 ? 'thing' : 'things'} for today`,
+    );
+  if (counts.overdue) parts.push(`${counts.overdue} overdue`);
+  if (!parts.length)
+    return counts.upcoming
+      ? `Nothing due today. ${counts.upcoming} coming up this week.`
+      : 'Nothing due today. A clear runway for what matters.';
+  return `${sentence(parts)}.`;
+}
+function sentence(parts: string[]) {
+  const text =
+    parts.length > 1
+      ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`
+      : parts[0];
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+export interface DayGroup {
+  date: string;
+  label: string;
+  items: Moment[];
+}
+/** The next seven local days (tomorrow onwards), each with its due and follow-up moments. */
+export function upcomingGroups(
+  tasks: EverydayTask[],
+  today: string,
+  workspaceId: string | null = null,
+  projectId: string | null = null,
+): DayGroup[] {
+  const days = Array.from({ length: 7 }, (_, i) => addDays(today, i + 1));
+  const all = tasks
+    .filter(open)
+    .filter(inScope(workspaceId))
+    .filter((task) => !projectId || task.projectId === projectId)
+    .flatMap(moments);
+  return days.map((date) => ({
+    date,
+    label: dayLabel(date, today),
+    items: all
+      .filter((m) => m.date === date)
+      .sort(
+        (a, b) =>
+          (a.time || '99:99').localeCompare(b.time || '99:99') ||
+          a.task.title.localeCompare(b.task.title),
+      ),
+  }));
+}
+export function dayLabel(date: string, today: string) {
+  if (date === today) return 'Today';
+  if (date === addDays(today, 1)) return 'Tomorrow';
+  if (date === addDays(today, -1)) return 'Yesterday';
+  const value = new Date(`${date}T12:00:00Z`);
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  };
+  if (date.slice(0, 4) !== today.slice(0, 4)) options.year = 'numeric';
+  return new Intl.DateTimeFormat('en-GB', options)
+    .format(value)
+    .replace(',', '');
+}
+/** Short date for rows: "Today", "Tomorrow", "Yesterday" or "23 Oct", plus the time when set. */
+export function whenLabel(date: string, time: string | null, today: string) {
+  const near = [addDays(today, -1), today, addDays(today, 1)].includes(date);
+  const options: Intl.DateTimeFormatOptions = {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  };
+  if (date.slice(0, 4) !== today.slice(0, 4)) options.year = 'numeric';
+  const day = near
+    ? dayLabel(date, today)
+    : new Intl.DateTimeFormat('en-GB', options).format(
+        new Date(`${date}T12:00:00Z`),
+      );
+  return time ? `${day} · ${time}` : day;
+}
+
+/** Waiting On rows, soonest follow-up first; tasks with no follow-up last. */
+export function waitingTasks(
+  tasks: EverydayTask[],
+  workspaceId: string | null = null,
+  projectId: string | null = null,
+) {
+  return tasks
+    .filter((task) => task.status === 'waiting')
+    .filter(inScope(workspaceId))
+    .filter((task) => !projectId || task.projectId === projectId)
+    .sort(
+      (a, b) =>
+        `${a.followUpDate || '9999'}T${a.followUpTime || '99:99'}`.localeCompare(
+          `${b.followUpDate || '9999'}T${b.followUpTime || '99:99'}`,
+        ) || b.createdAt.localeCompare(a.createdAt),
+    );
+}
+export function followUpOverdue(task: EverydayTask, now: Clock) {
+  return (
+    !!task.followUpDate &&
+    hasPassed({ date: task.followUpDate, time: task.followUpTime || null }, now)
+  );
+}
+
+/** Names already used on tasks, for suggestions; case-insensitively unique. */
+export function knownNames(tasks: EverydayTask[]) {
+  const names = new Map<string, string>();
+  for (const task of tasks)
+    for (const value of [task.responsiblePerson, task.waitingOn]) {
+      const name = value?.trim();
+      if (name && !names.has(name.toLowerCase()))
+        names.set(name.toLowerCase(), name);
+    }
+  return [...names.values()].sort((a, b) =>
+    a.localeCompare(b, 'en', { sensitivity: 'base' }),
+  );
+}
+
 export function visibleTasks(
   data: HomeSnapshot,
   view: View,
@@ -18,10 +284,8 @@ export function visibleTasks(
   projectId: string | null,
   showDone: boolean,
 ) {
-  const today = localDate(data.user.timezone),
-    later = new Date(`${today}T12:00:00Z`);
-  later.setUTCDate(later.getUTCDate() + 7);
-  const end = later.toISOString().slice(0, 10);
+  const today = localDate(data.user.timezone || defaultTimezone),
+    end = addDays(today, 7);
   return data.tasks
     .filter((task) => {
       if (!showDone && task.status === 'done') return false;

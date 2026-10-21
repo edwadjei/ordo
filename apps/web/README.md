@@ -20,7 +20,10 @@ Sign in or create an account using email/Ghana phone OTP. Gatekeeper delivery mu
 - Account registration, login, and logout; no passwords are kept in browser storage.
 - Workspaces with distinct colors, project creation/filtering, global views, and scoped task/note capture.
 - Tasks, nested subtasks, explicit completion, status/priority/date editing, and archive. Parent completion does not complete children. Tasks with active children cannot be archived until those children are addressed.
-- My Day shows due/overdue tasks and follow-ups, with an additional undated-task list. Upcoming covers the next seven days. Inbox includes tasks without a project; Waiting On includes explicit Waiting status.
+- My Day greets the user by first name with a time-of-day greeting and today's date in their timezone (default Africa/Accra), a one-line summary, and five count chips (Today, Overdue, Upcoming over seven days, Waiting On, Inbox). Its list runs Due now (a timed due or follow-up moment today that has arrived), Overdue, Today, a three-item Waiting On preview, then undated tasks. This is in-app only: there are no browser notifications and no automatic status changes.
+- Every task list starts with an inline composer (type a title and press Enter) that uses the view's defaults: My Day → due today, Inbox → no project, Upcoming → due on the chosen day (tomorrow by default), Waiting On → status Waiting.
+- Inbox frames unsorted tasks and notes as triage. Upcoming groups the next seven local days ("Tomorrow", "Friday 23 Oct"), shows each item as Due or Follow up with its time, and offers to plan on empty days. Waiting On lists Waiting-status tasks with who they wait on, the follow-up date and time (passed follow-ups highlighted), and the responsible person.
+- Task detail edits due and follow-up dates with optional times (clearing a date clears its time in the same save), plus Responsible and Waiting on names, with suggestions from names already used. Only changed fields are sent. Rows show times and "Waiting on <name>" everywhere.
 - Plain-text notes with debounced autosave, sequential revision handling, visible unsaved/failure state, and close protection. Conflicts preserve the current editor text for copying/retry; automatic merge is not implemented.
 - `⌘K` / `Ctrl+K` searches authorized tasks, note bodies, and projects through the PostgreSQL full-text endpoint.
 - Responsive phone-browser layout, navigation drawer, and keyboard-accessible native dialogs.
@@ -33,7 +36,7 @@ The current-account pointer and a last-loaded account snapshot are cached for an
 
 **No service worker is installed.** An already open app can queue tasks while offline, but a cold offline reload is not guaranteed to load the application shell. Only task creation is queued; task edits, workspaces/projects, and notes require the API. Note text is retained in the open editor after a failure and warns on closing/unloading; it is not a durable offline note queue. A full multi-device sync protocol and conflict resolution UI remain later work.
 
-Settings selects Local Whisper on this Mac/server (default) or an account-owned OpenAI key. With a ready provider, Record captures microphone audio into memory; Stop transcribes it and discards the audio. Only the transcript can be explicitly saved as a note. There is no audio file picker, recording history, playback, or audio persistence. Without a ready selected provider, Record shows Coming soon and does not request microphone access. AI Capture and Upload Transcript are disabled with Coming soon labels. Project favorites, reassigning task destinations, and people fields remain pending. Light, Dark, and System themes are supported.
+Settings selects Local Whisper on this Mac/server (default) or an account-owned OpenAI key. With a ready provider, Record captures microphone audio into memory; Stop transcribes it and discards the audio. Only the transcript can be explicitly saved as a note. There is no audio file picker, recording history, playback, or audio persistence. Without a ready selected provider, Record shows Coming soon and does not request microphone access. AI Capture and Upload Transcript are disabled with Coming soon labels. Project favorites and reassigning task destinations remain pending. Light, Dark, and System themes are supported.
 
 ## Checks
 
@@ -43,9 +46,10 @@ From the repository root:
 npm run typecheck --workspace @ordo/web
 npm run build --workspace @ordo/web
 npm run test --workspace @ordo/client
+npm run test --workspace @ordo/web
 ```
 
-The shared-client tests cover account isolation, idempotency preservation, storage failure, authenticated mutation preconditions, session-change propagation, and an autosave regression for edits made during a slow request. Browser verification is recorded by the coordinator separately; compilation alone does not prove user journeys.
+The shared-client tests cover account isolation, idempotency preservation, storage failure, authenticated mutation preconditions, session-change propagation, and an autosave regression for edits made during a slow request. The web tests cover the pure view logic in `lib/views.ts`: the greeting, local-timezone clock, My Day sections and counts, seven-day grouping across month and year ends, Waiting On ordering, and name suggestions. Browser verification is recorded by the coordinator separately; compilation alone does not prove user journeys.
 
 ## Appearance
 

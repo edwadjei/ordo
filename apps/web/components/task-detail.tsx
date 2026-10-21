@@ -2,9 +2,23 @@
 import { useState, type FormEvent } from 'react';
 import { Check, Plus, Trash2 } from 'lucide-react';
 import type { HomeSnapshot, Task } from '@ordo/client';
+import type { TaskChanges } from '@ordo/client';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
-import { statusLabels } from '../lib/views';
+import { knownNames, statusLabels } from '../lib/views';
+const editable = [
+  'title',
+  'description',
+  'status',
+  'priority',
+  'dueDate',
+  'dueTime',
+  'followUpDate',
+  'followUpTime',
+  'responsiblePerson',
+  'waitingOn',
+] as const;
+const nameOrNull = (value: string | null) => value?.trim() || null;
 export function TaskDetail({
   task,
   data,
@@ -25,21 +39,26 @@ export function TaskDetail({
     [saved, setSaved] = useState(false),
     [subtask, setSubtask] = useState('');
   const children = data.tasks.filter((item) => item.parentId === task.id);
+  const names = knownNames(data.tasks);
   async function save(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError('');
     setSaved(false);
     try {
-      const updated = await api.updateTask(task.id, {
-        title: draft.title,
-        description: draft.description,
-        status: draft.status,
-        priority: draft.priority,
-        dueDate: draft.dueDate,
-        followUpDate: draft.followUpDate,
-        expectedRevision: draft.revision,
-      });
+      const next = {
+        ...draft,
+        dueTime: draft.dueDate ? draft.dueTime : null,
+        followUpTime: draft.followUpDate ? draft.followUpTime : null,
+        responsiblePerson: nameOrNull(draft.responsiblePerson),
+        waitingOn: nameOrNull(draft.waitingOn),
+      };
+      // Send only what changed: omitted fields stay as they are on the server.
+      const changes: TaskChanges = { expectedRevision: draft.revision };
+      for (const key of editable)
+        if (next[key] !== baseline[key])
+          Object.assign(changes, { [key]: next[key] });
+      const updated = await api.updateTask(task.id, changes);
       setDraft(updated);
       setBaseline(updated);
       await onChange();
@@ -92,16 +111,10 @@ export function TaskDetail({
     setSaved(false);
   }
   function confirmLeave() {
-    const keys = [
-      'title',
-      'description',
-      'status',
-      'priority',
-      'dueDate',
-      'followUpDate',
-    ] as const;
     return (
-      !keys.some((key) => draft[key] !== baseline[key]) ||
+      !editable.some(
+        (key) => (draft[key] || null) !== (baseline[key] || null),
+      ) ||
       window.confirm('You have unsaved task edits. Discard them and close?')
     );
   }
@@ -171,26 +184,107 @@ export function TaskDetail({
                 <option value="high">High</option>
               </select>
             </label>
+          </div>
+          <div className="when-grid">
+            <div className="when-field">
+              <label htmlFor="detail-due-date">Due</label>
+              <div className="date-time">
+                <input
+                  id="detail-due-date"
+                  type="date"
+                  value={draft.dueDate || ''}
+                  onChange={(event) => {
+                    const value = event.target.value || null;
+                    setDraft((prev) => ({
+                      ...prev,
+                      dueDate: value,
+                      dueTime: value ? prev.dueTime : null,
+                    }));
+                    setSaved(false);
+                  }}
+                />
+                <input
+                  type="time"
+                  aria-label="Due time (optional)"
+                  value={draft.dueTime || ''}
+                  disabled={!draft.dueDate}
+                  title={draft.dueDate ? undefined : 'Pick a due date first'}
+                  onChange={(event) =>
+                    field('dueTime', event.target.value || null)
+                  }
+                />
+              </div>
+            </div>
+            <div className="when-field">
+              <label htmlFor="detail-follow-date">Follow up</label>
+              <div className="date-time">
+                <input
+                  id="detail-follow-date"
+                  type="date"
+                  value={draft.followUpDate || ''}
+                  onChange={(event) => {
+                    const value = event.target.value || null;
+                    setDraft((prev) => ({
+                      ...prev,
+                      followUpDate: value,
+                      followUpTime: value ? prev.followUpTime : null,
+                    }));
+                    setSaved(false);
+                  }}
+                />
+                <input
+                  type="time"
+                  aria-label="Follow-up time (optional)"
+                  value={draft.followUpTime || ''}
+                  disabled={!draft.followUpDate}
+                  title={
+                    draft.followUpDate
+                      ? undefined
+                      : 'Pick a follow-up date first'
+                  }
+                  onChange={(event) =>
+                    field('followUpTime', event.target.value || null)
+                  }
+                />
+              </div>
+            </div>
+            <p className="field-hint">
+              Times are optional. When a time passes, the task shows under Due
+              now on My Day.
+            </p>
+          </div>
+          <div className="field-grid">
             <label>
-              Due date
+              Responsible
               <input
-                type="date"
-                value={draft.dueDate || ''}
+                list="known-people"
+                value={draft.responsiblePerson || ''}
                 onChange={(event) =>
-                  field('dueDate', event.target.value || null)
+                  field('responsiblePerson', event.target.value || null)
                 }
+                placeholder="Who owns it?"
+                maxLength={80}
+                autoComplete="off"
               />
             </label>
             <label>
-              Follow up
+              Waiting on
               <input
-                type="date"
-                value={draft.followUpDate || ''}
+                list="known-people"
+                value={draft.waitingOn || ''}
                 onChange={(event) =>
-                  field('followUpDate', event.target.value || null)
+                  field('waitingOn', event.target.value || null)
                 }
+                placeholder="Who are you waiting for?"
+                maxLength={80}
+                autoComplete="off"
               />
             </label>
+            <datalist id="known-people">
+              {names.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
           </div>
           {error && (
             <p role="alert" className="error">

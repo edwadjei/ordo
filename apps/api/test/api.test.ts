@@ -592,3 +592,167 @@ test('login throttling never prevents an authenticated user from signing out', a
     401,
   );
 });
+
+test('task times and people round-trip, preserve when omitted, and require their dates', async (t) => {
+  const { app } = await harness();
+  t.after(() => app.close());
+  const alice = await account(app);
+  const bob = await account(app);
+  const blank = await createTask(app, alice.cookie, { title: 'Defaults' });
+  assert.equal(blank.dueTime, null);
+  assert.equal(blank.followUpTime, null);
+  assert.equal(blank.responsiblePerson, null);
+  assert.equal(blank.waitingOn, null);
+  const created = await createTask(app, alice.cookie, {
+    title: 'Chase the quote',
+    status: 'waiting',
+    dueDate: '2026-10-23',
+    dueTime: '09:30',
+    followUpDate: '2026-10-22',
+    followUpTime: '23:59',
+    responsiblePerson: '  Ama Mensah  ',
+    waitingOn: ' Kwame ',
+  });
+  assert.equal(created.dueTime, '09:30');
+  assert.equal(created.followUpTime, '23:59');
+  assert.equal(created.responsiblePerson, 'Ama Mensah');
+  assert.equal(created.waitingOn, 'Kwame');
+  const listed = (await call(app, alice.cookie, 'GET', '/v1/tasks'))
+    .json()
+    .find((task: { id: string }) => task.id === created.id);
+  assert.equal(listed.waitingOn, 'Kwame');
+  const home = (await call(app, alice.cookie, 'GET', '/v1/home'))
+    .json()
+    .tasks.find((task: { id: string }) => task.id === created.id);
+  assert.equal(home.dueTime, '09:30');
+  assert.equal(home.responsiblePerson, 'Ama Mensah');
+
+  // Omitted fields stay unchanged.
+  const renamed = await call(
+    app,
+    alice.cookie,
+    'PATCH',
+    `/v1/tasks/${created.id}`,
+    { title: 'Chase the signed quote', expectedRevision: created.revision },
+  );
+  assert.equal(renamed.statusCode, 200, renamed.body);
+  for (const field of [
+    'dueDate',
+    'dueTime',
+    'followUpDate',
+    'followUpTime',
+    'responsiblePerson',
+    'waitingOn',
+  ])
+    assert.equal(renamed.json()[field], created[field], field);
+
+  // Empty names become null; whitespace-only too.
+  const cleared = await call(
+    app,
+    alice.cookie,
+    'PATCH',
+    `/v1/tasks/${created.id}`,
+    {
+      responsiblePerson: '',
+      waitingOn: '   ',
+      expectedRevision: renamed.json().revision,
+    },
+  );
+  assert.equal(cleared.statusCode, 200, cleared.body);
+  assert.equal(cleared.json().responsiblePerson, null);
+  assert.equal(cleared.json().waitingOn, null);
+  let revision = cleared.json().revision;
+
+  // Clearing a date while its time remains is rejected; clearing both succeeds.
+  const orphan = await call(
+    app,
+    alice.cookie,
+    'PATCH',
+    `/v1/tasks/${created.id}`,
+    {
+      dueDate: null,
+      expectedRevision: revision,
+    },
+  );
+  assert.equal(orphan.statusCode, 400);
+  assert.equal(orphan.json().error.code, 'INVALID_INPUT');
+  assert.equal(orphan.json().error.message, 'A due time needs a due date.');
+  const both = await call(
+    app,
+    alice.cookie,
+    'PATCH',
+    `/v1/tasks/${created.id}`,
+    {
+      dueDate: null,
+      dueTime: null,
+      expectedRevision: revision,
+    },
+  );
+  assert.equal(both.statusCode, 200, both.body);
+  assert.equal(both.json().dueDate, null);
+  assert.equal(both.json().dueTime, null);
+  assert.equal(both.json().followUpTime, '23:59');
+  revision = both.json().revision;
+  const timeOnly = await call(
+    app,
+    alice.cookie,
+    'PATCH',
+    `/v1/tasks/${created.id}`,
+    {
+      dueTime: '10:00',
+      expectedRevision: revision,
+    },
+  );
+  assert.equal(timeOnly.statusCode, 400);
+  assert.equal(timeOnly.json().error.code, 'INVALID_INPUT');
+
+  // Create-time validation: time without date, bad formats, overlong names.
+  for (const payload of [
+    { title: 'No date', dueTime: '09:00' },
+    { title: 'No follow-up date', followUpTime: '09:00' },
+    { title: 'Bad hour', dueDate: '2026-10-23', dueTime: '24:00' },
+    { title: 'Bad shape', dueDate: '2026-10-23', dueTime: '9:00' },
+    { title: 'Seconds', dueDate: '2026-10-23', dueTime: '09:00:00' },
+    { title: 'Long', waitingOn: 'x'.repeat(81) },
+  ]) {
+    const rejected = await call(
+      app,
+      alice.cookie,
+      'POST',
+      '/v1/tasks',
+      payload,
+      randomUUID(),
+    );
+    assert.equal(rejected.statusCode, 400, payload.title);
+    assert.equal(rejected.json().error.code, 'INVALID_INPUT');
+  }
+  assert.equal(
+    (
+      await createTask(app, alice.cookie, {
+        title: 'Max',
+        waitingOn: 'x'.repeat(80),
+      })
+    ).waitingOn.length,
+    80,
+  );
+
+  // Authorization unchanged: another owner cannot read or edit the fields.
+  assert.equal(
+    (await call(app, bob.cookie, 'GET', `/v1/tasks/${created.id}`)).statusCode,
+    404,
+  );
+  assert.equal(
+    (
+      await call(app, bob.cookie, 'PATCH', `/v1/tasks/${created.id}`, {
+        waitingOn: 'Intruder',
+        expectedRevision: revision,
+      })
+    ).statusCode,
+    404,
+  );
+  assert.ok(
+    !(await call(app, bob.cookie, 'GET', '/v1/home')).body.includes(
+      'Ama Mensah',
+    ),
+  );
+});

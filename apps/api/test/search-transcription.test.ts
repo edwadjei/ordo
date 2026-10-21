@@ -137,6 +137,8 @@ test('PostgreSQL search stems content, ranks results, excludes archives and othe
   const active = randomUUID(),
     archived = randomUUID(),
     foreign = randomUUID(),
+    waiting = randomUUID(),
+    foreignWaiting = randomUUID(),
     note = randomUUID();
   await connection.db.insert(tasks).values([
     {
@@ -152,6 +154,19 @@ test('PostgreSQL search stems content, ranks results, excludes archives and othe
       deletedAt: new Date().toISOString(),
     },
     { id: foreign, ownerUserId: other, title: 'Planning private' },
+    {
+      id: waiting,
+      ownerUserId: owner,
+      title: 'Signed contract',
+      responsiblePerson: 'Ama Mensah',
+      waitingOn: 'Kwame Boateng',
+    },
+    {
+      id: foreignWaiting,
+      ownerUserId: other,
+      title: 'Other contract',
+      waitingOn: 'Kwame Boateng',
+    },
   ]);
   await connection.db.insert(notes).values({
     id: note,
@@ -178,6 +193,17 @@ test('PostgreSQL search stems content, ranks results, excludes archives and othe
   assert.ok(ids.includes(project));
   assert.ok(!ids.includes(archived));
   assert.ok(!ids.includes(foreign));
+  for (const name of ['Kwame', 'mensah']) {
+    const byName = await app.inject({
+      url: `/v1/search?q=${name}`,
+      headers: webHeaders(),
+    });
+    assert.deepEqual(
+      byName.json().results.map((row: { id: string }) => row.id),
+      [waiting],
+      name,
+    );
+  }
   assert.equal((await app.inject('/v1/search?q=plan')).statusCode, 401);
   assert.equal(
     (await app.inject({ url: '/v1/search?q=', headers: webHeaders() }))
