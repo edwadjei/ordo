@@ -68,3 +68,9 @@ Nothing is needed to continue local implementation and verification. Integration
 ## Latest web appearance change
 
 Edward requested dark mode immediately. Web now has Light / Dark / System selection, browser-local persistence, and themed forms, dialogs, navigation, and content. Browser verification and screenshots are recorded in VERIFICATION.md. Native mobile remains pending.
+
+## Pending versus blocked clarification — 21 October 2026
+
+The checklist marked unimplemented work, not proven blockers. Edward requested Gatekeeper Pro reuse; its key and URL were copied from Unwrap into ignored local `.env` with owner-only file permissions. No other Unwrap environment settings were copied; no delivery request or provider configuration change was made. Existing Unwrap adapters provide the integration reference, including Ghana-only SMS. Passwordless email/phone OTP and optional PIN were proposed by Edward; details and implementation remain pending.
+
+Server full-text search has no identified external blocker; owner-scoped SQL search, indexes, endpoint, UI hookup, and regressions remain to implement. Recording needs capture/storage/retry implementation; phone microphone testing additionally needs trusted HTTPS because plain LAN HTTP is not a secure context. Transcription needs the audio capture path plus a selected/configured transcription provider or local engine and processing/retry flow. Physical-device testing means real iPhone Safari/Android Chrome and later native-device checks; responsive desktop screenshots are not physical-device evidence.
