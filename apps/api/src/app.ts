@@ -10,12 +10,22 @@ import { createTasksModule } from './domains/tasks/tasks.module.js';
 import { createNotesModule } from './domains/notes/notes.module.js';
 import { createHomeModule } from './domains/home/home.module.js';
 import { createDemoModule } from './domains/demo/demo.module.js';
+import type { OtpDelivery } from './capabilities/otp-delivery.contract.js';
+import { createSearchModule } from './domains/search/search.module.js';
+import {
+  createCapturesModule,
+  type CaptureOptions,
+} from './domains/captures/captures.module.js';
+import { fileURLToPath } from 'node:url';
 
 export interface AppOptions {
   connection: DatabaseConnection;
   trustedOrigins?: string[];
   secureCookies?: boolean;
   closeConnection?: boolean;
+  otpDelivery?: OtpDelivery;
+  otpNow?: () => number;
+  captures?: CaptureOptions;
 }
 
 export async function buildApp(options: AppOptions) {
@@ -24,6 +34,7 @@ export async function buildApp(options: AppOptions) {
   const identity = await createIdentityModule(
     database,
     options.secureCookies ?? false,
+    { otpDelivery: options.otpDelivery, otpNow: options.otpNow },
   );
   const workspaces = createWorkspacesModule(database);
   const tasks = createTasksModule(database, workspaces.service);
@@ -34,6 +45,14 @@ export async function buildApp(options: AppOptions) {
     notes.service,
   );
   const demo = createDemoModule(database, home.service);
+  const search = createSearchModule(database);
+  const captures = createCapturesModule(
+    options.captures ?? {
+      dataDir: fileURLToPath(
+        new URL('../../../.data/captures/', import.meta.url),
+      ),
+    },
+  );
 
   registerErrorHandler(app);
   registerRequestSecurity(app, {
@@ -44,9 +63,33 @@ export async function buildApp(options: AppOptions) {
     ],
   });
   registerHealth(app);
+  app.get('/v1/capabilities', async () => {
+    const deliveryAvailable =
+      options.otpDelivery?.available() ??
+      Boolean(
+        process.env.GATEKEEPER_API_KEY?.trim() &&
+        process.env.GATEKEEPER_API_URL?.trim(),
+      );
+    return {
+      otp: { email: deliveryAvailable, sms: deliveryAvailable },
+      recording: true,
+      transcription: captures.service.transcriptionAvailable,
+      aiCapture: false,
+      transcriptImport: false,
+    };
+  });
   if (options.closeConnection !== false)
     app.addHook('onClose', async () => options.connection.close());
-  for (const module of [identity, workspaces, tasks, notes, home, demo])
+  for (const module of [
+    identity,
+    workspaces,
+    tasks,
+    notes,
+    home,
+    demo,
+    search,
+    captures,
+  ])
     module.register(app);
   return app;
 }

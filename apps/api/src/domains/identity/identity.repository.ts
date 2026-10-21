@@ -31,11 +31,29 @@ export class IdentityRepository {
     return user;
   }
 
-  async insertSession(tokenHash: string, userId: string, expiresAt: string) {
-    await this.database
-      .use()
-      .insert(sessions)
-      .values({ tokenHash, userId, expiresAt });
+  async insertSession(
+    tokenHash: string,
+    userId: string,
+    expiresAt: string,
+    expectedPasswordHash: string,
+  ) {
+    return this.database.use().transaction(async (tx) => {
+      const [user] = await tx
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .for('update');
+      // Re-check after acquiring the account lock: OTP conversion may have
+      // invalidated the password while its expensive comparison was in flight.
+      if (
+        !user ||
+        user.passwordHash !== expectedPasswordHash ||
+        !user.passwordHash.startsWith('scrypt:')
+      )
+        return false;
+      await tx.insert(sessions).values({ tokenHash, userId, expiresAt });
+      return true;
+    });
   }
 
   async revokeSession(tokenHash: string) {

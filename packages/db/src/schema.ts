@@ -26,6 +26,15 @@ export const users = pgTable('users', {
   displayName: text('display_name').notNull(),
   timezone: text('timezone').notNull().default('Africa/Accra'),
   passwordHash: text('password_hash').notNull(),
+  phone: text('phone').unique(),
+  emailVerifiedAt: timestamp('email_verified_at', {
+    withTimezone: true,
+    mode: 'string',
+  }),
+  phoneVerifiedAt: timestamp('phone_verified_at', {
+    withTimezone: true,
+    mode: 'string',
+  }),
   demoLoaded: boolean('demo_loaded').notNull().default(false),
   ...timestampFields(),
 });
@@ -114,3 +123,25 @@ export const idempotencyKeys = pgTable(
   },
   (t) => [uniqueIndex('idempotency_owner_key').on(t.ownerUserId, t.key)],
 );
+
+export const otpChallenges = pgTable('otp_challenges', {
+  contact: text('contact').primaryKey(),
+  challengeId: uuid('challenge_id').notNull().unique(),
+  codeHash: text('code_hash').notNull(),
+  expiresAt: timestamp('expires_at', {
+    withTimezone: true,
+    mode: 'string',
+  }).notNull(),
+  nextSendAt: timestamp('next_send_at', {
+    withTimezone: true,
+    mode: 'string',
+  }).notNull(),
+  windowStartedAt: timestamp('window_started_at', {
+    withTimezone: true,
+    mode: 'string',
+  }).notNull(),
+  requests: integer('requests').notNull().default(0),
+  attempts: integer('attempts').notNull().default(0),
+  ready: boolean('ready').notNull().default(false),
+  consumed: boolean('consumed').notNull().default(false),
+});

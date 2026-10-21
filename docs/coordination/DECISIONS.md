@@ -31,6 +31,8 @@
 
 | C18 | Reuse Gatekeeper Pro key and API URL from Unwrap for Ordo authentication delivery; only those two settings copied into ignored local `.env` | Edward’s verification annotation, 21 October 2026; delivery integration and provider validation still pending |
 
+| C19 | Implement email/phone OTP, server search, web recording, configurable transcription, and phone-test preparation; unavailable features must say Coming soon | Edward’s implementation request, 21 October 2026 |
+
 ## Proposals and open choices
 
 | ID | Choice | Recommendation / next action | State |
@@ -38,7 +40,7 @@
 | P01 | Build sequence | Responsive web → native iOS (urgent) → macOS; AI/MCP feature scope is planned separately and does not block starting iOS | Platform priority confirmed in C09; detailed feature milestones proposed |
 | P02 | Framework/ORM direction | Retain supplied Next.js + Fastify + PostgreSQL/Drizzle + Tauri direction; validate versions during planning | Proposed; do not substitute reference-project stacks automatically |
 | P03 | Runtime and package manager | Select compatible runtime/package manager during foundation planning; docs currently use npm only | Open |
-| P04 | Authentication | Edward proposed passwordless email/phone → OTP, with an optional PIN. Recommend six-digit single-use OTP, expiry, resend/attempt limits, and verified contact linking; retain current accounts during migration. Optional device unlock PIN/biometrics is separate. Gatekeeper selected in C18 | Flow proposed; implementation pending |
+| P04 | Authentication | Edward proposed passwordless email/phone → OTP, with an optional PIN. Recommend six-digit single-use OTP, expiry, resend/attempt limits, and verified contact linking; retain current accounts during migration. Optional device unlock PIN/biometrics is separate. Gatekeeper selected in C18 | Email/phone OTP implemented; contact linking and optional PIN pending |
 | P05 | Personal Inbox ownership | Define owner-bound unscoped records and explicit movement into workspace context | Open; schema blocker |
 | P06 | Branch/environment policy | `dev` for integration/staging, `main` for production releases, `edw/` feature branches | Proposed; no branch/environment provisioning authorized by this entry |
 | P07 | Hosting, region, storage, and deployment | Choose actual providers and record costs/data boundaries before provisioning | Open; no environments exist |

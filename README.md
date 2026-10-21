@@ -61,7 +61,7 @@ The first responsive web foundation is being integrated locally: account session
 | `packages/client` | Typed API client and owner-bound task retry queue |
 | `docs`, `design` | Requirements, decisions, delivery evidence, clickable Home preview |
 
-Platform order: **responsive web → shared iOS/Android mobile app, with urgent iOS priority → macOS**. React Native + Expo + TypeScript is the mobile direction following Edward's “Yes build”; the mobile package and native authentication have not been implemented yet. Android readiness must not delay iOS. AI processing, recording/imports, MCP, and Mac packaging remain separate work.
+Platform order: **responsive web → shared iOS/Android mobile app, with urgent iOS priority → macOS**. React Native + Expo + TypeScript is the mobile direction following Edward's “Yes build”; the mobile package and native authentication have not been implemented yet. Android readiness must not delay iOS. Web recording/private storage, server full-text search, and passwordless OTP are implemented locally. Live delivery and phone verification remain unverified; transcription needs a configured provider. AI extraction, transcript imports, MCP, and Mac packaging remain separate work.
 
 ```bash
 npm run format:check

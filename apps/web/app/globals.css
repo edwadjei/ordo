@@ -1630,3 +1630,92 @@ fieldset:disabled select {
 .page-heading .eyebrow {
   color: #202224;
 }
+.action-card:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+.action-card:disabled:hover {
+  transform: none;
+  border-color: var(--line);
+  box-shadow: none;
+}
+.recorder .form-actions {
+  margin: 18px 0;
+}
+.recorder label {
+  display: grid;
+  gap: 8px;
+}
+.recorder .audio-upload {
+  display: inline-flex;
+  cursor: pointer;
+  margin: 0;
+}
+.audio-upload input {
+  width: 1px !important;
+  height: 1px;
+  padding: 0 !important;
+  min-height: 0 !important;
+  position: absolute;
+  opacity: 0;
+}
+.audio-upload:focus-within {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+.recording-preview {
+  display: block;
+  width: 100%;
+  margin: 20px 0;
+}
+.recording-live {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  margin: 20px 0;
+}
+.recording-live > span {
+  width: 8px;
+  height: 8px;
+  background: #e86b52;
+  border-radius: 50%;
+}
+.recording-live button {
+  margin-left: auto;
+}
+.transcript-text {
+  min-height: 180px;
+}
+.recording-history {
+  display: grid;
+  gap: 8px;
+  margin-top: 25px;
+  max-height: 200px;
+  overflow: auto;
+}
+.recording-history h3 {
+  font-size: 12px;
+  font-weight: 500;
+}
+.recording-history button {
+  text-align: left;
+  justify-content: flex-start;
+}
+.search-excerpt {
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .action-card:disabled:nth-child(n + 4) {
+    flex-wrap: wrap;
+  }
+  .action-card:disabled:nth-child(n + 4) small {
+    display: block;
+    flex-basis: 100%;
+    margin: 0;
+    white-space: normal;
+  }
+}

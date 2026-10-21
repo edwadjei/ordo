@@ -67,3 +67,17 @@ Added Light, Dark, and System appearance to signed-in web and sign-in screens. T
 Browser checks: switched light/dark, reloaded and confirmed Dark remained selected, opened capture with title focus, and inspected responsive Home and dialog. Desktop Home was visually inspected at 1280px; committed responsive screenshots were captured at 550px. System mode is implemented but OS switching and cross-tab changes have not been manually exercised. Sign-in styling has not had a separate visual check in this change.
 
 Evidence: `design/evidence/home-dark-responsive.png`, `design/evidence/home-light-responsive.png`, and `design/evidence/capture-dark.png`.
+
+## Passwordless, search, and audio slice — 21 October 2026
+
+Branch: `edw/ordo-passwordless-capture`, based on pushed `edw/ordo-web-foundation`; PR targets that nonproduction foundation branch. No merge or deployment performed.
+
+Verification passed: 25 API tests plus 14 client tests (39 total), all-workspace typechecks, production build, formatting check, and documentation generation/link validation. Independent review found and fixed stale-account read leakage and first-email-proof password/session revocation. The first API test run while files were still under construction had temporary fixture/boundary failures; the final complete suite passes.
+
+Browser checks against the compiled app and migrated local API: existing session/data survived startup; search returned note titles and task descriptions from PostgreSQL; a generated one-second WAV tone uploaded, saved, and reappeared after a page reload; saved audio loaded a one-second preview; unavailable transcription said Coming soon. Signed out to inspect email/phone OTP entry without requesting a message, then signed back into the fictional legacy demo account. AI Capture and Upload Transcript show disabled Coming soon labels, including the narrow layout. No microphone prompt or real provider call was made.
+
+Screenshots committed: `design/evidence/home-coming-soon-desktop.jpg` (1280×720), `home-coming-soon-responsive.jpg` (550×717), `passwordless-entry.jpg`, `server-search.jpg`, `recording-saved.jpg`. The 550px screenshots are responsive browser evidence, not actual-phone evidence.
+
+Before local migrations, the API was stopped and local embedded database backup was saved privately under `.data/backups/before-passwordless-capture-20261021.tar.gz`. Migrations 0002 (OTP/contact verification) and 0003 (search indexes) ran locally. The recording test uses fictional audio and the existing demo account only.
+
+Not verified: real Gatekeeper delivery or key validity, real OpenAI transcription, microphone capture, actual iPhone/Android hardware, trusted phone HTTPS certificate, external PostgreSQL, multi-replica safety, deployment. Transcription has an adapter and tests but stays Coming soon until OPENAI_API_KEY is configured. Capture storage/transcription is single-process filesystem-backed with bounded synchronous provider requests, not a distributed job queue. Optional PIN, verified phone linking to an existing email account, AI extraction and transcript import remain pending. See [phone testing](../PHONE-TESTING.md).

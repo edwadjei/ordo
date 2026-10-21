@@ -35,7 +35,7 @@ Never print or commit connection strings or cookie/session values. The applicati
 
 ## Authentication and request boundary
 
-Register with `{ email, password, displayName }`; login with `{ email, password }`. Passwords are 12–128 characters, salted with 16 random bytes and hashed using Node scrypt. Session tokens contain 32 random bytes, are stored only as SHA-256 digests, expire after seven days, and are revoked on logout. Cookie: `ordo_session`, HttpOnly, SameSite=Lax, Path=/, Secure in production. No email is sent, and email ownership is not verified.
+Register with `{ email, password, displayName }`; login with `{ email, password }`. Passwords are 12–128 characters, salted with 16 random bytes and hashed using Node scrypt. Session tokens contain 32 random bytes, are stored only as SHA-256 digests, expire after seven days, and are revoked on logout. Cookie: `ordo_session`, HttpOnly, SameSite=Lax, Path=/, Secure in production. These legacy routes remain available; the web now defaults to six-digit OTP sign-in. Successful OTP verifies the selected contact; first email proof revokes prior password access for that account.
 
 Every mutation requires an `Origin` equal to a configured trusted origin, including register/login. All private reads and writes authenticate the session and resolve record ownership from it. Client-provided owner IDs are rejected by strict input schemas. This browser-session API is not yet a public agent or native bearer-token API.
 
@@ -107,4 +107,20 @@ The integration tests use isolated embedded PostgreSQL instances and temporary f
 
 ## Current limits
 
-Not yet implemented: password reset/email verification, account/export/deletion UI, session management UI, OIDC/native auth, audit events, OpenAPI generation, pagination and server-side filtering/search, incremental sync cursor/tombstones, full offline note/multidevice editing, AI, recording/imports, MCP, desktop/mobile packaging, deployment hardening, or production backup/restore. The snapshot API supports the first web client but is not an unlimited-scale synchronization contract. Archive tombstones are returned from DELETE and excluded from refreshed snapshots; they are not yet distributed through an incremental sync feed. No standard PostgreSQL instance, staging environment, or production deployment has been verified.
+Not yet implemented: contact linking/recovery, account/export/deletion UI, session management UI, OIDC/native auth, audit events, OpenAPI generation, pagination and advanced filtering, incremental sync cursor/tombstones, full offline note/multidevice editing, AI extraction, transcript imports, MCP, desktop/mobile packaging, deployment hardening, or production backup/restore. The snapshot API supports the first web client but is not an unlimited-scale synchronization contract. Archive tombstones are returned from DELETE and excluded from refreshed snapshots; they are not yet distributed through an incremental sync feed. No standard PostgreSQL instance, staging environment, or production deployment has been verified.
+
+## Passwordless, search, and recordings
+
+| Route | Behavior |
+|---|---|
+| `GET /v1/capabilities` | Public configuration availability; no credentials |
+| `POST /v1/auth/otp/request` | `{contact}` email or Ghana phone → 202 `{challengeId,retryAfterSeconds,expiresInSeconds}` |
+| `POST /v1/auth/otp/verify` | `{challengeId,code,displayName?}` → user and session cookie |
+| `GET /v1/search?q=...` | Ranked owner-scoped task/note/project full-text results, max 30 |
+| `POST /v1/captures` | Raw supported audio, max 20 MiB → saved metadata |
+| `GET /v1/captures` | Owner's saved recording metadata |
+| `GET /v1/captures/:id` | Owner's metadata/status/transcript |
+| `GET /v1/captures/:id/audio` | Owner's audio bytes |
+| `POST /v1/captures/:id/transcribe` | Explicit provider request, retryable; 503 when unavailable |
+
+OTP is valid for five minutes, single-use, with 60-second resend spacing, five sends and five attempts per 15-minute contact window; resending does not clear failed attempts. Email and phone accounts are not automatically linked. Details live in the identity, search, and captures domain concept notes. Capture storage defaults to `.data/captures` and must be backed up separately from PostgreSQL; single-process limits apply. `X-Ordo-Account` guards tagged authenticated reads as well as writes against stale-tab account switches.

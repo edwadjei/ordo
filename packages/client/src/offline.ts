@@ -1,3 +1,4 @@
+import { requestId } from './request-id.ts';
 import type { TaskInput } from '@ordo/core';
 import { RequestError } from './index.ts';
 
@@ -49,7 +50,7 @@ export function enqueueTask(
   storage: StorageLike,
   ownerId: string,
   input: PendingTask['input'],
-  key: string = crypto.randomUUID(),
+  key: string = requestId(),
 ): PendingTask {
   const queue = readQueue(storage, ownerId);
   const existing = queue.find((item) => item.key === key);

@@ -1,3 +1,4 @@
+import { requestId } from './request-id.ts';
 import type {
   ApiError,
   HomeSnapshot,
@@ -20,25 +21,57 @@ export class RequestError extends Error {
     this.name = 'RequestError';
   }
 }
+export interface AppCapabilities {
+  otp: { email: boolean; sms: boolean };
+  recording: boolean;
+  transcription: boolean;
+  aiCapture: boolean;
+  transcriptImport: boolean;
+}
+export interface SearchResult {
+  id: string;
+  type: 'task' | 'note' | 'project';
+  title: string;
+  excerpt: string;
+  workspaceId: string | null;
+  projectId?: string | null;
+}
+export interface AudioCapture {
+  id: string;
+  status: 'recorded' | 'transcribing' | 'transcribed' | 'failed';
+  transcript?: string | null;
+  mimeType?: string;
+  createdAt?: string;
+}
 export type TaskChanges = Partial<TaskInput> & { expectedRevision: number };
 export type NoteChanges = Partial<NoteInput> & { expectedRevision: number };
-export function createClient(base = '/api', transport: typeof fetch = fetch) {
+export function createClient(
+  base = '/api',
+  transport: typeof fetch = fetch,
+  onSessionInvalid?: () => void,
+) {
   let accountId: string | null = null;
   async function request<T>(
     route: string,
     options: RequestInit = {},
   ): Promise<T> {
-    const authenticatedWrite =
-      options.method &&
-      options.method !== 'GET' &&
-      !['/auth/register', '/auth/login'].includes(route);
+    const authenticatedRequest = ![
+      '/auth/register',
+      '/auth/login',
+      '/auth/otp/request',
+      '/auth/otp/verify',
+      '/auth/me',
+      '/home',
+      '/capabilities',
+    ].includes(route);
+    const requestAccount = accountId;
     const response = await transport(`${base}${route}`, {
       credentials: 'include',
       ...options,
       headers: {
         ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(authenticatedWrite && accountId
-          ? { 'X-Ordo-Account': accountId }
+        ...(authenticatedRequest && requestAccount
+          ? { 'X-Ordo-Account': requestAccount }
           : {}),
         ...options.headers,
       },
@@ -50,6 +83,13 @@ export function createClient(base = '/api', transport: typeof fetch = fetch) {
         payload && 'error' in Object(payload)
           ? (payload as ApiError).error
           : null;
+      if (
+        authenticatedRequest &&
+        requestAccount &&
+        requestAccount === accountId &&
+        (response.status === 401 || error?.code === 'SESSION_CHANGED')
+      )
+        onSessionInvalid?.();
       throw new RequestError(
         response.status,
         error?.code || 'REQUEST_FAILED',
@@ -73,6 +113,40 @@ export function createClient(base = '/api', transport: typeof fetch = fetch) {
     setAccount: (id: string | null) => {
       accountId = id;
     },
+    capabilities: () => request<AppCapabilities>('/capabilities'),
+    requestOtp: (contact: string) =>
+      send<{
+        challengeId: string;
+        retryAfterSeconds: number;
+        expiresInSeconds: number;
+      }>('/auth/otp/request', 'POST', { contact }),
+    verifyOtp: (data: {
+      challengeId: string;
+      code: string;
+      displayName?: string;
+    }) => send<{ user: User }>('/auth/otp/verify', 'POST', data),
+    search: (query: string, signal?: AbortSignal) =>
+      request<{ results: SearchResult[] }>(
+        `/search?q=${encodeURIComponent(query)}`,
+        { signal },
+      ),
+    createCapture: (audio: Blob, signal?: AbortSignal) =>
+      request<AudioCapture>('/captures', {
+        method: 'POST',
+        body: audio,
+        signal,
+        headers: { 'Content-Type': audio.type || 'audio/webm' },
+      }),
+    capture: (id: string) =>
+      request<AudioCapture>(`/captures/${encodeURIComponent(id)}`),
+    captures: () => request<{ captures: AudioCapture[] }>('/captures'),
+    transcribe: (id: string, signal?: AbortSignal) =>
+      request<AudioCapture>(`/captures/${encodeURIComponent(id)}/transcribe`, {
+        method: 'POST',
+        signal,
+      }),
+    captureAudioUrl: (id: string) =>
+      `${base}/captures/${encodeURIComponent(id)}/audio`,
     home: () => request<HomeSnapshot>('/home'),
     me: () => request<{ user: User }>('/auth/me'),
     register: (data: {
@@ -93,7 +167,7 @@ export function createClient(base = '/api', transport: typeof fetch = fetch) {
     }) => send<Project>('/projects', 'POST', data),
     createTask: (
       data: Partial<TaskInput> & { title: string },
-      key: string = crypto.randomUUID(),
+      key: string = requestId(),
       ownerId?: string,
     ) =>
       send<Task>('/tasks', 'POST', data, {

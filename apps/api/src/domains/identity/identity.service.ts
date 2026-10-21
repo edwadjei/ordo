@@ -8,10 +8,10 @@ import { fail } from '../../platform/http/api-failure.js';
 import type { UserRecord } from '../../adapters/database/database.adapter.js';
 import { IdentityRepository } from './identity.repository.js';
 
-function publicUser(user: UserRecord): User {
+export function publicUser(user: UserRecord): User {
   return {
     id: user.id,
-    email: user.email,
+    email: user.email.startsWith('phone:') ? '' : user.email,
     displayName: user.displayName,
     timezone: user.timezone,
   };
@@ -44,18 +44,25 @@ export class IdentityService extends SessionAuthenticator {
     });
     if (!user)
       fail(409, 'ACCOUNT_EXISTS', 'An account with this email already exists.');
-    return { user: publicUser(user), token: await this.createSession(user.id) };
+    return {
+      user: publicUser(user),
+      token: await this.createSession(user.id, user.passwordHash),
+    };
   }
 
   async login(input: z.infer<typeof userCredentials>) {
     const user = await this.repository.findByEmail(input.email);
+    const hasPassword = Boolean(user?.passwordHash.startsWith('scrypt:'));
     const valid = await this.passwords.verify(
       input.password,
-      user?.passwordHash ?? this.dummyPasswordHash,
+      hasPassword ? user!.passwordHash : this.dummyPasswordHash,
     );
-    if (!user || !valid)
+    if (!user || !hasPassword || !valid)
       fail(401, 'INVALID_CREDENTIALS', 'Email or password is incorrect.');
-    return { user: publicUser(user), token: await this.createSession(user.id) };
+    return {
+      user: publicUser(user),
+      token: await this.createSession(user.id, user.passwordHash),
+    };
   }
 
   async logout(token: string) {
@@ -70,13 +77,16 @@ export class IdentityService extends SessionAuthenticator {
     return user ? publicUser(user) : null;
   }
 
-  private async createSession(userId: string) {
+  private async createSession(userId: string, expectedPasswordHash: string) {
     const token = this.tokens.create();
-    await this.repository.insertSession(
+    const created = await this.repository.insertSession(
       this.tokens.digest(token),
       userId,
       new Date(Date.now() + 7 * 86400000).toISOString(),
+      expectedPasswordHash,
     );
+    if (!created)
+      fail(401, 'INVALID_CREDENTIALS', 'Sign in with a code to continue.');
     return token;
   }
 }

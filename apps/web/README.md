@@ -13,7 +13,7 @@ npm run dev
 
 Open http://127.0.0.1:3318. The API listens on port 4318; Next proxies `/api/*` to `/v1/*` so the browser uses same-origin, HttpOnly session cookies. `ORDO_API_URL` optionally overrides the API upstream for the web server; it is not a browser-exposed variable.
 
-Create an account with an email, name, and password of at least 12 characters. This build does not send email or verify email ownership. Start empty or explicitly load the fictional examples. Fixtures are added only to the signed-in account.
+Sign in or create an account using email/Ghana phone OTP. Gatekeeper delivery must be configured. Existing password accounts have a fallback login; first successful email OTP conversion revokes prior password access. Start empty or explicitly load the fictional examples. Fixtures are added only to the signed-in account.
 
 ## Working flows
 
@@ -22,7 +22,7 @@ Create an account with an email, name, and password of at least 12 characters. T
 - Tasks, nested subtasks, explicit completion, status/priority/date editing, and archive. Parent completion does not complete children. Tasks with active children cannot be archived until those children are addressed.
 - My Day shows due/overdue tasks and follow-ups, with an additional undated-task list. Upcoming covers the next seven days. Inbox includes tasks without a project; Waiting On includes explicit Waiting status.
 - Plain-text notes with debounced autosave, sequential revision handling, visible unsaved/failure state, and close protection. Conflicts preserve the current editor text for copying/retry; automatic merge is not implemented.
-- `⌘K` / `Ctrl+K` searches already-loaded authorized tasks, notes, and projects. Search is client-side for this small slice, not a server full-text endpoint.
+- `⌘K` / `Ctrl+K` searches authorized tasks, note bodies, and projects through the PostgreSQL full-text endpoint.
 - Responsive phone-browser layout, navigation drawer, and keyboard-accessible native dialogs.
 
 ## Local capture and honest offline limits
@@ -33,7 +33,7 @@ The current-account pointer and a last-loaded account snapshot are cached for an
 
 **No service worker is installed.** An already open app can queue tasks while offline, but a cold offline reload is not guaranteed to load the application shell. Only task creation is queued; task edits, workspaces/projects, and notes require the API. Note text is retained in the open editor after a failure and warns on closing/unloading; it is not a durable offline note queue. A full multi-device sync protocol and conflict resolution UI remain later work.
 
-Record, Upload Transcript, and AI Capture are visible planned entry points. They explain their availability and offer task/note capture; they do not request a microphone, upload files, send content to providers, or fabricate processing success. Dark mode, project favorites, reassigning task destinations, people fields, and server-side full-text search are not implemented in this slice.
+Record opens microphone capture with stop/preview/save and audio-file upload fallback. Saved recordings can be reopened and played. With a configured provider, explicit transcription can be saved as a note; otherwise transcription says Coming soon. AI Capture and Upload Transcript are disabled with Coming soon labels. Project favorites, reassigning task destinations, and people fields remain pending. Light, Dark, and System themes are supported.
 
 ## Checks
 

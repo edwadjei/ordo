@@ -74,3 +74,13 @@ Edward requested dark mode immediately. Web now has Light / Dark / System select
 The checklist marked unimplemented work, not proven blockers. Edward requested Gatekeeper Pro reuse; its key and URL were copied from Unwrap into ignored local `.env` with owner-only file permissions. No other Unwrap environment settings were copied; no delivery request or provider configuration change was made. Existing Unwrap adapters provide the integration reference, including Ghana-only SMS. Passwordless email/phone OTP and optional PIN were proposed by Edward; details and implementation remain pending.
 
 Server full-text search has no identified external blocker; owner-scoped SQL search, indexes, endpoint, UI hookup, and regressions remain to implement. Recording needs capture/storage/retry implementation; phone microphone testing additionally needs trusted HTTPS because plain LAN HTTP is not a secure context. Transcription needs the audio capture path plus a selected/configured transcription provider or local engine and processing/retry flow. Physical-device testing means real iPhone Safari/Android Chrome and later native-device checks; responsive desktop screenshots are not physical-device evidence.
+
+## Current delivery: passwordless, search, recordings
+
+Active branch: `edw/ordo-passwordless-capture`; PR base: `edw/ordo-web-foundation`. This permits review of the requested follow-up independently without changing main or creating an integration environment. Earlier notes requiring a settled dev/main policy still apply to eventual release integration/deployment.
+
+Implemented email/Ghana-phone OTP with verified contact timestamps, account-preserving first-email conversion and revoked legacy credentials/sessions, full-text search indexes, private audio persistence/playback, configurable transcription, and concise Coming soon states. 39 tests pass plus typechecks/build/format/docs checks; browser search and synthetic audio persistence verified. No live OTP/transcription request or physical phone test. HTTPS proxy and phone checklist prepared; no certificate/device trust installed. Verification details and screenshots are in VERIFICATION.md.
+
+Edward asked whether onboarding should collect both phone/email or email alone with later linking. Recommendation given: email-first onboarding and optional verified phone linking to the same account later. Current implementation accepts either contact separately; linking is not implemented and is not automatic.
+
+Waiting on Edward: review the PR. Live delivery needs an intended test recipient, transcription needs a provider key, and actual phone microphone testing needs trusted HTTPS and a real device. These do not imply approval to merge or deploy.

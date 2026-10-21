@@ -12,7 +12,8 @@ import {
   readQueue,
   type PendingTask,
 } from '@ordo/client/offline';
-export const api = createClient();
+let sessionInvalid: (() => void) | null = null;
+export const api = createClient('/api', fetch, () => sessionInvalid?.());
 const ownerKey = 'ordo.active-account.v1';
 const cacheKey = (id: string) => `ordo.home.v1:${id}`;
 export function useWorkspace() {
@@ -39,6 +40,15 @@ export function useWorkspace() {
       /* Account data remains private to its owner key. */
     }
   }, []);
+  useEffect(() => {
+    sessionInvalid = () => {
+      expire();
+      setMessage('Your session changed. Sign in again to continue.');
+    };
+    return () => {
+      sessionInvalid = null;
+    };
+  }, [expire]);
   const cache = useCallback((next: HomeSnapshot) => {
     owner.current = next.user.id;
     api.setAccount(next.user.id);
