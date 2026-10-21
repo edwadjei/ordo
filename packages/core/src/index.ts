@@ -1,0 +1,146 @@
+import { z } from 'zod';
+
+export const statuses = ['todo', 'in_progress', 'waiting', 'done'] as const;
+export const priorities = ['low', 'medium', 'high'] as const;
+const id = z.uuid();
+const name = z.string().trim().min(1).max(200);
+const dateOnly = z.iso.date();
+export const userCredentials = z
+  .object({
+    email: z
+      .email()
+      .max(254)
+      .transform((v) => v.trim().toLowerCase()),
+    password: z.string().min(12).max(128),
+  })
+  .strict();
+export const registration = userCredentials.extend({
+  displayName: z.string().trim().min(1).max(80),
+});
+export const workspaceInput = z
+  .object({
+    name,
+    color: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .default('#577664'),
+  })
+  .strict();
+export const projectInput = z
+  .object({
+    name,
+    workspaceId: id,
+    description: z.string().max(5000).default(''),
+  })
+  .strict();
+export const scopeInput = z.object({
+  workspaceId: id.nullable().default(null),
+  projectId: id.nullable().default(null),
+});
+export const taskInput = scopeInput
+  .extend({
+    title: name,
+    description: z.string().max(20000).default(''),
+    status: z.enum(statuses).default('todo'),
+    priority: z.enum(priorities).nullable().default(null),
+    dueDate: dateOnly.nullable().default(null),
+    followUpDate: dateOnly.nullable().default(null),
+    parentId: id.nullable().default(null),
+  })
+  .strict();
+// Update schemas deliberately omit creation defaults: omitted fields must remain unchanged.
+export const taskPatch = z
+  .object({
+    title: name.optional(),
+    description: z.string().max(20000).optional(),
+    status: z.enum(statuses).optional(),
+    priority: z.enum(priorities).nullable().optional(),
+    dueDate: dateOnly.nullable().optional(),
+    followUpDate: dateOnly.nullable().optional(),
+    workspaceId: id.nullable().optional(),
+    projectId: id.nullable().optional(),
+    parentId: id.nullable().optional(),
+    expectedRevision: z.number().int().positive(),
+  })
+  .strict();
+export const noteInput = scopeInput
+  .extend({ title: name, body: z.string().max(100000).default('') })
+  .strict();
+export const notePatch = z
+  .object({
+    title: name.optional(),
+    body: z.string().max(100000).optional(),
+    workspaceId: id.nullable().optional(),
+    projectId: id.nullable().optional(),
+    expectedRevision: z.number().int().positive(),
+  })
+  .strict();
+export const revisionInput = z
+  .object({ expectedRevision: z.number().int().positive() })
+  .strict();
+export const workspacePatch = z
+  .object({
+    name: name.optional(),
+    color: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .optional(),
+    expectedRevision: z.number().int().positive(),
+  })
+  .strict();
+export const projectPatch = z
+  .object({
+    name: name.optional(),
+    description: z.string().max(5000).optional(),
+    expectedRevision: z.number().int().positive(),
+  })
+  .strict();
+
+export type TaskInput = z.infer<typeof taskInput>;
+export type NoteInput = z.infer<typeof noteInput>;
+export interface User {
+  id: string;
+  email: string;
+  displayName: string;
+  timezone: string;
+}
+export interface Workspace {
+  id: string;
+  name: string;
+  color: string;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  workspaceId: string;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface Task extends TaskInput {
+  id: string;
+  revision: number;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface Note extends NoteInput {
+  id: string;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface HomeSnapshot {
+  user: User;
+  workspaces: Workspace[];
+  projects: Project[];
+  tasks: Task[];
+  notes: Note[];
+}
+export interface ApiError {
+  error: { code: string; message: string };
+}

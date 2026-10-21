@@ -1,0 +1,20 @@
+{
+  "name": "@ordo/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test --test-concurrency=1 test/*.test.ts",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ordo/core": "*",
+    "@ordo/db": "*",
+    "fastify": "5.12.7",
+    "drizzle-orm": "0.45.4",
+    "zod": "^4.3.6"
+  }
+}

@@ -1,0 +1,279 @@
+'use client';
+import { ThemeSelector } from './theme-selector';
+import { useEffect, useState, type FormEvent } from 'react';
+import { ArrowRight, Leaf } from 'lucide-react';
+import type { AppCapabilities } from '@ordo/client';
+import { api } from '../lib/workspace';
+export function Auth({
+  onSuccess,
+  initialError,
+}: {
+  onSuccess: () => Promise<unknown>;
+  initialError: string;
+}) {
+  const [legacy, setLegacy] = useState(false);
+  const [contact, setContact] = useState('');
+  const [challenge, setChallenge] = useState<{
+    challengeId: string;
+    retryAt: number;
+    expiresAt: number;
+  } | null>(null);
+  const [now, setNow] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [capabilities, setCapabilities] = useState<AppCapabilities | null>(
+    null,
+  );
+  useEffect(() => {
+    let active = true;
+    api
+      .capabilities()
+      .then((value) => {
+        if (active) setCapabilities(value);
+      })
+      .catch(() => {
+        if (active)
+          setError(
+            'Could not check sign-in availability. Reload or use your existing password.',
+          );
+      });
+    const clock = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      active = false;
+      clearInterval(clock);
+    };
+  }, []);
+  const channelAvailable = contact.includes('@')
+    ? capabilities?.otp.email
+    : capabilities?.otp.sms;
+  const seconds = challenge
+    ? Math.max(0, Math.ceil((challenge.retryAt - now) / 1000))
+    : 0;
+  const expired = challenge && now >= challenge.expiresAt;
+  async function sendCode() {
+    const result = await api.requestOtp(contact.trim());
+    const time = Date.now();
+    setNow(time);
+    setChallenge({
+      challengeId: result.challengeId,
+      retryAt: time + result.retryAfterSeconds * 1000,
+      expiresAt: time + result.expiresInSeconds * 1000,
+    });
+  }
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget,
+      fields = new FormData(form);
+    setBusy(true);
+    setError('');
+    try {
+      if (legacy) {
+        await api.login({
+          email: String(fields.get('email')),
+          password: String(fields.get('password')),
+        });
+      } else if (challenge) {
+        await api.verifyOtp({
+          challengeId: challenge.challengeId,
+          code: String(fields.get('code')),
+          displayName: String(fields.get('name') || '').trim() || undefined,
+        });
+      } else {
+        await sendCode();
+        return;
+      }
+      form.reset();
+      await onSuccess();
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="auth-page">
+      <div className="auth-art">
+        <div className="brand">
+          ordo<span>.</span>
+        </div>
+        <div>
+          <Leaf size={28} strokeWidth={1.3} />
+          <h1>
+            Make room for <br />
+            what matters.
+          </h1>
+          <p>
+            A little less organizing.
+            <br />A little more getting things done.
+          </p>
+        </div>
+        <small>Your thoughts. Your space. Your next step.</small>
+      </div>
+      <section className="auth-form">
+        <ThemeSelector />
+        <div className="eyebrow">FROM THOUGHT TO DONE</div>
+        <h2>
+          {challenge && !legacy ? 'Check your messages.' : 'A calmer way in.'}
+        </h2>
+        <p className="muted">
+          {legacy
+            ? 'Sign in with your existing Ordo password.'
+            : challenge
+              ? `Enter the six-digit code sent to ${contact}.`
+              : 'Enter your email or Ghana phone number. We’ll send a sign-in code.'}
+        </p>
+        <form onSubmit={submit}>
+          <fieldset disabled={busy}>
+            {legacy ? (
+              <>
+                <label>
+                  Email
+                  <input
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                  />
+                </label>
+                <label>
+                  Password
+                  <input
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    maxLength={128}
+                  />
+                </label>
+              </>
+            ) : challenge ? (
+              <>
+                <label>
+                  Sign-in code
+                  <input
+                    key={challenge.challengeId}
+                    name="code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    minLength={6}
+                    maxLength={6}
+                    required
+                    autoFocus
+                    placeholder="000000"
+                    aria-describedby="otp-help"
+                  />
+                </label>
+                <p className="muted small" id="otp-help">
+                  {expired
+                    ? 'This code has expired. Request another below.'
+                    : 'Your code can be used once.'}
+                </p>
+                <label>
+                  Your name{' '}
+                  <span className="small">Optional for a new account</span>
+                  <input name="name" autoComplete="name" maxLength={80} />
+                </label>
+              </>
+            ) : (
+              <label>
+                Email or Ghana phone number
+                <input
+                  name="contact"
+                  type="text"
+                  autoComplete="username"
+                  value={contact}
+                  onChange={(event) => setContact(event.target.value)}
+                  maxLength={254}
+                  required
+                  placeholder="you@example.com or +233…"
+                />
+              </label>
+            )}
+            {(error || initialError) && (
+              <p className="error" role="alert">
+                {error || initialError}
+              </p>
+            )}
+            {!legacy &&
+              !challenge &&
+              capabilities &&
+              contact.trim() &&
+              !channelAvailable && (
+                <p className="muted" role="status">
+                  {contact.includes('@') ? 'Email' : 'SMS'} sign-in: Coming
+                  soon.
+                </p>
+              )}
+            <button
+              className="primary wide"
+              disabled={
+                busy ||
+                (!legacy &&
+                  (!challenge
+                    ? !contact.trim() || !channelAvailable
+                    : !!expired))
+              }
+            >
+              {busy
+                ? 'Please wait…'
+                : legacy
+                  ? 'Sign in'
+                  : challenge
+                    ? 'Verify and continue'
+                    : 'Send sign-in code'}
+              <ArrowRight size={16} />
+            </button>
+          </fieldset>
+        </form>
+        {challenge && !legacy && (
+          <div className="auth-switch">
+            <button
+              disabled={busy || seconds > 0}
+              onClick={async () => {
+                setBusy(true);
+                setError('');
+                try {
+                  await sendCode();
+                } catch (cause) {
+                  setError((cause as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {seconds > 0 ? `Resend in ${seconds}s` : 'Send another code'}
+            </button>
+            <br />
+            <button
+              disabled={busy}
+              onClick={() => {
+                setChallenge(null);
+                setError('');
+              }}
+            >
+              Use a different email or phone
+            </button>
+          </div>
+        )}
+        <p className="auth-switch">
+          <button
+            disabled={busy}
+            onClick={() => {
+              setLegacy(!legacy);
+              setChallenge(null);
+              setError('');
+            }}
+          >
+            {legacy
+              ? 'Use a sign-in code instead'
+              : 'Use an existing password instead'}
+          </button>
+        </p>
+        <p className="privacy-note">
+          Your tasks and notes, in one personal workspace.
+        </p>
+      </section>
+    </main>
+  );
+}

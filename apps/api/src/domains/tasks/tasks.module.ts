@@ -1,0 +1,23 @@
+import type { FastifyInstance } from 'fastify';
+import type { DatabaseAdapter } from '../../adapters/database/database.adapter.js';
+import { NodeContentHasher } from '../../adapters/cryptography/node-content-hasher.js';
+import type { WorkspacesService } from '../workspaces/workspaces.service.js';
+import { TasksRepository } from './tasks.repository.js';
+import { TasksService } from './tasks.service.js';
+import { registerTasksController } from './tasks.controller.js';
+
+export function createTasksModule(
+  database: DatabaseAdapter,
+  workspaces: WorkspacesService,
+) {
+  const service = new TasksService(
+    new TasksRepository(database),
+    database,
+    workspaces,
+    new NodeContentHasher(),
+  );
+  return {
+    service,
+    register: (app: FastifyInstance) => registerTasksController(app, service),
+  };
+}
