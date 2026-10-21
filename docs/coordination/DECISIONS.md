@@ -25,6 +25,7 @@
 | C13 | All commits use `edwadjei <edd.net49@gmail.com>`; feature branches use `edw/`; no AI attribution in commits or PR descriptions | Edward’s explicit attribution/branch instruction, 21 October 2026 |
 | C14 | Structure API and concept documentation like the local DAMSYN API: platform, capabilities, adapters, domains | Edward’s API-structure request, 21 October 2026 |
 | C15 | Include the supplied orange treatment as a restrained accent within the white design | Edward’s orange reference and request, 21 October 2026 |
+| C16 | Every PR must include screenshots, especially UI PRs; `gh` CLI may be used | Edward’s explicit PR-evidence instruction, 21 October 2026 |
 
 ## Proposals and open choices
 

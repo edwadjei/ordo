@@ -35,6 +35,8 @@ Use one specialist per substantial area, rather than one session per small issue
 
 Before presenting a PR, check target branch, mergeability, scope, attribution, secrets, migrations, and test evidence. Run applicable typecheck, lint, tests, and build once available. Re-run a failed test file once to distinguish a flaky failure from a reproducible one, then report both results. Never deploy past a failing gate.
 
+Every PR must include screenshots embedded in its description, as explicitly requested by Edward. UI PRs must show the actual changed screens at desktop and mobile widths, with before/after views when useful. For API or documentation PRs, capture relevant verification output or rendered documentation. Label what each image demonstrates, remove secrets and private data, and ensure images are accessible to reviewers. Use the PR template; `gh` CLI is authorized for PR operations, subject to the existing merge and deployment approval rules.
+
 For UI, show real screenshots at Mac and mobile widths, keyboard navigation, and failure/empty states. Performance claims require a named device, dataset, and measurement method. Documentation-only changes require successful generation, valid links, source-copy checks where applicable, and clean diff whitespace; app tests are not invented for them.
 
 ## Integration and release
