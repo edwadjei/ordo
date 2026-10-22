@@ -20,7 +20,8 @@ export class SearchRepository {
   async search(owner: string, query: string): Promise<SearchResult[]> {
     const { tasks, notes, projects } = tables;
     const term = sql`plainto_tsquery('english', ${query})`;
-    const taskVector = sql`to_tsvector('english', coalesce(${tasks.title}, '') || ' ' || coalesce(${tasks.description}, ''))`;
+    // Must match the tasks_search_idx expression in migration 0005.
+    const taskVector = sql`to_tsvector('english', coalesce(${tasks.title}, '') || ' ' || coalesce(${tasks.description}, '') || ' ' || coalesce(${tasks.responsiblePerson}, '') || ' ' || coalesce(${tasks.waitingOn}, ''))`;
     const noteVector = sql`to_tsvector('english', coalesce(${notes.title}, '') || ' ' || coalesce(${notes.body}, ''))`;
     const projectVector = sql`to_tsvector('english', coalesce(${projects.name}, '') || ' ' || coalesce(${projects.description}, ''))`;
     const [taskRows, noteRows, projectRows] = await Promise.all([

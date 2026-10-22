@@ -86,6 +86,12 @@ export const tasks = pgTable('tasks', {
   priority: text('priority').$type<'low' | 'medium' | 'high'>(),
   dueDate: date('due_date', { mode: 'string' }),
   followUpDate: date('follow_up_date', { mode: 'string' }),
+  // Optional local wall-clock "HH:MM" times; each requires its date (migration 0005).
+  dueTime: text('due_time'),
+  followUpTime: text('follow_up_time'),
+  // Plain-text names, never matched to accounts.
+  responsiblePerson: text('responsible_person'),
+  waitingOn: text('waiting_on'),
   completedAt: timestamp('completed_at', {
     withTimezone: true,
     mode: 'string',

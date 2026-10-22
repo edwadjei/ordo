@@ -1,6 +1,6 @@
 'use client';
 import { ThemeSelector } from './theme-selector';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   Sun,
   Inbox,
@@ -29,18 +29,38 @@ import {
 import type {
   AudioSettings,
   HomeSnapshot,
-  Note,
   Task,
+  TaskInput,
   SearchResult,
 } from '@ordo/client';
 import { api, useWorkspace } from '../lib/workspace';
 import {
-  localDate,
-  statusLabels,
-  taskDepth,
+  addDays,
+  dayCounts,
+  daySections,
+  daySummary,
+  defaultTimezone,
+  followUpOverdue,
+  greeting,
+  upcomingGroups,
   visibleTasks,
+  waitingTasks,
+  whenLabel,
+  type DayCounts,
   type View,
 } from '../lib/views';
+import {
+  CountChips,
+  DayHeader,
+  Empty,
+  InlineComposer,
+  ScopeSelect,
+  Section,
+  TaskRow,
+  ViewHeader,
+  WaitingPreview,
+  useLocalClock,
+} from './task-views';
 import { Auth } from './auth';
 import { Dialog } from './dialog';
 import { TaskDetail } from './task-detail';
@@ -55,6 +75,7 @@ const viewNames: Record<View, string> = {
   workspace: 'Workspace',
   project: 'Project',
 };
+const everydayViews: View[] = ['day', 'inbox', 'upcoming', 'waiting'];
 export function WorkspaceApp() {
   const work = useWorkspace(),
     { snapshot: data } = work;
@@ -82,6 +103,8 @@ export function WorkspaceApp() {
   const [view, setView] = useState<View>('day'),
     [workspaceId, setWorkspaceId] = useState<string | null>(null),
     [projectId, setProjectId] = useState<string | null>(null),
+    // Workspace filter for the everyday views; kept for the session as views change.
+    [scopeId, setScopeId] = useState<string | null>(null),
     [mobileMenu, setMobileMenu] = useState(false),
     [projectFilter, setProjectFilter] = useState(''),
     [tab, setTab] = useState<'tasks' | 'notes'>('tasks'),
@@ -93,7 +116,11 @@ export function WorkspaceApp() {
     >(null),
     [query, setQuery] = useState(''),
     [busy, setBusy] = useState(false),
-    [taskBusy, setTaskBusy] = useState<string[]>([]);
+    [taskBusy, setTaskBusy] = useState<string[]>([]),
+    [upcomingDate, setUpcomingDate] = useState('');
+  const composerRef = useRef<HTMLInputElement>(null);
+  const timezone = data?.user.timezone || defaultTimezone;
+  const now = useLocalClock(timezone);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -104,6 +131,8 @@ export function WorkspaceApp() {
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, []);
+  const isEveryday = everydayViews.includes(view);
+  const activeWorkspace = isEveryday ? scopeId : workspaceId;
   function navigate(
     next: View,
     workspace: string | null = null,
@@ -115,6 +144,32 @@ export function WorkspaceApp() {
     setMobileMenu(false);
     setProjectFilter('');
     setTab('tasks');
+    window.scrollTo({ top: 0 });
+  }
+  function setScope(id: string | null) {
+    if (isEveryday) setScopeId(id);
+    else navigate(id ? 'workspace' : 'day', id);
+  }
+  function focusComposer() {
+    setTab('tasks');
+    window.setTimeout(() => {
+      composerRef.current?.focus();
+      composerRef.current?.scrollIntoView({
+        block: 'center',
+        behavior: 'smooth',
+      });
+    }, 0);
+  }
+  function openCount(key: keyof DayCounts) {
+    if (key === 'upcoming' || key === 'waiting' || key === 'inbox') {
+      navigate(key);
+      return;
+    }
+    const target =
+      document.getElementById(key === 'overdue' ? 'day-overdue' : 'day-now') ||
+      document.getElementById('day-today');
+    target?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    target?.focus({ preventScroll: true });
   }
   async function mutate(action: () => Promise<unknown>) {
     setBusy(true);
@@ -147,7 +202,7 @@ export function WorkspaceApp() {
     try {
       const note = await api.createNote({
         title: 'Untitled note',
-        workspaceId,
+        workspaceId: activeWorkspace,
         projectId,
       });
       await work.refresh();
@@ -158,18 +213,23 @@ export function WorkspaceApp() {
       setBusy(false);
     }
   }
-  const workspace = data?.workspaces.find((item) => item.id === workspaceId),
+  const workspace = data?.workspaces.find(
+      (item) => item.id === activeWorkspace,
+    ),
     project = data?.projects.find((item) => item.id === projectId);
   const tasks = useMemo(
     () =>
-      data ? visibleTasks(data, view, workspaceId, projectId, showDone) : [],
-    [data, view, workspaceId, projectId, showDone],
+      data
+        ? visibleTasks(data, view, activeWorkspace, projectId, showDone)
+        : [],
+    [data, view, activeWorkspace, projectId, showDone],
   );
   const notes =
     data?.notes.filter(
       (item) =>
-        (!workspaceId || item.workspaceId === workspaceId) &&
-        (!projectId || item.projectId === projectId),
+        (!activeWorkspace || item.workspaceId === activeWorkspace) &&
+        (!projectId || item.projectId === projectId) &&
+        (view !== 'inbox' || !item.projectId),
     ) || [];
   if (work.loading)
     return (
@@ -183,25 +243,134 @@ export function WorkspaceApp() {
     );
   if (!data)
     return <Auth onSuccess={work.refresh} initialError={work.message} />;
-  const today = localDate(data.user.timezone),
-    undated = data.tasks.filter(
-      (task) =>
-        task.status !== 'done' &&
-        !task.dueDate &&
-        !task.followUpDate &&
-        (!workspaceId || task.workspaceId === workspaceId),
-    );
-  const waiting = data.tasks.filter(
+  const undated = data.tasks.filter(
     (task) =>
-      task.status === 'waiting' &&
-      (!workspaceId || task.workspaceId === workspaceId),
+      task.status !== 'done' &&
+      !task.dueDate &&
+      !task.followUpDate &&
+      task.status !== 'waiting' &&
+      (!activeWorkspace || task.workspaceId === activeWorkspace),
   );
+  const counts = dayCounts(data.tasks, now, activeWorkspace),
+    sections = daySections(data.tasks, now, activeWorkspace),
+    groups = upcomingGroups(data.tasks, now.date, activeWorkspace, projectId),
+    upcomingTotal = new Set(
+      groups.flatMap((group) => group.items.map((item) => item.task.id)),
+    ).size,
+    waitingList = waitingTasks(data.tasks, activeWorkspace, projectId),
+    waitingAll = waitingTasks(data.tasks).length;
   const title =
     view === 'project'
       ? project?.name || 'Project'
       : view === 'workspace'
         ? workspace?.name || 'Workspace'
         : viewNames[view];
+  const scopeName = workspace?.name || 'All workspaces';
+  const header =
+    view === 'inbox'
+      ? {
+          icon: Inbox,
+          context: scopeName,
+          count: tasks.filter((task) => task.status !== 'done').length,
+          countLabel: 'to sort',
+          purpose:
+            'Unsorted tasks and notes. Decide what each one needs: a date, a person, or done.',
+        }
+      : view === 'upcoming'
+        ? {
+            icon: CalendarDays,
+            context: scopeName,
+            count: upcomingTotal,
+            countLabel: 'tasks in the next seven days',
+            purpose:
+              'Your next seven days. Every due date and follow-up, by day.',
+          }
+        : view === 'waiting'
+          ? {
+              icon: Clock3,
+              context: scopeName,
+              count: waitingList.length,
+              countLabel: 'waiting',
+              purpose:
+                'Hand-offs that need someone else’s next step, and when you’ll follow up.',
+            }
+          : {
+              icon: Folder,
+              context:
+                view === 'project'
+                  ? workspace?.name || 'Workspace'
+                  : 'Workspace',
+              count: tasks.filter((task) => task.status !== 'done').length,
+              countLabel: 'open tasks',
+              purpose:
+                (view === 'project' && project?.description) ||
+                'One place for your notes, commitments, and next steps.',
+            };
+  const tomorrow = addDays(now.date, 1);
+  const plannedDate =
+    upcomingDate > now.date && upcomingDate <= addDays(now.date, 7)
+      ? upcomingDate
+      : tomorrow;
+  const composer =
+    view === 'day'
+      ? {
+          placeholder: 'Add a task for today…',
+          hint: `Lands on Today${workspace ? ` in ${workspace.name}` : ''} · Enter to add`,
+        }
+      : view === 'inbox'
+        ? {
+            placeholder: 'Capture something to sort later…',
+            hint: `Lands in your ${workspace ? `${workspace.name} ` : ''}Inbox · Enter to add`,
+          }
+        : view === 'upcoming'
+          ? { placeholder: 'Plan something ahead…', hint: 'Due' }
+          : view === 'waiting'
+            ? {
+                placeholder: 'What are you waiting on?',
+                hint: 'Added as Waiting · open it to add who and when',
+              }
+            : {
+                placeholder: `Add a task to ${title}…`,
+                hint: `Adds to ${title} · Enter to add`,
+              };
+  async function addFromComposer(value: string) {
+    const input: Partial<TaskInput> & { title: string } = {
+      title: value,
+      workspaceId: activeWorkspace,
+      projectId: view === 'inbox' ? null : projectId,
+    };
+    if (view === 'day') input.dueDate = now.date;
+    if (view === 'upcoming') input.dueDate = plannedDate;
+    if (view === 'waiting') input.status = 'waiting';
+    await work.capture(input);
+  }
+  const hasNotesTab = view !== 'upcoming' && view !== 'waiting';
+  const row = (task: Task) => (
+    <TaskRow
+      key={task.id}
+      task={task}
+      data={data}
+      now={now}
+      variant={view === 'day' ? 'flat' : 'default'}
+      busy={taskBusy.includes(task.id)}
+      onComplete={() => void complete(task)}
+      onOpen={() => setSelectedTask(task.id)}
+    />
+  );
+  const shortDate = (value: string) =>
+    new Intl.DateTimeFormat('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      timeZone: 'UTC',
+    }).format(new Date(`${value}T12:00:00Z`));
+  const scopeSelect = (
+    <ScopeSelect
+      data={data}
+      workspaceId={activeWorkspace}
+      onChange={setScope}
+    />
+  );
   const audioSettings =
     audioConfig?.ownerId === data.user.id ? audioConfig.settings : null;
   const audioReady = !!audioSettings?.configured;
@@ -209,15 +378,15 @@ export function WorkspaceApp() {
     activeNote = data.notes.find((note) => note.id === selectedNote);
   const pending = work.pending.filter(
     (item) =>
-      (!workspaceId || item.input.workspaceId === workspaceId) &&
+      (!activeWorkspace || item.input.workspaceId === activeWorkspace) &&
       (!projectId || item.input.projectId === projectId),
   );
   const date = new Intl.DateTimeFormat('en-GB', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
-    timeZone: data.user.timezone,
-  }).format(new Date());
+    timeZone: 'UTC',
+  }).format(new Date(`${now.date}T12:00:00Z`));
   return (
     <div className="app-shell">
       <a href="#main-content" className="skip-link">
@@ -262,8 +431,8 @@ export function WorkspaceApp() {
             >
               <item.icon size={17} strokeWidth={1.7} />
               <span>{viewNames[item.key]}</span>
-              {item.key === 'waiting' && waiting.length > 0 && (
-                <small>{waiting.length}</small>
+              {item.key === 'waiting' && waitingAll > 0 && (
+                <small>{waitingAll}</small>
               )}
             </button>
           ))}
@@ -422,51 +591,25 @@ export function WorkspaceApp() {
           </div>
         </header>
         <main id="main-content" className="content">
-          <div className="page-heading">
-            <div>
-              <div className="eyebrow">
-                {view === 'day'
-                  ? '01 / MY DAY'
-                  : workspace?.name || 'YOUR PERSONAL WORKSPACE'}
-              </div>
-              <h1>{view === 'day' ? 'Make room for what matters.' : title}</h1>
-              <p className="page-description">
-                {view === 'day'
-                  ? 'Your thoughts, projects, and next steps. All in one calm place.'
-                  : view === 'inbox'
-                    ? 'A safe place for the things you haven’t sorted yet.'
-                    : view === 'waiting'
-                      ? 'Keep track of the things that need someone else’s next step.'
-                      : view === 'upcoming'
-                        ? 'A little space to see what’s ahead in the next seven days.'
-                        : project?.description ||
-                          'One place for your notes, commitments, and next steps.'}
-              </p>
-            </div>
-            <div className="heading-meta">
-              <span>{date}</span>
-              <label className="scope-select">
-                <select
-                  aria-label="Filter workspace"
-                  value={workspaceId || ''}
-                  onChange={(event) =>
-                    navigate(
-                      event.target.value ? 'workspace' : 'day',
-                      event.target.value || null,
-                    )
-                  }
-                >
-                  <option value="">All workspaces</option>
-                  {data.workspaces.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={12} />
-              </label>
-            </div>
-          </div>
+          {view === 'day' ? (
+            <DayHeader
+              date={date}
+              title={greeting(now.hour, data.user.displayName)}
+              summary={daySummary(counts, sections.dueNow.length)}
+              aside={scopeSelect}
+            />
+          ) : (
+            <ViewHeader
+              icon={header.icon}
+              context={header.context}
+              title={title}
+              count={header.count}
+              countLabel={header.countLabel}
+              purpose={header.purpose}
+              aside={scopeSelect}
+            />
+          )}
+          {view === 'day' && <CountChips counts={counts} onOpen={openCount} />}
           {work.message && (
             <div className="notice" role="status">
               <span>{work.message}</span>
@@ -505,7 +648,7 @@ export function WorkspaceApp() {
                   title: 'Add Task',
                   hint: 'One thing at a time',
                   icon: Plus,
-                  action: () => setModal('task'),
+                  action: focusComposer,
                 },
                 {
                   title: 'Record',
@@ -558,40 +701,71 @@ export function WorkspaceApp() {
           )}
           <div className="workspace-layout">
             <section className="primary-column">
-              <div className="section-heading">
-                <div className="section-tabs">
-                  <button
-                    className={tab === 'tasks' ? 'selected' : ''}
-                    onClick={() => setTab('tasks')}
-                  >
-                    {view === 'day' ? 'Your focus' : 'Tasks'}
-                    <span className="count">{tasks.length}</span>
-                  </button>
-                  <button
-                    className={tab === 'notes' ? 'selected' : ''}
-                    onClick={() => setTab('notes')}
-                  >
-                    Notes<span className="count">{notes.length}</span>
-                  </button>
+              {hasNotesTab ? (
+                <div className="section-heading">
+                  <div className="section-tabs" role="tablist">
+                    <button
+                      role="tab"
+                      aria-selected={tab === 'tasks'}
+                      className={tab === 'tasks' ? 'selected' : ''}
+                      onClick={() => setTab('tasks')}
+                    >
+                      {view === 'day' ? 'Your focus' : 'Tasks'}
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={tab === 'notes'}
+                      className={tab === 'notes' ? 'selected' : ''}
+                      onClick={() => setTab('notes')}
+                    >
+                      Notes<span className="count">{notes.length}</span>
+                    </button>
+                  </div>
+                  {tab === 'tasks' && view !== 'day' && (
+                    <label className="completed-toggle">
+                      <input
+                        type="checkbox"
+                        checked={showDone}
+                        onChange={(event) => setShowDone(event.target.checked)}
+                      />
+                      Show done
+                    </label>
+                  )}
                 </div>
-                {tab === 'tasks' && (
-                  <label className="completed-toggle">
-                    <input
-                      type="checkbox"
-                      checked={showDone}
-                      onChange={(event) => setShowDone(event.target.checked)}
-                    />
-                    Show done
-                  </label>
-                )}
-              </div>
-              {tab === 'tasks' ? (
+              ) : null}
+              {tab === 'tasks' || !hasNotesTab ? (
                 <>
+                  <InlineComposer
+                    key={`${view}:${projectId || activeWorkspace || ''}`}
+                    inputRef={composerRef}
+                    placeholder={composer.placeholder}
+                    hint={composer.hint}
+                    onAdd={addFromComposer}
+                  >
+                    {view === 'upcoming' && (
+                      <label className="composer-day">
+                        <span className="sr-only">Due on</span>
+                        <select
+                          value={upcomingDate}
+                          onChange={(event) =>
+                            setUpcomingDate(event.target.value)
+                          }
+                        >
+                          {groups.map((group) => (
+                            <option key={group.date} value={group.date}>
+                              {group.label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown size={11} />
+                      </label>
+                    )}
+                  </InlineComposer>
                   {pending.map((item) => (
                     <div className="task-row pending" key={item.key}>
                       <Clock3 size={15} />
                       <div className="task-main">
-                        <span>{item.input.title}</span>
+                        <span className="task-title">{item.input.title}</span>
                         <small className={item.error ? 'error-text' : ''}>
                           {item.error || 'Saved on this device · Needs sync'}
                         </small>
@@ -604,59 +778,158 @@ export function WorkspaceApp() {
                       </button>
                     </div>
                   ))}
-                  {tasks.length ? (
-                    tasks.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        data={data}
-                        today={today}
-                        busy={taskBusy.includes(task.id)}
-                        onComplete={() => void complete(task)}
-                        onOpen={() => setSelectedTask(task.id)}
+                  {view === 'day' ? (
+                    <>
+                      {sections.dueNow.length > 0 && (
+                        <Section
+                          id="day-now"
+                          title="Due now"
+                          count={sections.dueNow.length}
+                          tone="now"
+                        >
+                          {sections.dueNow.map(row)}
+                        </Section>
+                      )}
+                      {sections.overdue.length > 0 && (
+                        <Section
+                          id="day-overdue"
+                          title="Overdue"
+                          count={sections.overdue.length}
+                          tone="warm"
+                        >
+                          {sections.overdue.map(row)}
+                        </Section>
+                      )}
+                      <Section
+                        id="day-today"
+                        title="Today"
+                        count={sections.today.length}
+                      >
+                        {sections.today.length ? (
+                          sections.today.map(row)
+                        ) : sections.dueNow.length ||
+                          sections.overdue.length ? (
+                          <p className="section-empty">
+                            Nothing else is due today.
+                          </p>
+                        ) : (
+                          <Empty
+                            icon={Sun}
+                            title="A little breathing room."
+                            text="Nothing is due today. Add the one thing you want to move forward and it will land here."
+                          />
+                        )}
+                      </Section>
+                      <WaitingPreview
+                        tasks={waitingList.slice(0, 3)}
+                        total={waitingList.length}
+                        now={now}
+                        onOpen={setSelectedTask}
+                        onSeeAll={() => navigate('waiting')}
                       />
-                    ))
-                  ) : (
-                    <Empty
-                      title={
-                        view === 'day'
-                          ? 'A little breathing room.'
-                          : view === 'waiting'
-                            ? 'Nothing waiting on someone else.'
-                            : 'A fresh start.'
-                      }
-                      text={
-                        view === 'day'
-                          ? 'Tasks due today and overdue follow-ups will appear here. Add a task whenever you’re ready.'
-                          : 'Capture a next step, or keep a thought as a note.'
-                      }
-                    />
-                  )}
-                  <button className="add-task" onClick={() => setModal('task')}>
-                    <Plus size={15} />
-                    Add a task
-                  </button>
-                  {view === 'day' && undated.length > 0 && (
-                    <section className="undated">
-                      <div className="section-heading">
-                        <h2>
-                          Without a date{' '}
-                          <span className="count">{undated.length}</span>
-                        </h2>
-                        <span className="muted small">Ready when you are</span>
-                      </div>
-                      {undated.slice(0, 8).map((task) => (
+                      {undated.length > 0 && (
+                        <Section
+                          title="Without a date"
+                          count={undated.length}
+                          action={
+                            <span className="muted small">
+                              Ready when you are
+                            </span>
+                          }
+                        >
+                          {undated.slice(0, 8).map(row)}
+                        </Section>
+                      )}
+                    </>
+                  ) : view === 'upcoming' ? (
+                    <div className="day-groups">
+                      {upcomingTotal === 0 && (
+                        <Empty
+                          icon={CalendarDays}
+                          title="A clear week ahead."
+                          text="Nothing is due or waiting for follow-up in the next seven days. Plan something above and pick its day."
+                        />
+                      )}
+                      {groups.map((group) => (
+                        <section
+                          className={`day-group ${group.items.length ? '' : 'is-empty'}`}
+                          key={group.date}
+                          aria-label={group.label}
+                        >
+                          <h2 className="day-group-title">
+                            <span>{group.label}</span>
+                            {group.label === 'Tomorrow' && (
+                              <small>{shortDate(group.date)}</small>
+                            )}
+                            {group.items.length > 0 && (
+                              <span className="count">
+                                {group.items.length}
+                              </span>
+                            )}
+                          </h2>
+                          {group.items.length ? (
+                            group.items.map((moment) => (
+                              <TaskRow
+                                key={`${moment.task.id}:${moment.kind}`}
+                                task={moment.task}
+                                data={data}
+                                now={now}
+                                moment={moment}
+                                variant="flat"
+                                busy={taskBusy.includes(moment.task.id)}
+                                onComplete={() => void complete(moment.task)}
+                                onOpen={() => setSelectedTask(moment.task.id)}
+                              />
+                            ))
+                          ) : (
+                            <button
+                              className="day-group-add"
+                              onClick={() => {
+                                setUpcomingDate(group.date);
+                                focusComposer();
+                              }}
+                            >
+                              <Plus size={12} /> Nothing yet · Plan something
+                            </button>
+                          )}
+                        </section>
+                      ))}
+                    </div>
+                  ) : view === 'waiting' ? (
+                    waitingList.length ? (
+                      waitingList.map((task) => (
                         <TaskRow
                           key={task.id}
                           task={task}
                           data={data}
-                          today={today}
+                          now={now}
+                          variant="waiting"
                           busy={taskBusy.includes(task.id)}
                           onComplete={() => void complete(task)}
                           onOpen={() => setSelectedTask(task.id)}
                         />
-                      ))}
-                    </section>
+                      ))
+                    ) : (
+                      <Empty
+                        icon={Clock3}
+                        title="No loose ends."
+                        text="When you hand something off, add it here. Open it to note who you are waiting on and when to follow up."
+                      />
+                    )
+                  ) : tasks.length ? (
+                    tasks.map(row)
+                  ) : view === 'inbox' ? (
+                    <Empty
+                      icon={Inbox}
+                      title="Inbox clear."
+                      text="Anything you capture without a project lands here, ready to sort when you have a minute."
+                    />
+                  ) : (
+                    <Empty
+                      icon={Folder}
+                      title="A fresh start."
+                      text="Capture a next step above, or keep a thought as a note."
+                    />
                   )}
                 </>
               ) : (
@@ -674,12 +947,13 @@ export function WorkspaceApp() {
                           {note.body || 'A little space for your thoughts…'}
                         </p>
                         <small>
-                          {new Date(note.updatedAt).toLocaleDateString()}
+                          {new Date(note.updatedAt).toLocaleDateString('en-GB')}
                         </small>
                       </button>
                     ))
                   ) : (
                     <Empty
+                      icon={NotebookPen}
                       title="Leave yourself a thought."
                       text="Notes stay in the context you choose, ready when you need them."
                     />
@@ -749,42 +1023,58 @@ export function WorkspaceApp() {
               </footer>
             </section>
             <aside className="context-column">
-              <section className="waiting-card">
-                <h2>
-                  <Clock3 size={14} />
-                  Waiting on<span>{waiting.length}</span>
-                </h2>
-                {waiting.length ? (
-                  waiting.slice(0, 3).map((task) => (
-                    <button
-                      key={task.id}
-                      onClick={() => setSelectedTask(task.id)}
-                    >
-                      <strong>{task.title}</strong>
-                      <small>
-                        {data.workspaces.find(
-                          (item) => item.id === task.workspaceId,
-                        )?.name || 'Inbox'}
-                        {task.followUpDate
-                          ? ` · Follow up ${task.followUpDate}`
-                          : ''}
-                      </small>
-                    </button>
-                  ))
-                ) : (
-                  <p>
-                    No loose ends here.
-                    <br />
-                    Tasks marked Waiting will appear here.
-                  </p>
-                )}
-              </section>
+              {view !== 'day' && view !== 'waiting' && (
+                <section className="waiting-card">
+                  <h2>
+                    <Clock3 size={14} />
+                    Waiting on<span>{waitingList.length}</span>
+                  </h2>
+                  {waitingList.length ? (
+                    waitingList.slice(0, 3).map((task) => (
+                      <button
+                        key={task.id}
+                        onClick={() => setSelectedTask(task.id)}
+                      >
+                        <strong>{task.title}</strong>
+                        <small>
+                          {task.waitingOn ||
+                            data.workspaces.find(
+                              (item) => item.id === task.workspaceId,
+                            )?.name ||
+                            'Inbox'}
+                          {task.followUpDate && (
+                            <span
+                              className={
+                                followUpOverdue(task, now) ? 'overdue-text' : ''
+                              }
+                            >
+                              {' · Follow up '}
+                              {whenLabel(
+                                task.followUpDate,
+                                task.followUpTime,
+                                now.date,
+                              )}
+                            </span>
+                          )}
+                        </small>
+                      </button>
+                    ))
+                  ) : (
+                    <p>
+                      No loose ends here.
+                      <br />
+                      Tasks marked Waiting will appear here.
+                    </p>
+                  )}
+                </section>
+              )}
               <div className="section-heading">
                 <h2>Pick up where you left off</h2>
               </div>
               {data.projects
                 .filter(
-                  (item) => !workspaceId || item.workspaceId === workspaceId,
+                  (item) =>
+                    !activeWorkspace || item.workspaceId === activeWorkspace,
                 )
                 .slice(0, 3)
                 .map((item) => (
@@ -830,7 +1120,7 @@ export function WorkspaceApp() {
       {modal === 'task' && (
         <CaptureTask
           data={data}
-          workspaceId={workspaceId}
+          workspaceId={activeWorkspace}
           projectId={projectId}
           onClose={() => setModal(null)}
           onSave={work.capture}
@@ -839,7 +1129,7 @@ export function WorkspaceApp() {
       {(modal === 'workspace' || modal === 'project') && (
         <CreateContainer
           kind={modal}
-          workspaceId={workspaceId}
+          workspaceId={activeWorkspace}
           data={data}
           onClose={() => setModal(null)}
           onSave={work.refresh}
@@ -909,90 +1199,6 @@ export function WorkspaceApp() {
           onClose={() => setSelectedNote(null)}
           onSaved={work.refresh}
         />
-      )}
-    </div>
-  );
-}
-function Empty({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="empty-state">
-      <Sun size={24} strokeWidth={1.2} />
-      <h3>{title}</h3>
-      <p>{text}</p>
-    </div>
-  );
-}
-function TaskRow({
-  task,
-  data,
-  today,
-  busy,
-  onComplete,
-  onOpen,
-}: {
-  task: Task;
-  data: HomeSnapshot;
-  today: string;
-  busy: boolean;
-  onComplete: () => void;
-  onOpen: () => void;
-}) {
-  const workspace = data.workspaces.find(
-      (item) => item.id === task.workspaceId,
-    ),
-    project = data.projects.find((item) => item.id === task.projectId);
-  return (
-    <div
-      className={`task-row ${task.status === 'done' ? 'is-done' : ''}`}
-      style={{ paddingLeft: taskDepth(task, data.tasks) * 17 }}
-    >
-      <button
-        className="task-check"
-        role="checkbox"
-        aria-checked={task.status === 'done'}
-        aria-label={`${task.status === 'done' ? 'Reopen' : 'Complete'} ${task.title}`}
-        disabled={busy}
-        onClick={onComplete}
-      >
-        {busy ? (
-          <LoaderCircle size={11} className="spin" />
-        ) : task.status === 'done' ? (
-          <Check size={11} />
-        ) : null}
-      </button>
-      <button className="task-main" onClick={onOpen}>
-        <span>{task.title}</span>
-        <small>
-          <i
-            className="workspace-dot"
-            style={{ background: workspace?.color || '#b9bfc4' }}
-          />
-          {workspace?.name || 'Personal Inbox'}
-          {project && (
-            <>
-              <ChevronRight size={9} />
-              {project.name}
-            </>
-          )}
-          {task.status === 'waiting' && (
-            <span className="status-chip">Waiting</span>
-          )}
-          {task.priority === 'high' && (
-            <span className="priority-dot" title="High priority" />
-          )}
-        </small>
-      </button>
-      {task.dueDate && (
-        <span className={`task-date ${task.dueDate < today ? 'overdue' : ''}`}>
-          {task.dueDate === today
-            ? 'Today'
-            : task.dueDate < today
-              ? 'Overdue'
-              : new Date(`${task.dueDate}T12:00:00Z`).toLocaleDateString(
-                  'en-GB',
-                  { day: 'numeric', month: 'short' },
-                )}
-        </span>
       )}
     </div>
   );

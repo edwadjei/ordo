@@ -5,6 +5,15 @@ export const priorities = ['low', 'medium', 'high'] as const;
 const id = z.uuid();
 const name = z.string().trim().min(1).max(200);
 const dateOnly = z.iso.date();
+// Local wall-clock time in the user's timezone; stored separately from its date-only field.
+export const timeOfDayPattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+const timeOfDay = z.string().regex(timeOfDayPattern);
+// Plain-text person name, never matched to accounts. Trimmed; empty becomes null.
+const personName = z
+  .string()
+  .trim()
+  .max(80)
+  .transform((v) => (v === '' ? null : v));
 export const userCredentials = z
   .object({
     email: z
@@ -45,6 +54,10 @@ export const taskInput = scopeInput
     priority: z.enum(priorities).nullable().default(null),
     dueDate: dateOnly.nullable().default(null),
     followUpDate: dateOnly.nullable().default(null),
+    dueTime: timeOfDay.nullable().default(null),
+    followUpTime: timeOfDay.nullable().default(null),
+    responsiblePerson: personName.nullable().default(null),
+    waitingOn: personName.nullable().default(null),
     parentId: id.nullable().default(null),
   })
   .strict();
@@ -57,6 +70,10 @@ export const taskPatch = z
     priority: z.enum(priorities).nullable().optional(),
     dueDate: dateOnly.nullable().optional(),
     followUpDate: dateOnly.nullable().optional(),
+    dueTime: timeOfDay.nullable().optional(),
+    followUpTime: timeOfDay.nullable().optional(),
+    responsiblePerson: personName.nullable().optional(),
+    waitingOn: personName.nullable().optional(),
     workspaceId: id.nullable().optional(),
     projectId: id.nullable().optional(),
     parentId: id.nullable().optional(),

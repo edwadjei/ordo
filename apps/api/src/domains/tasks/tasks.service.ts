@@ -12,6 +12,20 @@ import { newId } from '../../platform/identifiers/new-id.js';
 import type { WorkspacesService } from '../workspaces/workspaces.service.js';
 import { TasksRepository } from './tasks.repository.js';
 
+// A time is a wall-clock refinement of its date: checked after a patch is merged, so clearing
+// a date without also clearing its time is rejected rather than leaving an orphaned time.
+function assertTimesHaveDates(task: {
+  dueDate: string | null;
+  dueTime: string | null;
+  followUpDate: string | null;
+  followUpTime: string | null;
+}) {
+  if (task.dueTime !== null && task.dueDate === null)
+    fail(400, 'INVALID_INPUT', 'A due time needs a due date.');
+  if (task.followUpTime !== null && task.followUpDate === null)
+    fail(400, 'INVALID_INPUT', 'A follow-up time needs a follow-up date.');
+}
+
 export class TasksService {
   constructor(
     private readonly repository: TasksRepository,
@@ -52,6 +66,7 @@ export class TasksService {
           fail(410, 'TASK_ARCHIVED', 'This task was already archived.');
         return { task: publicRecord(original), created: false };
       }
+      assertTimesHaveDates(input);
       await this.workspaces.validateScope(owner, input, transaction);
       const id = newId();
       await this.validateParent(owner, { ...input, id }, transaction);
@@ -79,6 +94,7 @@ export class TasksService {
       assertRevision(row.revision, input.expectedRevision);
       const { expectedRevision: _revision, ...patch } = input;
       const merged = { ...row, ...patch };
+      assertTimesHaveDates(merged);
       await this.workspaces.validateScope(owner, merged, transaction);
       await this.validateParent(owner, merged, transaction);
       if (

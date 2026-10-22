@@ -22,6 +22,12 @@ Revision is a different concern: PATCH/DELETE require the current revision and r
 
 Due and follow-up dates are date-only strings, not arbitrary midnight timestamps. Status is explicit (`todo`, `in_progress`, `waiting`, `done`); overdue is a view calculation. Entering Done sets completion time, repeating a Done edit preserves it, and reopening clears it. Waiting and a follow-up date do not trigger automatic status changes.
 
+## Times and people
+
+`dueTime` and `followUpTime` are optional `HH:MM` (24-hour) local wall-clock times in the user's timezone, kept in their own columns so date-only storage and date logic are unchanged. A time refines its date: the service checks the merged task (after a PATCH is applied to the stored row) and rejects a time whose date is null with `400 INVALID_INPUT`. Clearing a date therefore must clear its time in the same request. Migration `0005_task_times_people.sql` enforces the same format and date requirement with CHECK constraints.
+
+`responsiblePerson` and `waitingOn` are plain-text names: trimmed, at most 80 characters, an empty string becomes `null`. They are never resolved to accounts and grant nothing. `waitingOn` says who a Waiting task is waiting on; it does not change Waiting On membership, which remains `status: waiting`. Both names are included in task search. Reminders are in-app view calculations only; the service schedules nothing.
+
 ## Current limits
 
 Archive tombstones are returned by the mutation and omitted from refreshed snapshots. There is no incremental sync feed yet. Background reminders, automated task extraction, cross-workspace moves with descendant/source orchestration, and bulk actions are separate capabilities, not hidden behavior in this service.
