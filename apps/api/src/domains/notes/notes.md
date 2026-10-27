@@ -13,3 +13,9 @@ The service decides transaction and revision behavior; `notes.repository.ts` exe
 ## Scope boundaries
 
 Plain-text bodies are data and do not authorize AI processing, tool calls, or access to other workspaces. Rich editing, attachments, source-linked AI summaries, incremental sync, and multidevice offline note merge are not implemented by this foundation.
+
+## On Cloudflare
+
+Without an owner lock, a note save is `UPDATE … WHERE id = ? AND owner_user_id = ? AND revision = ?`, with the destination re-checked in the same statement; zero rows changed returns `409 REVISION_CONFLICT` and nothing is written. Triggers keep `notes_fts` current.
+
+**Implementation status:** today notes save inside the PostgreSQL owner transaction described above; check-on-save is Phase 2.

@@ -8,13 +8,13 @@ The original session seams are `PasswordHasher`, `SessionTokens`, and `SessionAu
 
 ## Credential decisions
 
-Registration salts and hashes the password before storing an account. Email uniqueness is enforced by PostgreSQL; concurrent duplicates return the existing safe conflict response. Login computes a real password hash comparison even when the account is absent, using an initialized dummy hash. This avoids a fast no-account branch while keeping the same generic invalid-credentials message.
+Registration salts and hashes the password before storing an account. Email uniqueness is enforced by a unique database constraint; concurrent duplicates return the existing safe conflict response. Login computes a real password hash comparison even when the account is absent, using an initialized dummy hash. This avoids a fast no-account branch while keeping the same generic invalid-credentials message.
 
 Session tokens use 32 random bytes and are stored as SHA-256 digests, with a seven-day expiry. `identity.repository.ts` resolves the digest and current user record on every private request. Logout deletes that stored session, so the old cookie stops authorizing requests immediately afterwards. Sessions are independent; logout revokes the current one rather than silently signing out all devices.
 
 ## Transport and persistence
 
-`identity.controller.ts` parses shared credential schemas and translates returned tokens into HttpOnly, SameSite=Lax cookies. It owns cookie clearing and response status; the service never reads Fastify requests. `identity.repository.ts` owns legacy account/session queries; `otp.repository.ts` owns challenge lifecycle and atomic verified-account/session creation.
+`identity.controller.ts` parses shared credential schemas and translates returned tokens into HttpOnly, SameSite=Lax cookies. It owns cookie clearing and response status; the service never reads HTTP framework requests. `identity.repository.ts` owns legacy account/session queries; `otp.repository.ts` owns challenge lifecycle and atomic verified-account/session creation.
 
 The demo fixture repository's access to `users.demo_loaded` is a documented fixture-only exception, not an alternate identity API. Public user mapping is explicit; neither object spreads nor database rows are used as authentication responses.
 
@@ -31,3 +31,9 @@ Challenges persist across restarts. A locked contact row enforces a 60-second re
 ## Remaining authentication scope
 
 No password reset UI, native bearer-token flow, optional PIN/passkey, contact-linking UI, session-management UI, or account deletion is implied by these routes. Passwordless access replaces a forgotten password only when the user controls the account's contact channel. Native iOS/Android authentication must be designed explicitly before those clients ship.
+
+## On Cloudflare
+
+Hosted Ordo is code-only: no password routes are served, and a legacy local password account converts at its first code sign-in (the Phase 2 data import never copies password hashes). Codes are hashed as HMAC-SHA256 of challenge ID and code with the `OTP_HMAC_KEY` Worker secret, which fits the 10 ms CPU budget. The resend and send limits become one upsert on the contact's `otp_challenges` row; verification is one guarded attempt increment, a constant-time comparison, then one `batch()` led by a compare-and-set on `consumed = 0` so a code works exactly once. Per-IP limits move to a D1 table keyed by `CF-Connecting-IP`. Native clients use a bearer token over the same sessions table. See the [technical architecture](../../../../../docs/TECHNICAL.md#8-authentication-and-sessions).
+
+**Implementation status:** everything above describes today's code (Node `crypto`, scrypt, PostgreSQL transaction and row lock, in-memory per-process IP limits). The hashing change is Phase 1; the D1 statements and removal of password sign-in are Phase 2.

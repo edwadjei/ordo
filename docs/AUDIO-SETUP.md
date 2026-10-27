@@ -10,6 +10,8 @@ Open **Settings** from the sidebar. Voice setup is optional and does not block t
 | OpenAI API | Select OpenAI, enter your own key, Save, then Test connection | OpenAI; provider charges and retention policy apply |
 | Native on-device | Coming soon with the native apps | Not implemented in the web app |
 
+Hosted Ordo runs on a Cloudflare Worker, where local Whisper is not available: it uses the account's own OpenAI key, and Settings shows local Whisper as unavailable there. Local Whisper is a development option on a local Mac. Workers AI Whisper is an open option for Edward ([platform spec](specs/02-cloudflare-platform.md#open-questions-for-edward)). **Implementation status:** today only the local build exists.
+
 The installed local runtime and model were exercised using a public speech sample. This does not mean a real phone microphone or its HTTPS connection was tested. Model/language quality depends on the selected model and audio; no general accuracy or latency claim is made.
 
 ## Local Whisper
@@ -31,7 +33,7 @@ FFmpeg decodes input through stdin/stdout with pipe-only protocols; the decoded 
 
 API keys belong to the signed-in account. Add, replace, or remove them in Settings. Keys are write-only to the client: GET returns a saved-key boolean, never the key. The key field clears after successful save or closing Settings, and is not placed in browser storage. New key entry requires HTTPS or localhost; ordinary LAN HTTP can still select local Whisper or remove a saved key.
 
-Saved keys are encrypted with AES-256-GCM and bound to their owner's identity. The server uses private `ORDO_CREDENTIAL_KEY` (64 hex characters) when provided, otherwise a mode-0600 local master-key file at `.data/secrets/audio-key`. Protect/back up the master key separately with the database; losing it makes saved keys unreadable. Production needs a persistent, protected encryption-key configuration. Never commit or display keys. Global `OPENAI_API_KEY` is not inherited by accounts.
+Saved keys are encrypted with AES-256-GCM and bound to their owner's identity. The server uses private `ORDO_CREDENTIAL_KEY` (64 hex characters) when provided, otherwise a mode-0600 local master-key file at `.data/secrets/audio-key`. Protect/back up the master key separately with the database; losing it makes saved keys unreadable. Hosted Ordo reads the master key only from the `ORDO_CREDENTIAL_KEY` Worker secret. Never commit or display keys. Global `OPENAI_API_KEY` is not inherited by accounts.
 
 Test connection uses the saved configuration. For local Whisper it checks the decoder and ready engine. For OpenAI it checks key authentication using the fixed models endpoint; this does not prove billing balance, transcription permissions, or audio quality. No real online key was entered or tested during this implementation.
 

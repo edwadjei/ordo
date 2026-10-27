@@ -21,7 +21,8 @@ And one rule for development: Ordo should never make organizing work feel like m
 
 - [Documentation index](docs/README.md) — what to read and where decisions live.
 - [Product requirements](docs/PRODUCT.md) — supplied MVP brief, preserved verbatim.
-- [Technical architecture](docs/TECHNICAL.md) — supplied architecture brief, preserved verbatim.
+- [Technical architecture](docs/TECHNICAL.md) — Ordo on Cloudflare Workers (Free plan) with D1.
+- [Cloudflare platform spec](docs/specs/02-cloudflare-platform.md) — hosting design, free-plan budget, phases, and acceptance.
 - [Implementation approach](docs/IMPLEMENTATION-APPROACH.md) — proposed boundaries, build order, and unresolved choices.
 - [Delivery ledger](docs/PLAN.md) — what exists, what is next, and evidence for completion.
 - [Engineering method](docs/engineering-method.md) — specs, written briefs, review, and owner approval.
@@ -35,7 +36,7 @@ npm ci
 npm run dev
 ```
 
-Open [Ordo Web](http://127.0.0.1:3318). No Docker or AI key is required. The API uses embedded PostgreSQL for local development and persists accounts/content in `.data/ordo`. Create a local account; load fictional examples only if you want them. The UI uses white backgrounds with distinct workspace colors, following Edward's design feedback.
+Open [Ordo Web](http://127.0.0.1:3318). No Docker, cloud account, or AI key is required. Today the local API uses embedded PostgreSQL and persists accounts/content in `.data/ordo`; from hosting Phase 2, local development uses `wrangler dev` with a local D1 database. Create a local account; load fictional examples only if you want them. The UI uses white backgrounds with distinct workspace colors, following Edward's design feedback.
 
 See [local development](docs/LOCAL-DEVELOPMENT.md) for configuration, database behavior, and release limits, and [the API guide](apps/api/README.md) for endpoint contracts.
 
@@ -46,18 +47,20 @@ npm run docs:check
 open docs/html/index.html
 ```
 
-Markdown is the source of truth. The generated site works without a server; rebuild after editing. Both supplied briefs remain unchanged, with later owner decisions recorded separately.
+Markdown is the source of truth. The generated site works without a server; rebuild after editing. The supplied product brief remains unchanged; owner decisions are recorded in the decision register.
 
 ## Current build
 
-The first responsive web foundation is being integrated locally: account sessions, owned workspaces/projects, tasks/subtasks, plain-text notes, daily views, search, and durable queued task capture. See the delivery ledger for actual verification evidence and gaps. This is not the complete MVP or a production release.
+Ordo is designed to run as one Cloudflare Worker on the Workers Free plan ($0/month): the web app as static files, a Hono API under `/api`, and Cloudflare D1 for data. See the [technical architecture](docs/TECHNICAL.md).
+
+**Implementation status:** the everyday web core is merged to `main` and works locally: code sign-in, owned workspaces/projects, tasks/subtasks with times and people, plain-text notes, daily views, search, and durable queued task capture. It still runs on Fastify with embedded PostgreSQL in Node. The Hono port is Phase 1, D1 is Phase 2, and hosted staging is Phase 3; nothing is deployed. This is not the complete MVP or a production release.
 
 | Area | Implementation |
 |---|---|
-| `apps/web` | Next.js / React responsive web client |
-| `apps/api` | Fastify authenticated domain API |
+| `apps/web` | Next.js / React responsive web client; static export served by the Worker (Phase 1) |
+| `apps/api` | Authenticated domain API: Fastify today; Hono from Phase 1, running in the Worker from Phase 2 |
 | `packages/core` | Domain contracts and validation |
-| `packages/db` | Drizzle schema, SQL migrations, embedded/standard PostgreSQL drivers |
+| `packages/db` | Drizzle schema and SQL migrations: embedded PostgreSQL today, D1 `sqlite-core` from Phase 2 |
 | `packages/client` | Typed API client and owner-bound task retry queue |
 | `docs`, `design` | Requirements, decisions, delivery evidence, clickable Home preview |
 
@@ -71,6 +74,6 @@ npm run build
 npm run docs:check
 ```
 
-Edward Adjei owns scope and approvals. This chat coordinates the work. Merge and deployment approval is per change; see [coordination status](docs/coordination/STATUS.md).
+Edward Adjei owns scope and approvals. A coordinator session coordinates the work. Merge and deployment approval is per change; see [coordination status](docs/coordination/STATUS.md).
 
 Delivery follows coordinated-development exclusively: coordinator planning and written briefs, specialist PRs, coordinator checks, and Edward's approval for merges and deployments. Brainstorming is optional design support; Ordo does not use the Superpowers development approach.
