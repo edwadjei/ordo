@@ -1,39 +1,46 @@
-# Responsive web foundation delivery
+# Active build plan — Ordo on Cloudflare
 
-**Started:** 21 October 2026.
+**Updated:** 27 October 2026.
 
-**Authorization:** Edward: “Yes build.”
+**Authorization:** Edward chose Cloudflare Workers (Free plan) with D1: "aligned" and "I don't want to pay $5", 27 October 2026 (C25, C26). Build authorization is not merge or deploy approval; Edward approves each merge and each deploy.
 
-**Method:** Coordinated-development; local implementation, reviewable before merge/deploy.
+**Method:** coordinated-development. The coordinator writes briefs and checks PRs; specialists build in PRs; Edward approves.
+
+**Implementation status:** the local build runs Fastify on embedded PostgreSQL (PGlite) in Node, with the Next.js server proxying `/api`. The choices below are the target; Phase 1 begins once the documentation PR is merged.
 
 ## Working choices
 
-- Node 22.23.2 and npm workspaces. Documentation tooling stays available.
-- Next.js/React for responsive web, Fastify for the shared API, Drizzle for PostgreSQL persistence.
-- Embedded PostgreSQL (PGlite) for local development because Docker is unavailable; standard PostgreSQL through `DATABASE_URL` for a configured server environment.
-- Personal account signup/login with hashed passwords and opaque, revocable, expiring server sessions. No real email sending or external identity provider configuration.
-- Every user-owned row has explicit owner identity. Unscoped Inbox task/note records have no workspace; optional project/parent links must satisfy owner and scope containment.
-- Date-only task/follow-up values use `YYYY-MM-DD`, not timezone-shifted midnight instants. Account timezone drives calendar presentation.
-- My Day shows open due/overdue work and due follow-ups. Waiting is explicit; parent completion leaves children unchanged.
-- React Native + Expo + TypeScript is the selected mobile direction following Edward's “Yes build”; mobile UI/package implementation follows the responsive web core, with iOS prioritized. Mac is later.
+| Area | Choice |
+|---|---|
+| Hosting | One Cloudflare Worker on the Workers Free plan ($0/month): web app as static assets, API under `/api` on the same origin |
+| API | Hono + TypeScript + Zod, keeping the platform/capabilities/adapters/domains structure and every current route and contract |
+| Database | Cloudflare D1 with Drizzle `sqlite-core`; `wrangler d1 migrations`; text UUIDs; ISO text timestamps; date-only plus separate `HH:MM` times |
+| Saving | Check-on-save: conditional writes on `revision`, unique idempotency keys, atomic `batch()`; no locks, interactive transactions, or Durable Objects |
+| Search | SQLite FTS5 tables kept in sync by triggers |
+| Sign-in | Code-only email/phone OTP via Gatekeeper; HMAC-SHA256 with a Worker secret; random session tokens stored as SHA-256 |
+| Crypto and secrets | Web Crypto only; Workers secrets; AES-GCM for account-owned provider keys |
+| Development | Node 22.23.2 and npm workspaces; Phase 1 runs in Node on the existing embedded database; Phase 2 adds `wrangler dev` with local D1 |
+| Ownership model | Every user-owned row has an owner; the personal Inbox is null workspace and project, never a null owner |
+| Dates and views | Date-only `YYYY-MM-DD` values; account timezone for presentation; My Day shows due/overdue work and due follow-ups; parent completion leaves children unchanged |
+| Mobile | React Native + Expo + TypeScript, iOS first, against the hosted API with token sign-in; Mac (Tauri) later |
 
-These are local build choices, not authorization to provision services, send sensitive data, merge, or deploy. Hosting, production authentication requirements, and distribution remain to be resolved before release.
+## Work allocation
 
-## Written work allocation
+All specialists run on Opus 5.5 at medium effort.
 
-| Area | Specialist | Owned paths | Deliverable |
+| Area | Specialist | Owned paths | Phase 1 deliverable |
 |---|---|---|---|
-| API/domain/database | `api_foundation` | `apps/api`, `packages/core`, `packages/db` | Persistent authorized API, migrations, tests, endpoint guide |
-| Web/client | `web_app` | `apps/web`, `packages/client` | Responsive authenticated task/note workflow and durable queued capture |
-| Coordination | This chat | Root tooling, `docs`, `design`, integration checks | Design preview, runnable setup, review and evidence |
+| API/domain/database | Backend | `apps/api`, `packages/core`, `packages/db` | Web Crypto adapters; framework-neutral HTTP layer; Hono app and test shim; capability flags; Fastify removed (PRs 1–3) |
+| Web/client | Web | `apps/web`, `packages/client` | Static export with same-origin `/api`; bookmark header plumbing stubbed (PRs 4–5) |
+| Coordination | Coordinator | Root tooling, `docs`, `design`, integration checks | Briefs, PR checks, evidence, merges on Edward's word |
 
-Specialists share this local feature checkout with separate file ownership. No specialist may change branches or root dependencies concurrently. The coordinator performs dependency installation after workspace manifests are ready. Edward requested branch checkpoints while building. The coordinator commits and pushes coherent checkpoints to `edw/ordo-web-foundation`; no merge or deployment is authorized by this. Integration branch policy remains unresolved; local build work does not infer permission to change `main` or provision `dev`.
+Specialists work on their own `edw/` branches from `main` with separate file ownership. No specialist changes another's paths or root dependencies without telling the coordinator. The full brief is the [Cloudflare Phase 1 brief](CLOUDFLARE-PHASE-1-BRIEF.md).
 
 ## Sequence and checks
 
-1. Prepare Home preview and send for feedback; API/domain/client setup proceeds independently. Edward accepted the layout and requested white/neutral backgrounds rather than green theming; implement that palette revision.
-2. Install locked compatible dependencies and verify API tests, ownership, persistence, hierarchy constraints, and idempotency.
-3. Connect the working UI to the real API; verify account/task/note journeys and failure states, and incorporate visual feedback when supplied.
-4. Run typecheck, tests, and production build; review the combined change for auth, scope, secrets, and misleading UI states.
-5. Capture browser evidence and update setup, environment, API, and handoff documentation with actual results.
-6. Present the concrete change to Edward before any merge/deployment. Native mobile is the next platform, not a claimed result of this web slice.
+1. Edward reviews the hosting documentation PR.
+2. Backend PRs 1–3 and web PRs 4–5 proceed in parallel. Each runs `npm run format:check`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run docs:check`, with screenshots.
+3. The coordinator checks each PR and puts it to Edward with a plain summary; merges happen on his word.
+4. After Phase 1 merges, re-verify the signed-in journeys on `npm run dev` and on the static export, then brief Phase 2 (D1).
+5. After Phase 2 merges and passes on local D1, prepare Phase 3: Edward approves Cloudflare account access and the deploy; record the D1 restore point and rollback point; verify signed in on staging.
+6. Native mobile follows hosted staging.

@@ -1,6 +1,8 @@
 # Ordo Web
 
-Responsive Next.js client for Ordo's first working everyday-core slice. Delivery follows coordinated-development. Mobile native work follows web using the agreed React Native/Expo direction with iOS priority; this browser app is not the native mobile deliverable.
+Responsive Next.js client for Ordo. In the Cloudflare design it is built as a static export (`output: 'export'`) and served by the same Worker that serves the API under `/api`, so the browser talks to one origin and the session cookie stays first-party.
+
+**Implementation status:** today the app runs on the Next.js server and proxies `/api/*` to the local API; the static export and `X-Ordo-Bookmark` header plumbing are Phase 1 ([brief](../../docs/coordination/CLOUDFLARE-PHASE-1-BRIEF.md)). Delivery follows coordinated-development. Mobile native work follows web using the agreed React Native/Expo direction with iOS priority; this browser app is not the native mobile deliverable.
 
 ## Run
 
@@ -13,11 +15,11 @@ npm run dev
 
 Open http://127.0.0.1:3318. The API listens on port 4318; Next proxies `/api/*` to `/v1/*` so the browser uses same-origin, HttpOnly session cookies. `ORDO_API_URL` optionally overrides the API upstream for the web server; it is not a browser-exposed variable.
 
-Sign in or create an account using email/Ghana phone OTP. Gatekeeper delivery must be configured. Existing password accounts have a fallback login; first successful email OTP conversion revokes prior password access. Start empty or explicitly load the fictional examples. Fixtures are added only to the signed-in account.
+Sign in or create an account using email/Ghana phone OTP. Gatekeeper delivery must be configured. Locally, existing password accounts have a fallback login; first successful email OTP conversion revokes prior password access. Hosted Ordo is code-only. Start empty or explicitly load the fictional examples. Fixtures are added only to the signed-in account.
 
 ## Working flows
 
-- Account registration, login, and logout; no passwords are kept in browser storage.
+- Code sign-in and logout (plus the local-only legacy password fallback); no passwords are kept in browser storage.
 - Workspaces with distinct colors, project creation/filtering, global views, and scoped task/note capture.
 - Tasks, nested subtasks, explicit completion, status/priority/date editing, and archive. Parent completion does not complete children. Tasks with active children cannot be archived until those children are addressed.
 - My Day greets the user by first name with a time-of-day greeting and today's date in their timezone (default Africa/Accra), a one-line summary, and five count chips (Today, Overdue, Upcoming over seven days, Waiting On, Inbox). Its list runs Due now (a timed due or follow-up moment today that has arrived), Overdue, Today, a three-item Waiting On preview, then undated tasks. This is in-app only: there are no browser notifications and no automatic status changes.
@@ -25,7 +27,7 @@ Sign in or create an account using email/Ghana phone OTP. Gatekeeper delivery mu
 - Inbox frames unsorted tasks and notes as triage. Upcoming groups the next seven local days ("Tomorrow", "Friday 23 Oct"), shows each item as Due or Follow up with its time, and offers to plan on empty days. Waiting On lists Waiting-status tasks with who they wait on, the follow-up date and time (passed follow-ups highlighted), and the responsible person.
 - Task detail edits due and follow-up dates with optional times (clearing a date clears its time in the same save), plus Responsible and Waiting on names, with suggestions from names already used. Only changed fields are sent. Rows show times and "Waiting on <name>" everywhere.
 - Plain-text notes with debounced autosave, sequential revision handling, visible unsaved/failure state, and close protection. Conflicts preserve the current editor text for copying/retry; automatic merge is not implemented.
-- `⌘K` / `Ctrl+K` searches authorized tasks, note bodies, and projects through the PostgreSQL full-text endpoint.
+- `⌘K` / `Ctrl+K` searches authorized tasks, note bodies, and projects through the server full-text search endpoint.
 - Responsive phone-browser layout, navigation drawer, and keyboard-accessible native dialogs.
 
 ## Local capture and honest offline limits

@@ -1,6 +1,20 @@
 # Local development
 
-**Scope:** First responsive web core. No cloud deployment or native app is implied by these commands.
+**Scope:** Running Ordo on your own machine. No cloud deployment or native app is implied by these commands.
+
+**Implementation status:** today the API runs on Fastify with embedded PostgreSQL (PGlite) in Node, and the web app runs on the Next.js server with a `/api` proxy. Hosted Ordo is one Cloudflare Worker with D1 ([technical architecture](TECHNICAL.md)). Phase 1 moves the local API to Hono in Node on the same database; Phase 2 moves local development to `wrangler dev` with a local D1 database.
+
+## Today and the target
+
+| Concern | Today (local) | Target (Cloudflare) |
+|---|---|---|
+| API | Fastify in Node on `127.0.0.1:4318` | Hono in the Worker under `/api`; Phase 1 runs the same Hono app in Node on port 4318 |
+| Web | Next.js server on `127.0.0.1:3318`, proxying `/api/*` to `/v1/*` | Static export served by the Worker; the dev proxy stays for local work |
+| Database | Embedded PostgreSQL in `.data/ordo` | D1; locally a `wrangler dev` D1 database from Phase 2 |
+| Migrations | Applied by the API at startup, with checksums | `wrangler d1 migrations apply`; nothing runs at Worker boot |
+| Search | PostgreSQL full-text indexes | SQLite FTS5 tables kept in sync by triggers |
+| Sign-in | Email/phone OTP; legacy password accounts still sign in | Code-only; legacy accounts convert at first code sign-in |
+| Secrets | Optional root `.env`; credential key file fallback in `.data/secrets` | Workers secrets set with `wrangler secret put` |
 
 ## Start Ordo
 
@@ -13,7 +27,7 @@ npm run dev
 
 Open [Ordo Web](http://127.0.0.1:3318). The API listens on `127.0.0.1:4318`; the web app proxies `/api` requests to `/v1` on that API so authentication stays on the browser's app origin. Both servers bind to loopback in the local configuration.
 
-No Docker, external database account, AI key, or `.env` file is required for this local setup. Embedded PostgreSQL persists application data in repository `.data/ordo`. Keep one API process per data directory. Stop with Ctrl+C so database state closes cleanly. Do not delete `.data` when updating dependencies; it contains local account data.
+No Docker, cloud account, AI key, or `.env` file is required for this local setup. Today embedded PostgreSQL persists application data in repository `.data/ordo`. Keep one API process per data directory. Stop with Ctrl+C so database state closes cleanly. Do not delete `.data` when updating dependencies; it contains local account data.
 
 Sign in with email or a Ghana phone number and a six-digit OTP. Gatekeeper delivery requires a privately configured key and URL; unavailable delivery shows Coming soon. Existing password accounts remain accessible, and successful first email OTP verification converts that account to passwordless access. Automated tests use injected delivery and never send real messages. Workspaces start empty. The sample-data action explicitly creates fictional MTN, DAMSYN, Dorsh, and Personal examples for the signed-in account; no real project data is imported.
 
@@ -28,11 +42,11 @@ The root `.env.example` contains only non-secret local defaults. Set real creden
 | `API_PORT` | Local API port, default 4318 |
 | `ORDO_API_URL` | API origin used by the Next.js proxy; default `http://127.0.0.1:4318` |
 | `ORDO_DATA_DIR` | Optional embedded database path; default repository `.data/ordo` |
-| `DATABASE_URL` | Optional standard PostgreSQL connection; bypasses embedded local database |
+| `DATABASE_URL` | Today only: optional standard PostgreSQL connection that bypasses the embedded database; unverified and not part of the Cloudflare design |
 | `TRUSTED_ORIGINS` | Exact browser origins permitted for writes; defaults to localhost/127.0.0.1 on port 3318 |
-| `NODE_ENV` | Production requires external PostgreSQL and explicit trusted origins; session cookie becomes Secure |
+| `NODE_ENV` | Today, production mode requires `DATABASE_URL` and explicit trusted origins; the session cookie becomes Secure |
 
-The external PostgreSQL driver uses the same schema but has not been exercised against a separate server here. Do not call that deployment path verified merely because embedded PostgreSQL passes tests. Native mobile authentication and distribution will be designed in the mobile slice.
+Hosted Worker secrets (names only): `OTP_HMAC_KEY`, `ORDO_CREDENTIAL_KEY`, `GATEKEEPER_API_KEY`, `GATEKEEPER_API_URL`. The D1 database is a Worker binding, not a connection string. Native token sign-in is designed alongside the Hono port.
 
 ## Checks and documentation
 
@@ -51,14 +65,18 @@ Documentation source is Markdown in `docs/`. `npm run docs:check` generates the 
 
 The API workspace guide is `apps/api/README.md`; shared types and validation live in `packages/core/src/index.ts`. Request/response shapes and current limitations are documented there alongside the implementation. The baseline SQL is `packages/db/migrations/0001_core.sql` and the corresponding Drizzle schema is `packages/db/src/schema.ts`.
 
-The first local startup initializes that schema and records its checksum. An applied migration is not silently edited or replayed. A future shared-environment migration requires the owner's approval and the backup/rollback gates in the engineering method. Concurrent multi-replica initialization is not a verified migration strategy.
+Today the first local startup initializes that schema and records its checksum; an applied migration is not silently edited or replayed. From Phase 2 the schema is SQLite: numbered files applied with `wrangler d1 migrations apply --local` for development and, with Edward's approval, against staging. The Worker never runs migrations itself. Every shared-environment migration needs the owner's approval, a D1 restore point, and the rollback gates in the engineering method.
+
+## Phase 2 local workflow (target)
+
+Once Phase 2 lands, a fresh machine will run Ordo with `wrangler dev` against a local D1 database, without a separate Node API process. The exact commands are added here by the Phase 2 PR that implements them; until then use `npm run dev` above. A one-time import script moves the content of `.data/ordo` into local D1 (see the [platform spec](specs/02-cloudflare-platform.md#data-import-from-the-local-database)).
 
 ## Current release limits
 
-This build is local development, not a hosted release. Production proxy-aware abuse controls, contact linking/recovery, operational backup/restore, native-client authentication, and multi-instance migrations need release work. Recording-to-transcription uses temporary memory only; Ordo stores no audio or uploaded files. AI extraction and transcript imports show Coming soon. MCP, native mobile packages, and Mac packaging remain separate slices. See [phone verification](PHONE-TESTING.md) for HTTPS requirements and the actual-device checklist.
+This build is local development, not a hosted release. Hosted staging is Phase 3. Today's sign-in throttle is per process in memory; the hosted design stores it in D1 keyed by `CF-Connecting-IP`. Contact linking/recovery and native-client authentication need further work. Recording-to-transcription uses temporary memory only; Ordo stores no audio or uploaded files. AI extraction and transcript imports show Coming soon. MCP, native mobile packages, and Mac packaging remain separate slices. See [phone verification](PHONE-TESTING.md) for HTTPS requirements and the actual-device checklist.
 
 ## Delivery and audio settings
 
-`GATEKEEPER_API_KEY` and `GATEKEEPER_API_URL` enable OTP delivery. HTML email branding is enabled by default; `GATEKEEPER_EMAIL_HTML=false` selects the plain-text fallback. Audio settings default to local Whisper; optional online keys are entered per account in Settings. See [audio setup](AUDIO-SETUP.md). These credentials are server-only. There is no audio data directory or file storage. Recording bytes exist only in memory while a transcription request is processed, then are cleared on success, failure, or timeout. The configured provider receives audio for transcription; provider-side retention is governed separately by that provider. Only transcript text explicitly saved as a note persists in PostgreSQL. Provider calls are not part of automated tests.
+`GATEKEEPER_API_KEY` and `GATEKEEPER_API_URL` enable OTP delivery. HTML email branding is enabled by default; `GATEKEEPER_EMAIL_HTML=false` selects the plain-text fallback. Audio settings default to local Whisper on this Mac; optional online keys are entered per account in Settings. Local Whisper is a local-Mac development option only: hosted Ordo uses the account's own OpenAI key and reports local Whisper as unavailable. See [audio setup](AUDIO-SETUP.md). These credentials are server-only. There is no audio data directory or file storage. Recording bytes exist only in memory while a transcription request is processed, then are cleared on success, failure, or timeout. The configured provider receives audio for transcription; provider-side retention is governed separately by that provider. Only transcript text explicitly saved as a note persists in the database. Provider calls are not part of automated tests.
 
 `ORDO_TLS_KEY`, `ORDO_TLS_CERT`, and optional `ORDO_HTTPS_PORT` configure the local phone HTTPS proxy. Certificate/device trust is not installed automatically. API origin checks still require the exact HTTPS origin in `TRUSTED_ORIGINS`.

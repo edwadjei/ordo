@@ -25,3 +25,7 @@ A health response of `{"status":"ok"}` confirms the model is ready; a listening 
 A user's encrypted key enables a fixed HTTPS OpenAI multipart audio request with model `gpt-4o-mini-transcribe` and JSON text output. Audio leaves this server only when the user selects this cloud provider and explicitly transcribes. External provider data handling is separate from Ordo's no-storage policy. Provider failures and responses are not logged. Tests use fictional audio and mocked transports; real cloud transcription has not been verified.
 
 Sources: [whisper.cpp 1.9.2 server](https://github.com/ggml-org/whisper.cpp/blob/v1.9.2/examples/server/server.cpp), [OpenAI transcription API](https://developers.openai.com/api/docs/api-reference/audio/createTranscription).
+
+## On Cloudflare
+
+Hosted Ordo transcribes with the account's own OpenAI key; audio is held in memory only for the request and never stored. Local Whisper and FFmpeg exist only on a developer's Mac and report unavailable on the Worker. Concurrency limits there are per isolate, not global. Workers AI Whisper is an open option for Edward.

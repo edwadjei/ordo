@@ -31,3 +31,9 @@ Due and follow-up dates are date-only strings, not arbitrary midnight timestamps
 ## Current limits
 
 Archive tombstones are returned by the mutation and omitted from refreshed snapshots. There is no incremental sync feed yet. Background reminders, automated task extraction, cross-workspace moves with descendant/source orchestration, and bulk actions are separate capabilities, not hidden behavior in this service.
+
+## On Cloudflare
+
+D1 has no row locks or interactive transactions, so the same rules become save preconditions (check-on-save). Edits and archives are `UPDATE … WHERE revision = ?`. A hierarchy change is conditional on the task's revision and on the revisions of every ancestor read during the cycle check, so a concurrent move in that chain refuses one save. Archive and destination moves include a `NOT EXISTS` active-children guard; a subtask insert requires its parent to still be active in the same destination. Create inserts the task and its idempotency key in one `batch()`; a repeated key rolls the batch back and the stored fingerprint decides between returning the original and `409 IDEMPOTENCY_CONFLICT`. Search triggers keep `tasks_fts` current.
+
+**Implementation status:** today these guarantees come from the PostgreSQL owner transaction described above; check-on-save is Phase 2, with concurrency tests on local D1.

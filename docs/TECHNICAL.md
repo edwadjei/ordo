@@ -1,201 +1,278 @@
-# Personal AI Workspace — Technical Architecture
+# Ordo — Technical Architecture
 
-**Version:** 1.0  
-**Scope:** Implement the MVP defined in [`PRODUCT.md`](./PRODUCT.md)  
+**Scope:** Implement the MVP defined in [`PRODUCT.md`](./PRODUCT.md) on Cloudflare.
+
 **Architectural principle:** **Fast deterministic core; AI is asynchronous, optional, and replaceable.**
+
+**Implementation status:** this document describes Ordo's architecture. The local build still runs the API in Node with Fastify on embedded PostgreSQL (PGlite), and the web app still runs on the Next.js server with a dev proxy. The Hono port is Phase 1 and D1 is Phase 2 of the [Cloudflare platform spec](specs/02-cloudflare-platform.md); Phase 3 is hosted staging. Nothing is deployed. Where a section is not yet true of the running code, the [delivery ledger](PLAN.md) and the [local development guide](LOCAL-DEVELOPMENT.md) say so.
 
 ## 1. Architecture at a glance
 
+Ordo runs as **one Cloudflare Worker on the Workers Free plan**. The same Worker serves the web app as static files and the API under `/api`, so the browser talks to a single origin and the session cookie stays first-party. The database is Cloudflare D1 (SQLite). There is no server to patch, no container, no object store, and no monthly bill.
+
 ```text
-           Next.js / React UI (responsive web + PWA)
-                         │
-              Tauri 2 macOS shell
-                         │
-                  HTTPS / SSE
-                         │
-                  Fastify API
-              ┌──────────┼───────────┐
-              │          │           │
-         PostgreSQL   Object      Background
-         + Drizzle    Storage       Workers
-              │          │           │
-              │          └─────┬─────┘
-              │                │
-              │        AI Adapter Layer
-              │     ┌──────┼──────────┐
-              │  OpenAI  Anthropic  Local*
-              │           Models
-              │
-        Agent Integration
-        REST API + MCP Server
+   Ordo Web (browser)      Ordo for iOS / Android      Ordo for Mac
+   Next.js static export   Expo (React Native)         Tauri 2 shell
+            │                       │                       │
+            │  same-origin /api     │  HTTPS + bearer token │
+            └───────────┬───────────┴───────────────────────┘
+                        │
+            ┌───────────▼─────────────────────────────┐
+            │  Cloudflare Worker (Free plan)          │
+            │  ├─ static assets  (web app, free)      │
+            │  └─ Hono API under /api                 │
+            │       platform / capabilities /         │
+            │       adapters / domains                │
+            └───────┬──────────────┬──────────────────┘
+                    │              │
+             Cloudflare D1    Workers secrets
+             (SQLite + FTS5)  + Web Crypto
+                    │
+          ┌─────────▼──────────┐
+          │ Later: Queues/cron │  → AI adapter layer (OpenAI, Anthropic, …)
+          │ for AI workers     │     with account-owned keys
+          └────────────────────┘
+          Agent access later: REST + MCP over the same authorized services
 ```
 
-`*` Local model / local transcription is **optional and capability-dependent**, not an assumption that every user device can run an effective model.
+**UI and API must never block normal create/edit flows on an AI request.** Captures first become durable records; analysis is a separate job. Ordo stores no audio or uploaded files.
 
-**UI and API must never block normal create/edit flows on an AI request.** Captures first become durable local or server records; analysis is a separate job.
-
-## 2. Recommended technology stack
+## 2. Technology stack
 
 | Layer | Choice | Why |
 |---|---|---|
-| Web frontend | **Next.js + TypeScript + React** | Shared responsive UI, established ecosystem |
-| Design system | **Tailwind CSS + shadcn/ui + Lucide** | Consistent polished primitives without a large bespoke framework |
-| UI state | **TanStack Query + small local store (e.g. Zustand)** | Cache, optimistic updates, lightweight ephemeral state |
-| Mac desktop | **Tauri 2** | Small desktop package using system WebView; assess OS WebView differences |
-| Mobile MVP | **Responsive installable PWA** | Single codebase; audio/file support tested across Safari/Chrome |
-| API | **Fastify + TypeScript + Zod** | Compact, typed, fast JSON endpoints |
-| Persistence | **PostgreSQL + Drizzle ORM** | Relational integrity for hierarchy, source linkage, workspace isolation |
-| Search | **PostgreSQL full-text/trigram indexes** | Good MVP search without a separate vector service |
-| Background work | **Redis-backed queue (BullMQ) or Postgres job queue** | Resumable extraction/transcription; choose one, not both |
-| Attachments | **S3-compatible private object store** | File/recording storage with signed URLs and lifecycle policies |
+| Hosting | **Cloudflare Workers, Free plan** | $0/month; global edge; static assets served free; one plan switch (not a rewrite) if limits are ever hit |
+| Web frontend | **Next.js + TypeScript + React**, built with `output: 'export'` | Static files served by the Worker; no Node server to run |
+| Design system | **Tailwind CSS + shadcn/ui + Lucide** | Consistent primitives without a bespoke framework |
+| UI state | **TanStack Query + small local store** | Cache, optimistic updates, lightweight ephemeral state |
+| API | **Hono + TypeScript + Zod** on Workers | Small, fast, built for the Workers runtime; keeps the DAMSYN-style platform / capabilities / adapters / domains structure and every current route |
+| Database | **Cloudflare D1 (SQLite) + Drizzle (`sqlite-core`)** | Serverless SQL that lives next to the Worker; free tier covers a personal workspace comfortably |
+| Migrations | **`wrangler d1 migrations`** | Numbered SQL files applied deliberately; nothing runs at Worker boot |
+| Search | **SQLite FTS5** tables kept current by triggers | Ranked full-text search without a separate service |
+| Concurrency | **Check-on-save** (conditional writes on `revision`) + atomic D1 `batch()` | Correct saves without locks, interactive transactions, or Durable Objects |
+| Read consistency | **D1 Sessions API** with a bookmark header carried by `packages/client` | Each client reads its own saves immediately |
+| Sign-in | **Email/phone six-digit OTP** via Gatekeeper; sessions as random tokens | Code-only; no passwords in hosted Ordo |
+| Cryptography | **Web Crypto only** (`crypto.subtle`, `getRandomValues`, `randomUUID`) | Available in Workers and Node alike; fits the CPU budget |
+| Secrets | **Workers secrets**; account-owned provider keys encrypted with AES-GCM | Nothing secret in code, Git, or responses |
+| Mac desktop | **Tauri 2** | Small desktop package using the system WebView |
+| Mobile | **Expo (React Native) for iOS and Android** | Shared native codebase; same API; token sign-in |
 | Editor | **Tiptap** | Restrained rich text, loaded only on editing screens |
-| Auth | **Session/OIDC-compatible solution** | Secure web and desktop authentication |
-| AI text | **Provider abstraction for OpenAI and Anthropic** | BYOK and model switching |
-| Transcription | **Whisper-compatible hosted endpoint; optional local implementation** | Start reliable; add device-specific local support later |
-| Agent access | **REST endpoints + MCP server** | Works with scripts and compatible AI clients |
-| Deployment | **Single region API + Postgres + object store** | Operationally simple MVP |
+| AI text | **Provider abstraction for OpenAI and Anthropic** | Account-owned keys and model switching |
+| Transcription | **Account-owned OpenAI key** (hosted); local Whisper on a developer's Mac only | Audio is never stored; Workers AI Whisper is an open option |
+| Background work | **Cloudflare Queues / cron** when AI workers arrive | No Redis, BullMQ, or separate worker host |
+| Agent access | **REST endpoints + MCP server** over the same authorized services | Works with scripts and compatible AI clients |
 
-Avoid introducing separate microservices, Elasticsearch, dedicated vector databases, Kafka, or Kubernetes for v1.
+Avoid introducing separate microservices, Elasticsearch, dedicated vector databases, Kafka, Kubernetes, Redis, object storage, or Durable Objects for v1.
 
-## 3. Monorepo layout
+## 3. Free-plan budget
+
+Cloudflare's Free plan limits shape the design. Over a limit, requests fail until 00:00 UTC; nothing is ever billed.
+
+| Resource | Free-plan limit | Design rule |
+|---|---|---|
+| Worker requests | 100,000 per day | Static asset requests do not count; API calls do. A personal workspace is far below this |
+| CPU time per request | 10 ms (I/O wait not counted) | Every request stays well under 10 ms CPU; no scrypt/bcrypt, no heavy JSON work |
+| Memory | 128 MB | JSON bodies capped at 150,000 bytes; transcription audio capped at 20 MiB and held only for the request |
+| Subrequests per request | 50 | A request makes a handful of D1 calls plus at most one provider call |
+| Cron triggers | 5 | Enough for later AI/cleanup jobs |
+| D1 rows read | 5 million per day | Index every owner-scoped query; FTS5 keeps search reads small |
+| D1 rows written | 100,000 per day | Writes are per user action; triggers for FTS add a few rows each |
+| D1 storage | 5 GB | Text-only data; no audio or files |
+
+Upgrade path: Workers Paid ($5/month) if a limit is reached. That is a plan change, not an architecture change.
+
+## 4. Monorepo layout
 
 ```text
 apps/
-  web/                 # Next.js web, PWA, shared responsive experience
-  desktop/             # Tauri 2 wrapper and OS-specific integrations
-  api/                 # Fastify API
-  worker/              # AI processing, transcription and imports
-  mcp/                 # MCP adapter calling authorized domain API
+  web/                 # Next.js static export, served by the Worker as assets
+  api/                 # Hono API: platform / capabilities / adapters / domains, Worker entry
+  mobile/              # Expo iOS/Android client (after web)
+  desktop/             # Tauri 2 wrapper (after mobile)
+  mcp/                 # MCP adapter calling authorized domain services (later)
 packages/
-  ui/                  # Shared components and design tokens
-  db/                  # Drizzle schema, migrations, repositories
-  core/                # Domain types, validation, authorization rules
-  ai/                  # Provider adapters, prompts, extractors, schemas
-  client/              # Typed API client
+  core/                # Domain types, Zod validation, authorization rules
+  db/                  # Drizzle sqlite-core schema, D1 migrations, FTS definitions
+  client/              # Typed API client, retry queue, bookmark header
+  ui/                  # Shared components and design tokens (when reused)
   config/              # Shared lint/build/TypeScript configs
 ```
 
-A **modular monolith** API is the default. Split workers or MCP deployments only where there is a clear runtime/security need.
+A **modular monolith** API in one Worker is the default. Split only where there is a clear runtime or security need.
 
-## 4. Core data model
+## 5. Core data model
 
-All user-owned records include ownership and workspace-bound access checks. Use UUID/ULID identifiers, UTC timestamps in storage, user timezone for presentation, explicit `created_at` / `updated_at`, and soft deletion/archive where sensible.
+All user-owned records carry an owner and workspace-bound access checks. Identifiers are text UUIDs generated with `crypto.randomUUID()`. Timestamps are ISO-8601 text in UTC. Date-only fields (`YYYY-MM-DD`) and their optional `HH:MM` times are stored in separate columns, exactly as today. Soft deletion/archive is used where sensible.
+
+### SQLite notes
+
+| Concern | How Ordo handles it in D1 |
+|---|---|
+| IDs | `text` primary keys holding UUIDs |
+| Dates and instants | ISO text; compared lexically; the user's timezone is applied at presentation |
+| Booleans | `integer` 0/1 through Drizzle's `mode: 'boolean'` |
+| JSON | `text` columns validated by Zod on read and write |
+| Uniqueness | Unique indexes on email, phone, owner-scoped idempotency keys, OTP challenge IDs, and session digests |
+| Foreign keys | Declared and enforced; owner columns on every user-owned table |
+| Value rules | `CHECK` constraints for status, priority, `HH:MM` times, and "a time needs its date" |
+| Revisions | `revision integer not null default 1`, incremented on every successful update |
 
 ### Tables
 
-**users** — id, email, display_name, timezone, preferences_json, created_at.  
-**workspaces** — id, owner_user_id, name, slug, icon, description, ai_policy, created_at, archived_at.  
-**projects** — id, workspace_id, name, aliases_json, description, status, favorite_rank, created_at, archived_at.  
-**tasks** — id, workspace_id, project_id nullable, parent_task_id nullable, title, description, status, priority nullable, due_at nullable, follow_up_at nullable, owner_person_id nullable, waiting_on_person_id nullable, source_kind, source_id nullable, sort_key, created_by_actor, completed_at nullable, created_at, updated_at, deleted_at nullable.  
-**notes** — id, workspace_id, project_id nullable, title, content_json, plain_text, source_kind nullable, source_id nullable, created_at, updated_at, deleted_at nullable.  
-**conversations** — id, workspace_id, project_id nullable, title, kind (`meeting`, `informal`, `dictation`, `email_paste`, `other`), occurred_at nullable, people_json, raw_text, summary nullable, recording_attachment_id nullable, created_at.  
-**people** — id, workspace_id, display_name, email nullable, organization nullable, metadata_json.  
-**drafts** — id, workspace_id, project_id nullable, source_conversation_id nullable, kind (`email`, `message`, `other`), subject nullable, content, status (`draft`, `used`, `discarded`), created_at, updated_at.  
-**attachments** — id, workspace_id, project_id nullable, original_filename, mime_type, object_key, size_bytes, checksum, status, created_at.  
-**captures** — id, workspace_id nullable, project_id nullable, kind, text nullable, attachment_id nullable, processing_status, created_at, updated_at.  
-**ai_jobs** — id, workspace_id nullable, capture_id, kind, provider, model, status, input_version, result_json nullable, error_code nullable, started_at nullable, completed_at nullable.  
-**ai_suggestions** — id, ai_job_id, suggestion_kind, proposed_json, user_edited_json nullable, decision (`pending`, `accepted`, `rejected`), committed_entity_type nullable, committed_entity_id nullable.  
-**entity_links** — id, workspace_id, from_type, from_id, to_type, to_id, relation (`source`, `related`, `generated_from`) .  
-**api_tokens** — id, user_id, label, token_hash, scopes_json, allowed_workspace_ids_json, expires_at, last_used_at, revoked_at.  
-**audit_events** — id, actor_type, actor_id, workspace_id, action, entity_type, entity_id, safe_metadata_json, created_at.
+The D1 schema keeps today's tables and columns, translated to SQLite types:
+
+| Table | Columns | Notes |
+|---|---|---|
+| `users` | id, email, phone, display_name, timezone, email_verified_at, phone_verified_at, demo_loaded, created_at, updated_at | No password column: hosted sign-in is code-only |
+| `sessions` | token_hash (primary key), user_id, expires_at | SHA-256 digest of the token; the row is deleted on sign-out |
+| `otp_challenges` | contact (primary key), challenge_id, code_hash, expires_at, next_send_at, window_started_at, requests, attempts, ready, consumed, consumed_by | One row per email/phone; holds the current code and the contact's rate-limit window |
+| `auth_throttle` | key (route + client IP), window_started_at, count | Per-IP limits for sign-in routes |
+| `workspaces` | id, owner_user_id, name, color, revision, created_at, updated_at | |
+| `projects` | id, owner_user_id, workspace_id, name, description, revision, created_at, updated_at | Composite keys keep a project inside its workspace |
+| `tasks` | id, owner_user_id, workspace_id, project_id, parent_id, title, description, status, priority, due_date, due_time, follow_up_date, follow_up_time, responsible_person, waiting_on, completed_at, deleted_at, revision, created_at, updated_at | Null workspace and project = personal Inbox |
+| `idempotency_keys` | id, owner_user_id, key, fingerprint, task_id, created_at | Unique on (owner_user_id, key) |
+| `notes` | id, owner_user_id, workspace_id, project_id, title, body, deleted_at, revision, created_at, updated_at | |
+| `audio_settings` | owner_user_id (primary key), provider, encrypted_api_key, created_at, updated_at | Ciphertext only |
+| `tasks_fts`, `notes_fts`, `projects_fts` | FTS5 virtual tables | Kept current by insert/update/delete triggers |
+
+Later feature streams add **conversations**, **people**, **drafts**, **captures**, **ai_jobs**, **ai_suggestions**, **entity_links**, **api_tokens**, and **audit_events** with the same ownership rules. Attachments are not part of Ordo: audio and files are never stored.
 
 ### Database invariants
 
-- A project's workspace must match its task/note/conversation workspace.
-- Child task's workspace must match the parent task; if project-bound, match the parent project's scope.
-- A task cannot be its own ancestor; prevent cycles.
-- Relationships across workspaces are **rejected by default**. Any explicitly supported cross-workspace view aggregates at the authenticated user's layer, not by merging AI context.
+- A project's workspace must match the workspace of its tasks and notes.
+- A child task's workspace and project must match its parent's, including the null Inbox scope.
+- A task cannot be its own ancestor; cycles are rejected.
+- Relationships across workspaces are **rejected by default**. Any supported cross-workspace view aggregates at the authenticated user's layer, never by merging AI context.
 - Every query is authorized server-side, including background jobs and MCP calls.
-- Dates store instants when precise and preserve original human expressions/assumptions in the capture when relevant.
-- Unscoped capture can live in a personal Inbox rather than fabricating a project.
+- Unscoped capture lives in the personal Inbox (null workspace and project, never a null owner).
 
 ### Important indexes
 
-`tasks(workspace_id, status, due_at)`, `tasks(workspace_id, project_id, parent_task_id)`, `tasks(follow_up_at, status)`, `projects(workspace_id, name)`, plus PostgreSQL text-search indexes for project names, task titles, and note/conversation text. Add `updated_at` indexes to support incremental sync.
+`tasks(owner_user_id, status, due_date)`, `tasks(owner_user_id, project_id, parent_id)`, `tasks(owner_user_id, follow_up_date, status)`, `projects(owner_user_id, workspace_id, name)`, `notes(owner_user_id, updated_at)`, plus the FTS5 tables. Add `updated_at` indexes to support incremental sync.
 
-## 5. API design — REST v1
+## 6. Saving safely: check-on-save
 
-Use `/v1/...` paths, OpenAPI documentation, typed request/response schemas, pagination, consistent errors, idempotency for writes, and per-route authorization.
+D1 has no row locks or interactive transactions, and Ordo does not use Durable Objects. Instead, every save checks its own preconditions as part of the write. D1 runs writes one at a time on the primary database, and a `batch()` runs as a single transaction that rolls back completely if any statement fails.
+
+| Rule | Mechanism |
+|---|---|
+| Edits never overwrite a newer version | `UPDATE … WHERE id = ? AND owner_user_id = ? AND revision = ?`; zero rows changed → `409 REVISION_CONFLICT` ("changed elsewhere"), nothing written |
+| Retried creates never duplicate | The task insert and its `idempotency_keys` row go in one `batch()`. A repeated key violates the unique constraint and rolls the batch back; the API then reads the stored key: same fingerprint returns the original task, a different one returns `409 IDEMPOTENCY_CONFLICT` |
+| Multi-row writes are all-or-nothing | One `batch()` per operation, e.g. demo fixtures, or the sign-in batch below |
+| Hierarchy stays valid | Ancestry is read (bounded to 500 IDs) and checked for cycles, scope, and archived parents. The write is conditional on the task's revision **and** the revisions of every ancestor read, so a concurrent move anywhere in that chain refuses one of the two saves |
+| No orphaned children | Archive and destination moves include `NOT EXISTS` (active children) in the `UPDATE`; a subtask insert requires its parent to still be active (`INSERT … SELECT … WHERE` parent active) |
+| A code works exactly once | Compare-and-set on `consumed = 0` (see section 8) |
+| Demo fixtures load once | The batch starts with a conditional `demo_loaded` claim and every fixture insert depends on that claim |
+
+This gives the same user-visible guarantees as the locked transaction used today without holding anything open across requests. **Implementation status:** today's API serializes each owner's writes with a PostgreSQL transaction and a lock on the user row; check-on-save replaces that in Phase 2.
+
+## 7. Search
+
+Each searchable table has an FTS5 companion kept in sync by triggers, so the API never rebuilds indexes and never runs migrations at boot:
+
+- `tasks_fts`: title, description, responsible_person, waiting_on.
+- `notes_fts`: title, body.
+- `projects_fts`: name, description.
+
+`GET /v1/search?q=…` runs a parameterized `MATCH` with `bm25()` ranking, filters by owner and active rows, and returns at most 30 results with plain-text excerpts. Query text is quoted into plain search terms; it is never interpreted as SQL or raw FTS syntax. Token search with stemming is intentional; this is not fuzzy or semantic search. **Implementation status:** search runs on PostgreSQL full-text indexes today; FTS5 is Phase 2.
+
+## 8. Authentication and sessions
+
+Hosted Ordo is **code-only**: email or Ghana phone, then a six-digit code delivered through Gatekeeper. There is no password login on the hosted platform. A legacy local password account converts at its first code sign-in, keeping its ID and data.
+
+| Element | Design |
+|---|---|
+| OTP code | Six digits from `getRandomValues`; stored as **HMAC-SHA256(challenge ID + code, `OTP_HMAC_KEY`)**. HMAC fits the CPU budget, and it is safe because codes expire in five minutes, allow five attempts, and cannot be guessed offline without the Worker secret |
+| Request limits | 60-second resend spacing and five sends per 15-minute window, enforced by **one upsert** on the contact's `otp_challenges` row (`INSERT … ON CONFLICT(contact) DO UPDATE … WHERE` the limits allow it). No row returned → `429 RATE_LIMITED`. Resending does not reset failed attempts |
+| Verify, step 1 | One atomic attempt increment: `UPDATE otp_challenges SET attempts = attempts + 1 WHERE challenge_id = ? AND consumed = 0 AND ready = 1 AND expires_at > ? AND attempts < 5 RETURNING code_hash`. No row → refused |
+| Verify, step 2 | Constant-time comparison of the HMAC of the submitted code with `code_hash` |
+| Verify, step 3 | One `batch()`. It starts with the compare-and-set `UPDATE otp_challenges SET consumed = 1, consumed_by = ? WHERE challenge_id = ? AND consumed = 0`, using a fresh per-request value. Every later statement (create or link the account, mark the contact verified, delete old sessions on conversion, insert the new session) only takes effect where that challenge is claimed by this request's value. A second request with the same code claims nothing and writes nothing, so a code works exactly once |
+| Session token | 32 random bytes (hex); stored as a SHA-256 digest; seven-day expiry; deleted on sign-out |
+| Web transport | `ordo_session` cookie: HttpOnly, SameSite=Lax, Secure, Path=/, on the same origin. Every mutation's `Origin` must match a trusted origin |
+| Native transport | Bearer token in `Authorization`, stored in Keychain/Keystore, revocable on the server; designed alongside the Hono port |
+| Abuse control | Per-IP limits on sign-in routes stored in `auth_throttle`, keyed by `CF-Connecting-IP`, as one upsert per request. Sign-out is never throttled |
+| Account guard | Optional `X-Ordo-Account` header; mismatch → `409 SESSION_CHANGED` |
+
+**Implementation status:** the local build hashes codes with salted scrypt, keeps the legacy password routes, and limits sign-in per API process in memory. HMAC hashing arrives in Phase 1; the single-statement limits, the compare-and-set batch, D1 throttling, and removal of password sign-in arrive in Phase 2.
+
+## 9. Secrets and cryptography
+
+- All cryptography uses Web Crypto: `crypto.subtle` for HMAC, SHA-256, and AES-GCM; `getRandomValues` and `randomUUID` for randomness and IDs.
+- Worker secrets (`wrangler secret put`) hold `OTP_HMAC_KEY`, `ORDO_CREDENTIAL_KEY` (the credential master key), `GATEKEEPER_API_KEY`, and `GATEKEEPER_API_URL`. They never appear in code, Git, logs, screenshots, or responses. Documentation names them; only Cloudflare holds their values.
+- Account-owned provider keys (for transcription or AI) are encrypted with AES-256-GCM, a fresh 96-bit nonce, and the owner ID as additional authenticated data. Only ciphertext is stored. Another account cannot use the ciphertext because decryption authenticates owner identity.
+- The Worker uses no scrypt, bcrypt, or Argon2: they do not fit 10 ms CPU and are not needed for a code-only sign-in.
+
+**Implementation status:** the local build uses Node `crypto` adapters (scrypt for passwords and codes, SHA-256 for sessions and fingerprints, AES-GCM for provider keys) and can fall back to a local key file at `.data/secrets/audio-key` when `ORDO_CREDENTIAL_KEY` is unset. Web Crypto adapters are Phase 1; the Worker reads the master key only from its secret.
+
+## 10. API design — REST v1
+
+Browsers call `/api/...` on the Worker's origin, which maps to the API's `/v1/...` routes exactly as the local dev proxy does today, so paths and camelCase payloads stay unchanged. Controllers validate with the shared Zod schemas in `packages/core`.
 
 | Route | Purpose |
 |---|---|
-| `GET/POST /v1/workspaces` | List and create workspace |
-| `GET/PATCH /v1/workspaces/:id` | Read/update workspace |
-| `GET/POST /v1/workspaces/:id/projects` | Projects in a workspace |
-| `GET/PATCH /v1/projects/:id` | Project details |
-| `GET/POST /v1/tasks` | Filter/create tasks |
-| `GET/PATCH/DELETE /v1/tasks/:id` | View/update/archive task |
-| `POST /v1/tasks/:id/complete` | Explicit completion |
-| `GET/POST /v1/notes` | Notes |
-| `GET/PATCH /v1/notes/:id` | Note editing |
-| `GET/POST /v1/conversations` | Source conversations |
-| `GET /v1/conversations/:id` | Source + linked results |
-| `GET/POST /v1/drafts` | Drafts |
-| `POST /v1/captures` | Capture text or attach a prepared upload |
-| `POST /v1/attachments/upload-url` | Scoped signed upload |
-| `POST /v1/captures/:id/process` | Start analysis/transcription job |
-| `GET /v1/ai-jobs/:id` | Job status and proposed suggestions |
-| `POST /v1/ai-jobs/:id/commit` | Atomically save **selected** edited suggestions |
-| `GET /v1/home` | Today, overdue, waiting, upcoming, inbox |
+| `GET /health`, `GET /v1/capabilities` | Public liveness and configuration availability |
+| `POST /v1/auth/otp/request`, `POST /v1/auth/otp/verify`, `GET /v1/auth/me`, `POST /v1/auth/logout` | Code-only sign-in and session lifecycle (the local build also keeps legacy `register`/`login` routes; hosted Ordo does not serve them) |
+| `GET /v1/home` | Today, overdue, waiting, upcoming, inbox snapshot |
+| `GET/POST /v1/workspaces`, `GET/PATCH /v1/workspaces/:id`, `GET/POST /v1/workspaces/:id/projects` | Workspaces and their projects |
+| `POST /v1/projects`, `GET/PATCH /v1/projects/:id` | Project details |
+| `GET/POST /v1/tasks`, `GET/PATCH/DELETE /v1/tasks/:id` | Tasks, subtasks, archive |
+| `GET/POST /v1/notes`, `GET/PATCH/DELETE /v1/notes/:id` | Notes |
 | `GET /v1/search?q=...` | Authorized cross-entity search |
-| `GET /v1/sync/changes?cursor=...` | Incremental sync, including tombstones |
+| `GET/PATCH /v1/settings/audio`, `POST /v1/settings/audio/test` | Per-account transcription provider |
+| `POST /v1/transcriptions` | Memory-only transcription; audio discarded |
+| `POST /v1/demo` | Explicit fictional fixtures, once per account |
+| Later: `/v1/conversations`, `/v1/captures`, `/v1/ai-jobs`, `/v1/sync/changes?cursor=…` | Intelligent capture and incremental sync |
 
 **Guidelines:**
 
-- `GET /v1/tasks` filters: `workspace_id`, `project_id`, `status`, `due_before`, `follow_up_before`, `parent_task_id`, `assignee`, `cursor`.
-- `POST /v1/tasks` requires `title` and an authorized destination: workspace ID or verified personal Inbox scope. Project ID is optional.
 - Normal task creation must **not** call an LLM.
-- Commit selections must be transactional and idempotent so retried requests do not duplicate tasks.
-- Long-running jobs should use polling or SSE for progress; SSE is not required for basic task UI.
+- `POST /v1/tasks` requires `title`, an `Idempotency-Key`, and an authorized destination (workspace or Inbox).
+- PATCH and DELETE require `expectedRevision`; stale revisions are refused without writing.
+- Commit selections must be atomic and idempotent so retried requests do not duplicate tasks.
+- Long-running jobs use polling; SSE is not required for the basic task UI.
 - Rate-limit agent and import endpoints; cap payload sizes.
+- Every API response carries the `X-Ordo-Bookmark` header; clients send it back on their next request.
 
-## 6. MCP interface — minimal and safe
+## 11. Read consistency and sync
 
-Expose an MCP server, initially backed by the **same authorized domain services** as REST. Example tools:
+D1 read replicas can lag briefly behind a write. Ordo uses the **D1 Sessions API**: each request opens a session from the bookmark the client last saw, and the response returns the new bookmark. `packages/client` stores and forwards that value in the `X-Ordo-Bookmark` header, so web and mobile always read their own saves. Sessions work whether or not read replication is switched on for the database. **Implementation status:** the client plumbing is stubbed in Phase 1; the API emits bookmarks from Phase 2. Server-assigned `revision` and `updatedAt`, plus a later change cursor, enable incremental sync.
 
-| Tool | Effect |
-|---|---|
-| `list_workspaces` | Only authorized workspaces |
-| `list_projects` | Project discovery in a specified workspace |
-| `search_items` | Scoped search for tasks, notes, conversations |
-| `list_tasks` | Query tasks by workspace/project/status |
-| `create_task` | Add task, optional parent / project |
-| `update_task` | Edit task fields |
-| `complete_task` | Explicitly complete a task |
-| `create_note` | Add note in authorized scope |
-| `create_conversation` | Store a conversation summary/source |
-| `get_project_context` | Summarized authorized context, not raw indiscriminate data |
-| `create_capture` | Submit free-form text for optional AI review pipeline |
+**MVP approach: offline-capable capture, online source of truth.**
 
-**Security:** Each MCP client uses a short-lived OAuth flow or a revocable, **scoped personal access token** (only when a transport/client necessitates it). Enforce scopes and workspace allowlists on the server, never rely on prompt instructions for access control. Reject ambiguous destinations instead of guessing. Token material must never enter agent context or application logs. Prefer explicit user approval for bulk or destructive actions.
+- Cache navigation and recently loaded items where safe.
+- Store unsynced quick task captures in local durable storage with a sync queue and idempotency keys (localStorage today; platform storage on mobile).
+- Detect conflicts: do not silently replace the user's edited content. Latest-write for simple non-overlapping metadata; an explicit conflict UI for concurrently edited bodies.
+- Users must see the actual sync state; background sync is best-effort.
 
-**MCP is not just a database connection.** All operations go through validated, audited services with the same rules as the app.
+## 12. MCP interface — minimal and safe
 
-## 7. AI processing pipeline
+Expose an MCP server backed by the **same authorized domain services** as REST. Example tools: `list_workspaces`, `list_projects`, `search_items`, `list_tasks`, `create_task`, `update_task`, `complete_task`, `create_note`, `create_conversation`, `get_project_context`, `create_capture`.
+
+**Security:** each MCP client uses a short-lived OAuth flow or a revocable, scoped personal access token. Enforce scopes and workspace allowlists on the server; never rely on prompt instructions for access control. Reject ambiguous destinations instead of guessing. Token material must never enter agent context or logs. **MCP is not a database connection**: all operations go through validated, audited services with the same rules as the app.
+
+## 13. AI processing pipeline
 
 ```text
-User capture (text/audio/file)
-  → Durable capture record + private attachment (if any)
-  → Extraction/transcription worker
+User capture (text / live audio)
+  → Durable capture record (text only; audio is transcribed in memory and discarded)
+  → Queue or cron job (Cloudflare Queues / cron trigger)
   → Normalize text and metadata
-  → Apply active workspace/project context + allowed project glossary
-  → Selected provider or local model
+  → Apply active workspace/project context and allowed project glossary
+  → Selected provider (account-owned key)
   → Structured, schema-validated suggestions
   → Staged preview for user review
   → User edits/selects
-  → Transactional commit: notes/tasks/drafts + provenance links
+  → Atomic commit: notes/tasks/drafts + provenance links
 ```
 
 ### Input handling
 
 - **Text / pasted email:** store exact source and metadata; allow immediate manual save.
-- **Audio:** record with clear visible state; browser/device permissions; upload privately or run supported local transcription. Do not imply access to system audio or third-party calls without permissions/integration.
-- **Files:** validate MIME and extension, size and page/time limits. Ingestion must safely extract supported text formats; encrypted/scanned documents may need separate later support. Treat imported content as untrusted.
-- **Large inputs:** asynchronously chunk and summarize for extraction while preserving source provenance; avoid dropping names or dates silently.
+- **Audio:** record with visible state and explicit permission; the bytes exist only in memory while a transcription request runs, then are cleared. Hosted transcription uses the account's own OpenAI key. Local Whisper is a developer option on a Mac only. Workers AI Whisper is an open option.
+- **Files:** not stored by Ordo. Transcript import will accept text and process it as a capture.
+- **Large inputs:** chunk and summarize asynchronously while preserving provenance; never drop names or dates silently.
 
 ### Provider abstraction
-
-Define interfaces such as:
 
 ```ts
 interface LanguageProvider {
@@ -203,138 +280,108 @@ interface LanguageProvider {
   draftMessage(input: DraftRequest): Promise<DraftResult>;
 }
 interface TranscriptionProvider {
-  transcribe(input: AudioRef): Promise<TranscriptResult>;
+  transcribe(input: AudioBytes): Promise<TranscriptResult>;
 }
 ```
 
-Support OpenAI and Anthropic text models with **user-supplied API keys**. Transcription capability is a separate adapter: do not assume every text provider or local model supports audio. Allow model selection per workspace subject to workspace policy.
+Support OpenAI and Anthropic text models with **account-owned API keys**. Transcription is a separate capability: not every text provider handles audio.
 
 ### Structured output validation
 
-- Require Zod/JSON schema validation and server normalization before surfacing suggestions.
-- Classify each suggestion: **explicit action**, **suggested action**, **informational note**, or **draft**.
-- Return confidence **only as an advisory signal**, not as a basis for automatic irreversible decisions.
-- Link each task to a source span or reference when available.
+- Require Zod validation and server normalization before surfacing suggestions.
+- Classify each suggestion: explicit action, suggested action, informational note, or draft.
+- Confidence is advisory only, never a basis for automatic irreversible decisions.
 - If uncertain about names, projects, dates, or ownership, return `null` + `needs_confirmation`.
-- Prevent prompt injection: meeting content is **data**, never instructions authorizing tool calls or cross-workspace access.
-- Never let LLM-generated JSON directly execute database writes; commit through normal authenticated validation.
+- Meeting content is **data**, never instructions authorizing tool calls or cross-workspace access.
+- LLM-generated JSON never writes to the database directly; commits go through normal authenticated validation.
 
 ### Relative dates
 
-Supply `captured_at`, `user_timezone`, and an optional conversation date. Resolve “Friday” relative to the conversation date where reliably known; otherwise request confirmation. Persist the precise timestamp only after confirmation where ambiguity matters.
+Supply `captured_at`, `user_timezone`, and an optional conversation date. Resolve "Friday" relative to the conversation date where reliably known; otherwise request confirmation.
 
-### BYOK secrets
+## 14. Privacy and tenant isolation
 
-- Preferred MVP: user enters keys in settings, encrypt at rest server-side using a managed encryption key and envelope encryption; access only within authorized worker paths.
-- For a single-device Mac-only experiment, an OS keychain is an option, but it does not solve cross-device BYOK securely on its own.
-- Never expose saved keys to frontend JavaScript after initial submission, URLs, analytics, logs, or MCP prompts.
-- Include key testing, revocation, provider disable, and provider-specific data handling notice.
+1. Authenticate all users and agents; authorize every read, write, search, and job.
+2. Store no audio or uploaded files. Only transcript text the user explicitly saves persists.
+3. Encrypt in transit (Cloudflare TLS) and at rest (D1 storage plus AES-GCM for provider keys); audit key actions without logging raw content.
+4. Never assemble AI prompts from other workspaces unless the user explicitly authorizes a narrowly scoped cross-workspace operation.
+5. Maintain workspace-level AI controls: disabled, provider permitted, optional retention rules.
+6. Show a clear notice before third-party AI processing of employer or confidential content; owning an API key does not grant approval to send employer data.
+7. Support export, deletion, backup/restore (D1 Time Travel and exports), and revocation of agent tokens.
+8. Keep temporary AI job artifacts on a restrictive default retention.
 
-## 8. Privacy and tenant isolation
-
-Because workspaces may contain sensitive business content:
-
-1. Authenticate all users and agents; authorize every read, write, search, file, and job operation.
-2. Use private buckets with short-lived signed URLs; validate uploads, content type, size, and malware risk before downstream processing.
-3. Encrypt in transit and at rest; audit key actions while avoiding logging raw content.
-4. Do not assemble AI prompts using material from other workspaces unless the user explicitly authorizes a narrowly scoped cross-workspace operation.
-5. Maintain workspace-level AI controls: disabled, provider permitted, and optional data-retention rules.
-6. Show a clear notice before third-party AI processing of employer/confidential information. Confirm organizational policy permits processing; user ownership of an API key **does not** grant approval to send employer data.
-7. Support export, deletion, backup/restore, and revocation of agent tokens.
-8. Set restrictive default data retention for temporary AI job artifacts and signed uploads; preserve sources only per user-configured policy.
-
-## 9. Offline, synchronization, and responsiveness
-
-**MVP approach: offline-capable capture, online source of truth.**
-
-- Cache navigation and recently loaded items where safe.
-- Store unsynced quick text captures/tasks in local durable storage (IndexedDB for web/PWA, platform storage for Mac) with a sync queue and idempotency keys.
-- Record audio locally until a successful upload when the platform supports it, with storage warnings and explicit retry/delete options.
-- Server-assigned revisions/`updated_at` and a change cursor enable incremental sync.
-- Detect conflicts: do not silently replace the user's edited content. Start with latest-write for simple non-overlapping metadata and an explicit conflict UI for concurrently edited bodies.
-- Background sync is best-effort; browser/mobile restrictions mean users must see the actual sync state.
-- Load the Home shell instantly from cached state while fetching fresh data. Defer heavyweight editor, AI panels and transcript viewers until opened.
-
-**Performance budgets (engineering goals, to measure on real devices):**
+## 15. Performance budgets
 
 | Metric | Target |
 |---|---|
-| Input feedback | <100 ms, p95 on modern Mac |
-| Cached workspace/project navigation | <300 ms, p95 |
-| Add task optimistic rendering | <100 ms, p95 |
-| Typical authenticated API reads | <300 ms server response, p95 excluding network variance |
-| JS bundle | Monitor and minimize initial route payload; set budgets after baseline |
-| AI processing | Clearly asynchronous, with progress/retry; no pretend instantaneous SLA |
+| Worker CPU per API request | < 10 ms hard limit; design for low single digits |
+| Typical authenticated API read | < 300 ms p95 server response, excluding network variance |
+| Input feedback | < 100 ms p95 on a modern Mac |
+| Cached workspace/project navigation | < 300 ms p95 |
+| Add task optimistic rendering | < 100 ms p95 |
+| JS bundle | Monitor and minimize the initial route payload |
+| AI processing | Clearly asynchronous with progress/retry; no pretend instantaneous SLA |
 
-Instrument cold-start, interaction latency, error rate, sync failures and AI job outcomes without collecting content in telemetry.
+Instrument cold start, interaction latency, error rate, sync failures, and AI job outcomes without collecting content.
 
-## 10. Platform-specific notes
+## 16. Platform-specific notes
 
-### macOS / Tauri
+### Web
 
-- Shared Next.js UI runs inside Tauri; use a deployment/packaging approach compatible with Tauri's webview, including authenticated API connections and asset handling.
-- Provide app signing/notarization planning and explicit microphone/file permissions.
-- Optional menu bar quick capture and system-wide shortcuts should be implemented after the core experience works; handle shortcut collisions and permissions gracefully.
-- Test recent supported macOS versions for recording and drag-and-drop behavior.
+Built with Next.js `output: 'export'` and served as Worker static assets. The API lives under `/api` on the same origin, so no CORS configuration is needed. During local development the Next dev server proxies `/api` to the API process. **Implementation status:** the web app does not yet build as a static export; that is Phase 1.
 
-### Web / PWA / mobile
+### iOS / Android (Expo)
 
-- Fully responsive Home and capture flows; installability where supported.
-- iOS/Safari and Android/Chrome have different recording, file, quota, and background-processing constraints. Feature-detect and offer safe fallbacks.
-- Do not rely on background audio recording surviving a locked phone, browser suspension, or a terminated PWA.
+Same REST API with bearer-token sign-in. Tokens live in Keychain/Keystore and can be revoked server-side. Feature-detect recording, file, and background constraints per platform; do not promise background recording without evidence.
 
-## 11. Testing strategy
+### macOS (Tauri)
 
-- **Domain tests:** hierarchy integrity, workspace authorization, date interpretation, status transitions, nested task cycles.
-- **API contract tests:** schema validation, pagination, idempotency, permission failures, token scopes.
-- **AI tests:** fixture transcripts with explicit and ambiguous items, quoted instructions/prompt injections, misclassification, duplicate extraction, date uncertainty.
-- **End-to-end tests:** Home quick actions, Mac shortcuts, workspaces with 20+ projects, transcript upload → preview → commit, offline draft → reconnect, MCP create → UI refresh.
-- **Privacy/security tests:** IDOR attempts, cross-workspace search, upload abuse, leakage in logs, revoked tokens, BYOK secret handling.
-- **Performance tests:** cold launch, large project lists, heavy notes, poor connectivity, long uploads.
+The shared web UI runs inside Tauri against the hosted API. Plan signing/notarization and explicit microphone permissions. Menu bar quick capture and shortcuts come after the core experience works.
 
-## 12. Build roadmap (deliver vertical slices)
+## 17. Testing strategy
 
-### Phase 0 — UI prototype and architecture decisions
+- **Domain tests:** hierarchy integrity, authorization, date interpretation, status transitions, cycles.
+- **API contract tests:** schema validation, idempotency, revision conflicts, permission failures, token scopes. Phase 1 runs them in Node against the Hono app; Phase 2 runs them against a local D1 database.
+- **Concurrency tests:** two writers on one record (one wins, one gets 409); a code used twice (second refused); retried create (one row).
+- **AI tests:** fixture transcripts with explicit and ambiguous items, prompt injection, duplicates, date uncertainty.
+- **Privacy/security tests:** IDOR attempts, cross-workspace search, leakage in logs, revoked tokens, key handling.
+- **Budget tests:** CPU time per request measured in `wrangler dev`; row reads per endpoint checked against the free-plan table.
 
-Implement clickable Mac-sized Home + mobile Home with left sidebar, prominent action tiles, project navigation, task side panel and command search. Confirm keyboard behavior and design tokens. Set up monorepo, DB migrations, auth, CI.
+## 18. Build roadmap (vertical slices)
 
-### Phase 1 — Fast everyday workflow
+| Phase | Deliverable |
+|---|---|
+| Everyday core (merged to `main`, verified locally) | Workspaces/projects/tasks/subtasks/notes; My Day/Inbox/Waiting On/Upcoming; quick add, search; OTP sign-in; memory-only transcription |
+| Hosting Phase 1 | Hono port, Web Crypto adapters, web static export; runs locally in Node on the existing database so all tests keep passing |
+| Hosting Phase 2 | D1 schema and migrations, FTS5 search, check-on-save, sign-in rewrites, Worker entry and `wrangler dev`, local data import, local D1 test harness |
+| Hosting Phase 3 | Staging on Edward's Cloudflare account with owner-approved deploys, backups, rollback point, and signed-in verification |
+| Native mobile | Expo iOS (urgent) then Android against the hosted API |
+| AI-assisted capture | Captures, async extraction via Queues/cron, validated staging, provenance, provider policies |
+| Agent access and Mac | Documented REST, scoped MCP, audit trail, Tauri packaging |
 
-CRUD workspaces/projects/tasks/subtasks/notes; My Day/Inbox/Waiting On/Upcoming; quick add, filtering, search; optimistic UI and basic durable offline capture. **Shippable without any AI.**
-
-### Phase 2 — AI-assisted capture
-
-Conversations and captures, recording, selected import formats, asynchronous transcription/extraction, validated staging, project suggestions, draft generation and provenance. Enable BYOK/provider policies.
-
-### Phase 3 — Agent access and Mac polish
-
-Documented REST API, scoped MCP server, audit trail, Tauri packaging, shortcuts, mobile PWA reliability and sync hardening. End-to-end QA using realistic multi-workspace fixtures.
-
-## 13. Definition of done
+## 19. Definition of done
 
 Do **not** call the MVP complete unless a user can:
 
-1. Launch a polished, responsive Home page and see **Add Task**, **Record**, **Quick Note**, **Upload Transcript** and **AI Capture** immediately.
-2. Jump into MTN and navigate a list of 20+ projects without clutter or lag.
-3. Create a task in seconds without configuration of any AI key.
+1. Open a polished, responsive Home and see **Add Task**, **Record**, **Quick Note**, **Upload Transcript**, and **AI Capture** immediately.
+2. Jump into MTN and navigate 20+ projects without clutter or lag.
+3. Create a task in seconds without configuring any AI key.
 4. Capture an informal conversation and review linked task/draft suggestions.
 5. Import and process a transcript without losing the original text.
-6. Use task/subtask editing, notes, Waiting On and My Day across workspaces.
-7. Connect an authorized MCP client to create/update a task in an allowed project.
+6. Use task/subtask editing, notes, Waiting On, and My Day across workspaces.
+7. Connect an authorized MCP client to create or update a task in an allowed project.
 8. Verify that cross-workspace reads are blocked by default and sensitive content is not sent to an AI provider without permission.
-9. Recover cleanly from offline changes, failed uploads and AI errors.
-10. Use web, packaged Mac app and mobile PWA for the supported core workflows.
+9. Recover cleanly from offline changes, failed requests, and AI errors.
+10. Use web, the native mobile app, and the packaged Mac app for the supported core workflows, all against the hosted Worker.
 
-## 14. Implementation instructions for the coding agent
+## 20. Implementation instructions
 
-- Read `PRODUCT.md` and this file before making changes. Treat UX simplicity and data isolation as acceptance criteria, not polish items.
-- Build **actual working vertical slices**, not static dashboard-only mocks.
-- Start with the Home layout and its **visible quick-action controls**, then wire those actions into real persistence.
-- Favor small components, clear boundaries and progressive disclosure; no heavyweight PM features without a documented requirement.
-- Add seed fixtures for MTN (20+ sample projects), DAMSYN, Dorsh and Personal; clearly mark all sample data as fictional.
+- Read `PRODUCT.md`, this file, and the [Cloudflare platform spec](specs/02-cloudflare-platform.md) before making changes. Treat UX simplicity and data isolation as acceptance criteria, not polish.
+- Build **working vertical slices**, not static mocks.
+- Keep every request under the CPU budget; measure in `wrangler dev` before claiming it.
 - Preserve data provenance for AI-derived tasks and drafts.
 - Never send email automatically or create large batches of AI suggestions without a review path.
-- Document setup, environment variables, migration/seed commands, privacy defaults, provider selection and MCP client configuration.
-- Measure responsiveness on a Mac-class device and at mobile widths; optimize before expanding scope.
+- Document setup, secret names (never values), migration commands, privacy defaults, provider selection, and MCP client configuration.
+- Measure responsiveness on a Mac-class device and at mobile widths before expanding scope.
 
 **North star:** Capture instantly. Organize correctly. Act confidently. Stay out of the user's way.

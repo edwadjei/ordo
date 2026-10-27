@@ -1,10 +1,12 @@
 # Ordo — delivery ledger
 
-**Updated:** 21 October 2026.
+**Updated:** 27 October 2026.
 
-**Current milestone:** Persistent responsive web foundation verified locally; shared native mobile next.
+**Current milestone:** H1, the Cloudflare Phase 1 Hono port, after the hosting documentation PR. Native mobile follows hosted staging so the apps target a real API.
 
-**Application status:** Working locally; baseline pushed on `edw/ordo-web-foundation`, not merged or deployed.
+**Application status:** Working locally. `main` is at `aa9d62b` (PRs #1–#3 merged; #3 on Edward's word on 22 October 2026; rollback point `e0dc0cc`). Nothing is deployed and no hosted environment exists.
+
+**Implementation status:** the local build runs Fastify on embedded PostgreSQL (PGlite) in Node. The [Cloudflare architecture](TECHNICAL.md) is delivered through H1–H3 below.
 
 ## Milestones
 
@@ -12,13 +14,16 @@
 |---|---|---|---|
 | D0 | Import briefs, document workflow, create local documentation site | Verified locally | Identical source copies; documentation generation/link checks pass; checkpoint pushed |
 | F0 | Responsive web/API foundation, local database/auth, CI | Verified locally | Fresh install, format, typechecks, 16 tests, production build, and docs checks pass; no hosted CI/deployment claim |
-| W1 | Responsive web everyday core | Working baseline; remaining acceptance work | [Everyday core acceptance scenarios](specs/01-everyday-core.md#acceptance-scenarios) verified without AI keys, including phone-browser touch workflows and durable capture |
-| I2 | Shared iOS/Android mobile app — iOS urgent and prioritized | Priority confirmed; implementation pending | Native installation and authenticated task/note workflows against the same API; device, offline, lifecycle, and accessibility evidence |
+| W1 | Responsive web everyday core | Merged; remaining acceptance work | [Everyday core acceptance scenarios](specs/01-everyday-core.md#acceptance-scenarios) verified without AI keys, including phone-browser touch workflows and durable capture |
+| H1 | Cloudflare Phase 1: Hono port, Web Crypto adapters, web static export | Ready; [brief](coordination/CLOUDFLARE-PHASE-1-BRIEF.md) written | About five PRs merged; no Fastify dependency; all checks and existing tests pass in Node on the embedded database; signed-in browser journeys pass on `npm run dev` and on the static export through same-origin `/api`; existing sessions, fingerprints, and saved keys still work |
+| H2 | Cloudflare Phase 2: D1 | Proposed; briefed after H1 | SQLite schema applied by `wrangler d1 migrations apply --local`; FTS5 search; check-on-save and code-once sign-in pass concurrency tests on local D1; Worker runs under `wrangler dev`; local data import matches row counts; local-dev docs work on a fresh machine |
+| H3 | Cloudflare Phase 3: hosted staging | Proposed; needs Edward's approval for account access and each deploy | Worker and D1 on Edward's account; D1 restore point and rollback point recorded below; signed-in staging checks (sign-in, task create/edit/complete, note, search, reload); observed CPU per request and daily request/row counts recorded against the free-plan budget |
+| I2 | Shared iOS/Android mobile app — iOS urgent and prioritized | Priority confirmed; implementation pending | Native installation and token-authenticated task/note workflows against the hosted Worker; device, offline, lifecycle, and accessibility evidence |
 | D3 | macOS app — after iOS | Priority confirmed; implementation pending | Packaged Mac app with verified authentication, supported core workflows, permissions, and release/distribution evidence |
 | A | Intelligent capture and review | Proposed feature stream | Durable source → validated suggestions → edited selected commit; provider policy, provenance, permissions, and failure checks on each supported client |
 | G | Agent access | Proposed feature stream | Scoped MCP actions visible in clients; revoked access rejected; audit/provenance verified |
 
-Edward's latest platform order is **responsive web → native iOS (urgent) → macOS**. It supersedes the earlier PWA-first mobile plan and the original briefs' platform sequencing. AI and MCP are feature streams, not prerequisites for starting iOS. Their scope per platform release will be recorded in specialist briefs; the complete product still requires reviewed capture, source provenance, and authorized agent access. Android is included through shared mobile delivery with iOS priority; its release timing is undecided and must not delay iOS. PWA installability is outside the current delivery sequence. No delivery date has been agreed.
+Edward's platform order is **responsive web → native iOS (urgent) → macOS**. Hosting (H1–H3) runs on Cloudflare Workers Free with D1 at $0/month; see the [Cloudflare platform spec](specs/02-cloudflare-platform.md). AI and MCP are feature streams, not prerequisites for starting iOS. Their scope per platform release will be recorded in specialist briefs; the complete product still requires reviewed capture, source provenance, and authorized agent access. Android is included through shared mobile delivery with iOS priority; its release timing is undecided and must not delay iOS. PWA installability is outside the current delivery sequence. No delivery date has been agreed.
 
 ## Mobile release gates
 
@@ -33,26 +38,25 @@ Responsive phone-browser behavior is verified in W1; native app behavior is veri
 
 ## D0 — documentation foundation
 
-- Preserve both supplied documents verbatim as `docs/PRODUCT.md` and `docs/TECHNICAL.md`.
+- Preserve the supplied product brief verbatim as `docs/PRODUCT.md`; maintain `docs/TECHNICAL.md` as Ordo's technical architecture.
 - Keep the existing Ordo name, tagline, and development principle.
 - Add a reading map, proposed approach, first-slice scope, delivery method, decisions, and restart notes.
 - Provide proposed agent rules for review rather than directly adopting another project's policy.
 - Generate a local browsable site from the Markdown; do not commit generated output.
 - Record actual verification and unresolved decisions below before handoff.
 
-## Proposed next work
+## Next work
 
 | Order | Work | Dependency | Owner area |
 |---|---|---|---|
-| 1 | Review first slice and resolve runtime/auth/Inbox/branch decisions | Owner review | Coordinator + Edward |
-| 2 | Prepare coordinator task sequence, specialist briefs, and UI preview | Scope/design choices settled | Coordinator + web |
-| 3 | Establish runnable foundation and contracts | Concrete foundation brief | Foundation/API |
-| 4 | Implement task create/reload/edit/complete flow | Authorized persistent foundation | API then web |
-| 5 | Extend to projects, subtasks, notes, daily views, search | First complete task flow | API + web |
-| 6 | Add durable offline text capture and reconcile failures | Stable write/revision contracts | Web + API |
-| 7 | Independently review, verify, and propose PR integration | Acceptance evidence | Reviewer + coordinator |
+| 1 | Hosting documentation PR (this architecture, spec, brief, decisions) | Edward's review | Coordinator |
+| 2 | H1 backend PRs 1–3: Web Crypto adapters, framework-neutral HTTP layer, Hono app and test shim, Fastify removed | Docs PR merged | Backend specialist |
+| 3 | H1 web PRs 4–5: static export with same-origin `/api`, bookmark header plumbing | Docs PR merged; can run beside backend work | Web specialist |
+| 4 | H2 brief and D1 work | H1 merged | Coordinator, then backend + web |
+| 5 | H3 hosted staging | H2 merged; Edward approves account access and the deploy | Coordinator |
+| 6 | Native mobile (I2) against the hosted API | H3 staging verified | Mobile specialist |
 
-These rows are sequencing guidance for coordinated-development. The coordinator turns settled scope/design decisions into specialist briefs; no separate Superpowers plan-approval stage applies. API and web specialists implemented the authorized foundation; review findings were corrected. Follow-up restructuring and integration verification are active.
+Specialists run on Opus 5.5 at medium effort under coordinated-development. Edward approves every merge and deploy.
 
 ## Verification record
 
@@ -71,7 +75,7 @@ Application baseline verification: fresh `npm ci`, `npm run format:check`, all w
 
 ## Release record
 
-No hosted releases, deployments, backups, or rollback images exist. Database schema initialization/migrations have run locally only. Feature checkpoints `7c3715a` (docs) and `8e5b837` (persistent web foundation) are pushed on `edw/ordo-web-foundation`. Add a release entry only after an approved integration/deploy, with revision, checks, migration backup if relevant, rollback point, and post-deploy evidence.
+No hosted releases, deployments, or hosted backups exist. Database migrations have run locally only. Merges to `main`: PR #3 everyday views and task times/people → `aa9d62b` on 22 October 2026, rollback point `e0dc0cc` (which carries PRs #1–#2). Add a release entry only after an approved integration/deploy, with revision, checks, D1 restore point if relevant, rollback point, and post-deploy evidence.
 
 ## Remaining web acceptance work
 

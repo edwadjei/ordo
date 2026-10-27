@@ -1,8 +1,8 @@
 # Ordo — implementation approach
 
-**Status:** Proposal for owner review.
+**Status:** Platform order (C09) and hosting stack (C25) confirmed by Edward; the remaining items below are proposals.
 
-**Baseline:** [Product](PRODUCT.md) and [technical](TECHNICAL.md) briefs.
+**Baseline:** [Product brief](PRODUCT.md), [technical architecture](TECHNICAL.md), and the [Cloudflare platform spec](specs/02-cloudflare-platform.md).
 
 **Principle:** Ship the reliable everyday workflow before adding intelligence.
 
@@ -36,7 +36,7 @@ For responsive web, verify phone-browser layout, touch capture, saving, and reco
 | Device-only Mac prototype first | Quickly explores capture on one machine | Delays cross-device authorization and creates a later persistence/sync transition |
 | Build web, desktop, AI, and MCP together | Shows the full ambition early | Multiplies integration and review work before the everyday workflow is proven |
 
-Edward selected the first platform order, including urgent native iOS. The other options are recorded alternatives, not active plans. The supplied Fastify/Drizzle direction remains proposed; do not automatically inherit NestJS/Prisma from the reference projects.
+Edward selected the first platform order, including urgent native iOS. The other options are recorded alternatives, not active plans. Do not automatically inherit NestJS/Prisma or other stacks from the reference projects.
 
 ## Proposed boundaries
 
@@ -45,17 +45,29 @@ Follow the supplied monorepo shape, introducing directories only when they conta
 | Area | Responsibility | Introduce |
 |---|---|---|
 | `apps/web` | Responsive Home, navigation, capture, editing, and visible save state | Foundation/core |
-| `apps/api` | Authentication, authorization, validated REST, and deterministic domain services | Foundation/core |
+| `apps/api` | Hono API in one Cloudflare Worker: authentication, authorization, validated REST, and deterministic domain services | Foundation/core; Hono in hosting Phase 1 |
 | `packages/core` | Shared domain contracts, validation, hierarchy rules | Foundation/core |
-| `packages/db` | Schema, migrations, scoped persistence, and test fixtures | Foundation/core |
+| `packages/db` | Drizzle `sqlite-core` schema, D1 migrations, FTS5 definitions, and test fixtures | Foundation/core; D1 in hosting Phase 2 |
 | `packages/client` | Typed calls to the same authorized API | Core |
 | `packages/ui`, `packages/config` | Shared UI tokens and configuration where there is actual reuse | As needed |
-| `apps/worker`, `packages/ai` | Private import/transcription, provider adapters, staged suggestions | Intelligent capture |
+| `packages/ai` and Queue/cron consumers in the Worker | Transcript import, provider adapters, staged suggestions | Intelligent capture |
 | `apps/mcp` | Scoped agent adapter using the same domain API | Agent slice |
 | `apps/mobile` (proposed) | React Native + Expo iOS/Android client against the shared API; iOS leads design/testing/release | Immediately after responsive web |
 | `apps/desktop` | Mac shell and explicit OS integrations | After native iOS |
 
-The technical brief proposes Next.js/React, Fastify, PostgreSQL/Drizzle, and Tauri 2. Exact versions and library integration must be checked against Context7 during implementation. Runtime/package manager, authentication, native iOS framework/distribution, queue choice, and hosting are unresolved. Desktop asset delivery is deferred to the Mac phase. No dependency is selected merely because another project uses it.
+## Stack and hosting
+
+Ordo runs as one Cloudflare Worker on the Workers Free plan: Next.js static export for the web app, Hono + Zod for the API under `/api`, and D1 with Drizzle `sqlite-core` for data (C25). Background work uses Cloudflare Queues or cron when AI workers arrive. Expo builds iOS/Android and Tauri 2 the Mac app. Exact versions and library integration are checked against Context7 during implementation. Native iOS distribution and desktop asset delivery are decided in their own phases. No dependency is selected merely because another project uses it.
+
+| Phase | What changes | Where it runs |
+|---|---|---|
+| 1 | Hono port, Web Crypto adapters, web static export | Node locally, on the existing embedded database |
+| 2 | D1 schema, FTS5, check-on-save, code-only sign-in, Worker entry, data import | `wrangler dev` with local D1 |
+| 3 | Hosted staging | Edward's Cloudflare account, with his approval per deploy |
+
+**Implementation status:** the local build uses Fastify and embedded PostgreSQL; phases 1–3 replace them.
+
+The trade-off is deliberate: the Free plan allows 10 ms CPU per request and D1 has no interactive transactions. Ordo therefore keeps every request light (HMAC rather than scrypt, indexed owner-scoped queries) and saves with check-on-save rules instead of row locks. In return hosting costs nothing, and a limit is never billed; at worst requests fail until 00:00 UTC, and Workers Paid ($5/month) is a plan switch, not a rewrite.
 
 ## First build sequence
 
@@ -81,9 +93,9 @@ The technical brief groups prototype and infrastructure as Phase 0. The ledger s
 
 ## AI and privacy boundary
 
-Keep normal writes deterministic. Workers receive only authorized source and context, apply workspace provider policy, and produce validated suggestions. Selected edited suggestions commit transactionally with provenance and idempotency. A failed provider leaves the original source and manual editing intact.
+Keep normal writes deterministic. Background jobs receive only authorized source and context, apply workspace provider policy, and produce validated suggestions. Selected edited suggestions commit atomically in one D1 batch with provenance and idempotency. A failed provider leaves the original source and manual editing intact.
 
-Untrusted transcripts are data. They cannot authorize tool calls or access other workspaces. No automatic email sending. Store attachments privately, keep provider keys out of clients/logs, and require the appropriate data-processing authorization before any external AI request.
+Untrusted transcripts are data. They cannot authorize tool calls or access other workspaces. No automatic email sending. Store no audio or files (C20), keep provider keys out of clients/logs, and require the appropriate data-processing authorization before any external AI request.
 
 ## Evidence before expanding scope
 
