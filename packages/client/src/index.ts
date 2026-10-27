@@ -1,4 +1,9 @@
 import { requestId } from './request-id.ts';
+import {
+  bookmarkHeader,
+  createBookmarkStore,
+  type BookmarkStore,
+} from './bookmark.ts';
 import type {
   ApiError,
   HomeSnapshot,
@@ -53,6 +58,7 @@ export function createClient(
   base = '/api',
   transport: typeof fetch = fetch,
   onSessionInvalid?: () => void,
+  bookmarks: BookmarkStore = createBookmarkStore(),
 ) {
   let accountId: string | null = null;
   async function request<T>(
@@ -69,6 +75,7 @@ export function createClient(
       '/capabilities',
     ].includes(route);
     const requestAccount = accountId;
+    const bookmark = bookmarks.get(requestAccount);
     const response = await transport(`${base}${route}`, {
       credentials: 'include',
       ...options,
@@ -77,9 +84,12 @@ export function createClient(
         ...(authenticatedRequest && requestAccount
           ? { 'X-Ordo-Account': requestAccount }
           : {}),
+        ...(bookmark ? { [bookmarkHeader]: bookmark } : {}),
         ...options.headers,
       },
     });
+    const nextBookmark = response.headers?.get(bookmarkHeader);
+    if (nextBookmark) bookmarks.set(requestAccount, nextBookmark);
     const payload = (await response.json().catch(() => null)) as
       T | ApiError | null;
     if (!response.ok) {
@@ -116,6 +126,7 @@ export function createClient(
   return {
     setAccount: (id: string | null) => {
       accountId = id;
+      if (id) bookmarks.adopt(id);
     },
     capabilities: () => request<AppCapabilities>('/capabilities'),
     audioSettings: (signal?: AbortSignal) =>
@@ -170,7 +181,14 @@ export function createClient(
     }) => send<{ user: User }>('/auth/register', 'POST', data),
     login: (data: { email: string; password: string }) =>
       send<{ user: User }>('/auth/login', 'POST', data),
-    logout: () => send<void>('/auth/logout', 'POST'),
+    logout: async () => {
+      const signingOut = accountId;
+      try {
+        await send<void>('/auth/logout', 'POST');
+      } finally {
+        bookmarks.clear(signingOut);
+      }
+    },
     demo: () => send<HomeSnapshot>('/demo', 'POST'),
     createWorkspace: (data: { name: string; color?: string }) =>
       send<Workspace>('/workspaces', 'POST', data),
@@ -201,6 +219,12 @@ export function createClient(
   };
 }
 export type OrdoClient = ReturnType<typeof createClient>;
+export {
+  bookmarkHeader,
+  createBookmarkStore,
+  type BookmarkStore,
+  type BookmarkStorage,
+} from './bookmark.ts';
 export type {
   HomeSnapshot,
   Task,
