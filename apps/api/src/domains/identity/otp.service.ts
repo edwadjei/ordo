@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { OtpDelivery } from '../../capabilities/otp-delivery.contract.js';
 import { OtpSecrets } from '../../capabilities/otp-secrets.contract.js';
-import { PasswordHasher } from '../../capabilities/password-hasher.contract.js';
 import { SessionTokens } from '../../capabilities/session-tokens.contract.js';
 import { newId } from '../../platform/identifiers/new-id.js';
 import { fail } from '../../platform/http/api-failure.js';
@@ -34,7 +33,6 @@ export function normalizeContact(input: string) {
 export class OtpService {
   constructor(
     private readonly repository: OtpRepository,
-    private readonly passwords: PasswordHasher,
     private readonly tokens: SessionTokens,
     private readonly secrets: OtpSecrets,
     private readonly delivery: OtpDelivery,
@@ -46,7 +44,7 @@ export class OtpService {
       fail(503, 'OTP_UNAVAILABLE', 'Passwordless sign-in is coming soon.');
     const challengeId = newId();
     const code = this.secrets.code();
-    const codeHash = await this.passwords.hash(`${challengeId}:${code}`);
+    const codeHash = await this.secrets.hash(challengeId, code);
     if (
       !(await this.repository.reserve({
         contact,
@@ -84,12 +82,9 @@ export class OtpService {
       displayName: input.displayName,
       accountId: newId(),
       passwordHash: 'passwordless-only',
-      sessionHash: this.tokens.digest(token),
+      sessionHash: await this.tokens.digest(token),
       check: (row) =>
-        this.passwords.verify(
-          `${input.challengeId}:${input.code}`,
-          row.codeHash,
-        ),
+        this.secrets.verify(input.challengeId, input.code, row.codeHash),
     });
     if (!user)
       fail(

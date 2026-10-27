@@ -42,7 +42,7 @@ export class TasksService {
   }
 
   async create(owner: string, input: TaskInput, key: string) {
-    const fingerprint = this.hasher.digest(JSON.stringify(input));
+    const fingerprint = await this.hasher.digest(JSON.stringify(input));
     return this.transactions.forOwner(owner, async (transaction) => {
       const previous = await this.repository.findIdempotencyKey(
         owner,

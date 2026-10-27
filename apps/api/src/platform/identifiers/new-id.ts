@@ -1,2 +1,2 @@
-import { randomUUID } from 'node:crypto';
-export const newId = () => randomUUID();
+// Web Crypto global: available in Node 22 and Cloudflare Workers alike.
+export const newId = () => crypto.randomUUID();

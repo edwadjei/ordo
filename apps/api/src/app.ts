@@ -28,6 +28,8 @@ export interface AppOptions {
   closeConnection?: boolean;
   otpDelivery?: OtpDelivery;
   otpNow?: () => number;
+  otpHmacKey?: string;
+  otpKeyFile?: string;
   transcriptions?: TranscriptionOptions;
   audioSettings?: AudioSettingsOptions;
 }
@@ -38,7 +40,12 @@ export async function buildApp(options: AppOptions) {
   const identity = await createIdentityModule(
     database,
     options.secureCookies ?? false,
-    { otpDelivery: options.otpDelivery, otpNow: options.otpNow },
+    {
+      otpDelivery: options.otpDelivery,
+      otpNow: options.otpNow,
+      otpHmacKey: options.otpHmacKey,
+      otpKeyFile: options.otpKeyFile,
+    },
   );
   const workspaces = createWorkspacesModule(database);
   const tasks = createTasksModule(database, workspaces.service);

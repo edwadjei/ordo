@@ -17,6 +17,7 @@ const app = await buildApp({
   connection,
   secureCookies: config.secureCookies,
   trustedOrigins: config.trustedOrigins,
+  otpHmacKey: config.otpHmacKey,
 });
 let stopping = false;
 async function shutdown() {
