@@ -2,7 +2,7 @@
 
 Responsive Next.js client for Ordo. In the Cloudflare design it is built as a static export (`output: 'export'`) and served by the same Worker that serves the API under `/api`, so the browser talks to one origin and the session cookie stays first-party.
 
-**Implementation status:** today the app runs on the Next.js server and proxies `/api/*` to the local API; the static export and `X-Ordo-Bookmark` header plumbing are Phase 1 ([brief](../../docs/coordination/CLOUDFLARE-PHASE-1-BRIEF.md)). Delivery follows coordinated-development. Mobile native work follows web using the agreed React Native/Expo direction with iOS priority; this browser app is not the native mobile deliverable.
+**Implementation status:** `npm run build` produces a static export in `apps/web/out`; locally `next dev` still proxies `/api/*` to the API. Nothing is hosted yet: the Worker that serves the export and `/api` together is Phase 2. `X-Ordo-Bookmark` header plumbing is a separate Phase 1 change ([brief](../../docs/coordination/CLOUDFLARE-PHASE-1-BRIEF.md)). Delivery follows coordinated-development. Mobile native work follows web using the agreed React Native/Expo direction with iOS priority; this browser app is not the native mobile deliverable.
 
 ## Run
 
@@ -13,7 +13,20 @@ npm ci
 npm run dev
 ```
 
-Open http://127.0.0.1:3318. The API listens on port 4318; Next proxies `/api/*` to `/v1/*` so the browser uses same-origin, HttpOnly session cookies. `ORDO_API_URL` optionally overrides the API upstream for the web server; it is not a browser-exposed variable.
+Open http://127.0.0.1:3318. The API listens on port 4318; Next proxies `/api/*` to `/v1/*` so the browser uses same-origin, HttpOnly session cookies. `ORDO_API_URL` optionally overrides the API upstream for the dev server; it is not a browser-exposed variable.
+
+## Static export and same-origin `/api`
+
+`next.config.ts` is phase-aware. Under `next dev` it adds the `/api/:path*` → `/v1/:path*` rewrite. Every other phase (including `npm run build`) sets `output: 'export'` and has no rewrites, so the build is plain HTML, CSS and client JavaScript in `apps/web/out`; there are no route handlers, server actions, or request-time `headers()`/`cookies()`.
+
+The browser client always calls `/api/...` relative to the page's own origin (`createClient('/api')`). There is no absolute API URL in browser code and no `NEXT_PUBLIC_` API variable. Whatever serves `out/` must also answer `/api` on the same origin: in Phase 2 that is the Worker; locally you can check the export with:
+
+```bash
+npm run build --workspace @ordo/web
+npm run serve:export --workspace @ordo/web
+```
+
+`serve:export` serves `out/` on `127.0.0.1:3318` (override with `WEB_PORT`) and forwards `/api/*` to `${ORDO_API_URL:-http://127.0.0.1:4318}/v1/*`. It is a local check, not a production server; `next start` does not apply to a static export and has been removed.
 
 Sign in or create an account using email/Ghana phone OTP. Gatekeeper delivery must be configured. Locally, existing password accounts have a fallback login; first successful email OTP conversion revokes prior password access. Hosted Ordo is code-only. Start empty or explicitly load the fictional examples. Fixtures are added only to the signed-in account.
 

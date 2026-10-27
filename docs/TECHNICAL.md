@@ -4,7 +4,7 @@
 
 **Architectural principle:** **Fast deterministic core; AI is asynchronous, optional, and replaceable.**
 
-**Implementation status:** this document describes Ordo's architecture. The local build still runs the API in Node with Fastify on embedded PostgreSQL (PGlite), and the web app still runs on the Next.js server with a dev proxy. The Hono port is Phase 1 and D1 is Phase 2 of the [Cloudflare platform spec](specs/02-cloudflare-platform.md); Phase 3 is hosted staging. Nothing is deployed. Where a section is not yet true of the running code, the [delivery ledger](PLAN.md) and the [local development guide](LOCAL-DEVELOPMENT.md) say so.
+**Implementation status:** this document describes Ordo's architecture. The local build still runs the API in Node with Fastify on embedded PostgreSQL (PGlite), and the web app runs on the Next.js dev server with a dev proxy (its build is a static export, not yet hosted). The Hono port is Phase 1 and D1 is Phase 2 of the [Cloudflare platform spec](specs/02-cloudflare-platform.md); Phase 3 is hosted staging. Nothing is deployed. Where a section is not yet true of the running code, the [delivery ledger](PLAN.md) and the [local development guide](LOCAL-DEVELOPMENT.md) say so.
 
 ## 1. Architecture at a glance
 
@@ -328,7 +328,7 @@ Instrument cold start, interaction latency, error rate, sync failures, and AI jo
 
 ### Web
 
-Built with Next.js `output: 'export'` and served as Worker static assets. The API lives under `/api` on the same origin, so no CORS configuration is needed. During local development the Next dev server proxies `/api` to the API process. **Implementation status:** the web app does not yet build as a static export; that is Phase 1.
+Built with Next.js `output: 'export'` and served as Worker static assets. The API lives under `/api` on the same origin, so no CORS configuration is needed. During local development the Next dev server proxies `/api` to the API process. **Implementation status:** `npm run build` produces the static export in `apps/web/out` and the browser client uses only same-origin `/api`; the Worker that serves it is Phase 2, so locally `npm run serve:export --workspace @ordo/web` stands in for it.
 
 ### iOS / Android (Expo)
 
