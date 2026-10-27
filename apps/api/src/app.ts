@@ -1,8 +1,8 @@
-import Fastify from 'fastify';
 import type { DatabaseConnection } from '@ordo/db';
 import { DatabaseAdapter } from './adapters/database/database.adapter.js';
-import { registerErrorHandler } from './platform/http/error-handler.js';
-import { registerRequestSecurity } from './platform/http/request-security.js';
+import { HttpPipeline } from './platform/http/http.js';
+import { createRequestSecurity } from './platform/http/request-security.js';
+import { createFastifyHost } from './adapters/http/fastify-host.js';
 import { registerHealth } from './platform/http/health.js';
 import { createIdentityModule } from './domains/identity/identity.module.js';
 import { createWorkspacesModule } from './domains/workspaces/workspaces.module.js';
@@ -35,7 +35,7 @@ export interface AppOptions {
 }
 
 export async function buildApp(options: AppOptions) {
-  const app = Fastify({ logger: false, bodyLimit: 150000, trustProxy: false });
+  const http = new HttpPipeline();
   const database = new DatabaseAdapter(options.connection.db);
   const identity = await createIdentityModule(
     database,
@@ -66,16 +66,17 @@ export async function buildApp(options: AppOptions) {
     audioSettings.service,
   );
 
-  registerErrorHandler(app);
-  registerRequestSecurity(app, {
-    authenticator: identity.service,
-    trustedOrigins: options.trustedOrigins ?? [
-      'http://localhost:3318',
-      'http://127.0.0.1:3318',
-    ],
-  });
-  registerHealth(app);
-  app.get('/v1/capabilities', async () => {
+  http.guard(
+    createRequestSecurity({
+      authenticator: identity.service,
+      trustedOrigins: options.trustedOrigins ?? [
+        'http://localhost:3318',
+        'http://127.0.0.1:3318',
+      ],
+    }),
+  );
+  registerHealth(http);
+  http.get('/v1/capabilities', async () => {
     const deliveryAvailable =
       options.otpDelivery?.available() ??
       Boolean(
@@ -92,7 +93,7 @@ export async function buildApp(options: AppOptions) {
     };
   });
   if (options.closeConnection !== false)
-    app.addHook('onClose', async () => options.connection.close());
+    http.onClose(async () => options.connection.close());
   for (const module of [
     identity,
     workspaces,
@@ -104,6 +105,6 @@ export async function buildApp(options: AppOptions) {
     transcriptions,
     audioSettings,
   ])
-    module.register(app);
-  return app;
+    module.register(http);
+  return createFastifyHost(http);
 }

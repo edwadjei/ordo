@@ -7,7 +7,6 @@ import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { spawn } from 'node:child_process';
-import Fastify from 'fastify';
 import { openDatabase, users, audioSettings } from '@ordo/db';
 import {
   DatabaseAdapter,
@@ -24,8 +23,7 @@ import { Transcriber } from '../src/capabilities/transcriber.contract.js';
 import { SessionAuthenticator } from '../src/capabilities/session-authenticator.contract.js';
 import { createAudioSettingsModule } from '../src/domains/audio-settings/audio-settings.module.js';
 import { createTranscriptionsModule } from '../src/domains/transcriptions/transcriptions.module.js';
-import { registerErrorHandler } from '../src/platform/http/error-handler.js';
-import { registerRequestSecurity } from '../src/platform/http/request-security.js';
+import { guardedApp } from './http-harness.js';
 const owner = randomUUID(),
   other = randomUUID(),
   origin = 'http://localhost:3318',
@@ -94,12 +92,6 @@ async function harness() {
       passwordHash: 'test',
     },
   ]);
-  const app = Fastify({ logger: false });
-  registerErrorHandler(app);
-  registerRequestSecurity(app, {
-    authenticator: new TestSessions(),
-    trustedOrigins: [origin, lan, 'https://ordo.test'],
-  });
   const settings = createAudioSettingsModule(
     new DatabaseAdapter(connection.db),
     {
@@ -108,9 +100,14 @@ async function harness() {
       environment: {},
     },
   );
-  settings.register(app);
-  createTranscriptionsModule({}, settings.service).register(app);
-  await app.ready();
+  const app = await guardedApp(
+    {
+      authenticator: new TestSessions(),
+      trustedOrigins: [origin, lan, 'https://ordo.test'],
+    },
+    settings,
+    createTranscriptionsModule({}, settings.service),
+  );
   return {
     directory,
     connection,

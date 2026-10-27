@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { HttpRoutes } from '../../platform/http/http.js';
 import type { DatabaseAdapter } from '../../adapters/database/database.adapter.js';
 import type { WorkspacesService } from '../workspaces/workspaces.service.js';
 import { NotesRepository } from './notes.repository.js';
@@ -16,6 +16,6 @@ export function createNotesModule(
   );
   return {
     service,
-    register: (app: FastifyInstance) => registerNotesController(app, service),
+    register: (routes: HttpRoutes) => registerNotesController(routes, service),
   };
 }

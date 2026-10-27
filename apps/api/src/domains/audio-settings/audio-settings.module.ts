@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { HttpRoutes } from '../../platform/http/http.js';
 import type { DatabaseAdapter } from '../../adapters/database/database.adapter.js';
 import type { AudioProviders } from '../../capabilities/audio-providers.contract.js';
 import type { SecretCipher } from '../../capabilities/secret-cipher.contract.js';
@@ -33,7 +33,7 @@ export function createAudioSettingsModule(
   );
   return {
     service,
-    register: (app: FastifyInstance) =>
-      registerAudioSettingsController(app, service),
+    register: (routes: HttpRoutes) =>
+      registerAudioSettingsController(routes, service),
   };
 }

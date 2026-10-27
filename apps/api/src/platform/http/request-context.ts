@@ -1,16 +1,10 @@
-import type { FastifyRequest } from 'fastify';
-import type { User } from '@ordo/core';
 import { z } from 'zod';
 import { fail } from './api-failure.js';
+import type { HttpRequest } from './http.js';
 
-declare module 'fastify' {
-  interface FastifyRequest {
-    actor: User | null;
-  }
-}
 const parameters = z.object({ id: z.uuid() });
-export const entityId = (request: FastifyRequest) =>
+export const entityId = (request: HttpRequest) =>
   parameters.parse(request.params).id;
-export const currentUser = (request: FastifyRequest) =>
+export const currentUser = (request: HttpRequest) =>
   request.actor ?? fail(401, 'UNAUTHORIZED', 'Sign in to continue.');
-export const actorId = (request: FastifyRequest) => currentUser(request).id;
+export const actorId = (request: HttpRequest) => currentUser(request).id;

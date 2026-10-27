@@ -250,3 +250,33 @@ test('Node crypto is confined to the legacy password verifier; everything else u
           `${file.relative} imports Node crypto; use the Web Crypto adapters`,
         );
 });
+
+test('platform and domains are framework-neutral: no HTTP framework types or imports', async () => {
+  const frameworks = ['fastify', 'hono', '@hono/', '@fastify/'];
+  for (const file of await sources()) {
+    if (
+      !file.relative.startsWith('platform/') &&
+      !file.relative.startsWith('domains/') &&
+      !file.relative.startsWith('capabilities/')
+    )
+      continue;
+    for (const dependency of imports(file.source)) {
+      const target = dependency.specifier.startsWith('.')
+        ? resolved(file.filename, dependency.specifier)
+        : dependency.specifier;
+      assert.ok(
+        !frameworks.some((framework) =>
+          framework.endsWith('/')
+            ? dependency.specifier.startsWith(framework)
+            : dependency.specifier === framework ||
+              dependency.specifier.startsWith(`${framework}/`),
+        ),
+        `${file.relative} imports HTTP framework ${dependency.specifier}`,
+      );
+      assert.ok(
+        !target.startsWith('adapters/http/'),
+        `${file.relative} must use platform/http, not the host ${target}`,
+      );
+    }
+  }
+});

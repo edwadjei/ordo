@@ -2,7 +2,7 @@
 
 Hono + TypeScript + Zod in one Cloudflare Worker on the Workers Free plan, with Drizzle on Cloudflare D1. The Worker serves this API under `/api` on the same origin as the web app. The same domain/API boundary serves the React Native/Expo iOS/Android clients with token sign-in. See the [technical architecture](../../docs/TECHNICAL.md) and the [Cloudflare platform spec](../../docs/specs/02-cloudflare-platform.md).
 
-**Implementation status:** the code today is Fastify + TypeScript with Drizzle on embedded PostgreSQL (PGlite) in Node, running locally only. Its cryptography already uses Web Crypto adapters, except the Node-only scrypt verifier for legacy local password accounts. Phase 1 continues by porting it to Hono (still in Node, same database); Phase 2 moves it to D1 and the Worker. Native authentication is not implemented yet. Sections below describe today's behaviour unless they say otherwise.
+**Implementation status:** the code today is TypeScript with Drizzle on embedded PostgreSQL (PGlite) in Node, running locally only. Controllers and platform guards use a framework-neutral HTTP layer (`src/platform/http/http.ts`), served by Fastify for now. Its cryptography already uses Web Crypto adapters, except the Node-only scrypt verifier for legacy local password accounts. Phase 1 continues by porting it to Hono (still in Node, same database); Phase 2 moves it to D1 and the Worker. Native authentication is not implemented yet. Sections below describe today's behaviour unless they say otherwise.
 
 ## Architecture and concept notes
 

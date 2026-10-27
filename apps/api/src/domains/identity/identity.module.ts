@@ -5,7 +5,7 @@ import { WebOtpSecrets } from '../../adapters/cryptography/web-otp-secrets.js';
 import { localKeySource } from '../../adapters/secrets/local-key-file.js';
 import { OtpRepository } from './otp.repository.js';
 import { OtpService } from './otp.service.js';
-import type { FastifyInstance } from 'fastify';
+import type { HttpRoutes } from '../../platform/http/http.js';
 import type { DatabaseAdapter } from '../../adapters/database/database.adapter.js';
 import { NodePasswordHasher } from '../../adapters/cryptography/node-password-hasher.js';
 import { WebSessionTokens } from '../../adapters/cryptography/web-session-tokens.js';
@@ -62,7 +62,7 @@ export async function createIdentityModule(
   );
   return {
     service,
-    register: (app: FastifyInstance) =>
-      registerIdentityController(app, service, secureCookies, otp),
+    register: (routes: HttpRoutes) =>
+      registerIdentityController(routes, service, secureCookies, otp),
   };
 }

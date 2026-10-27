@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { HttpRoutes } from '../../platform/http/http.js';
 import type { DatabaseAdapter } from '../../adapters/database/database.adapter.js';
 import { WebContentHasher } from '../../adapters/cryptography/web-content-hasher.js';
 import type { WorkspacesService } from '../workspaces/workspaces.service.js';
@@ -18,6 +18,6 @@ export function createTasksModule(
   );
   return {
     service,
-    register: (app: FastifyInstance) => registerTasksController(app, service),
+    register: (routes: HttpRoutes) => registerTasksController(routes, service),
   };
 }

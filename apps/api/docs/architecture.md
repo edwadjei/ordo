@@ -6,7 +6,7 @@ Ordo adopts the API concepts and layout from Edward's local `damsyn-ecommerce-ap
 
 ## Composition and explicit imports
 
-`src/app.ts` is the composition root. It creates the HTTP app (Fastify today; Hono from Phase 1, with a Worker entry and a Node entry wiring bindings and secrets), wires concrete adapters into the owning leaf domain modules, installs platform HTTP behavior, registers controllers, and owns connection cleanup. It contains no business queries, route handlers, hierarchy rules, or fixture content.
+`src/app.ts` is the composition root. It builds a framework-neutral `HttpPipeline` (guards, routes, close hooks) and hands it to a host adapter in `adapters/http` that serves it (Fastify today; Hono later in Phase 1, with a Worker entry and a Node entry wiring bindings and secrets). It wires concrete adapters into the owning leaf domain modules, installs platform HTTP behavior, registers controllers, and owns connection cleanup. It contains no business queries, route handlers, hierarchy rules, or fixture content.
 
 ```text
 src/
@@ -77,8 +77,10 @@ The demo domain is a deliberate, narrow exception to normal table ownership: its
 
 ## Platform behavior
 
-- `platform/http/request-security.ts` checks configured browser origins, limits login/register attempts, resolves session identity through its contract, and enforces optional `X-Ordo-Account` queued-write protection. Logout remains outside sign-in throttling.
-- `platform/http/error-handler.ts` maps expected failures and validation errors to the stable safe error envelope. No raw query, password, token, or content is exposed.
+- `platform/http/http.ts` is the framework-neutral HTTP surface: `HttpRequest` (method, path, params, query, headers, cookies, parsed JSON or raw bytes, client IP, an abort signal for client disconnect, and the resolved actor), `HttpReply` (status, headers, `Set-Cookie`), and `HttpRoutes`, the only thing a module's `register` receives. Handlers return the JSON body. It also fixes the 150,000-byte JSON body limit; a raw-body route (transcription audio) declares its accepted content types and its own limit. Nothing under `platform/`, `domains/` or `capabilities/` imports an HTTP framework; `test/architecture.test.ts` enforces this.
+- `adapters/http/fastify-host.ts` mounts the pipeline on Fastify: guards run before the body is read (as before), body problems map to 400/413/415, and every failure goes through the error envelope.
+- `platform/http/request-security.ts` is a request guard that checks configured browser origins, limits login/register attempts, resolves session identity through its contract, and enforces optional `X-Ordo-Account` queued-write protection. Logout remains outside sign-in throttling.
+- `platform/http/error-handler.ts` maps expected failures, validation errors and host body errors to the stable safe error envelope. No raw query, password, token, or content is exposed.
 - `platform/http/request-context.ts` makes the authenticated **public** user available to controllers and validates UUID path IDs.
 - `platform/http/session-cookie.ts` owns cookie parsing/formatting, keeping transport concerns out of identity service logic.
 - `platform/config/api-config.ts` reads startup configuration and refuses the embedded local database fallback in production.
