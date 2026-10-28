@@ -268,7 +268,7 @@ User capture (text / live audio)
 ### Input handling
 
 - **Text / pasted email:** store exact source and metadata; allow immediate manual save.
-- **Audio:** record with visible state and explicit permission; the bytes exist only in memory while a transcription request runs, then are cleared. Hosted transcription uses the account's own OpenAI key. Local Whisper is a developer option on a Mac only. Workers AI Whisper is an open option.
+- **Audio:** record with visible state and explicit permission; the bytes exist only in memory while a transcription request runs, then are cleared. Transcription uses Workers AI Whisper by default (free within the daily allowance) or the account's own OpenAI key when chosen in Settings.
 - **Files:** not stored by Ordo. Transcript import will accept text and process it as a capture.
 - **Large inputs:** chunk and summarize asynchronously while preserving provenance; never drop names or dates silently.
 

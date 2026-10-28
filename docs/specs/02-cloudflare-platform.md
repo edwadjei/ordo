@@ -170,7 +170,7 @@ Phase 2 provides a one-time import so Edward's local content moves to D1:
 - `npm test` passes with the Hono app and Web Crypto adapters; no Fastify dependency remains.
 - `npm run dev` still starts web and API locally on the existing database; the signed-in browser journeys in the verification record still pass.
 - `apps/web` builds with `output: 'export'`; the exported site, served next to the API, signs in and saves a task using same-origin `/api`.
-- Secret-cipher and transcription capabilities are flagged so a Worker without local Whisper reports it unavailable instead of failing.
+- Secret-cipher and transcription capabilities are flagged so a server without a usable transcription provider reports it unavailable instead of failing.
 
 ### Phase 2 — D1
 
