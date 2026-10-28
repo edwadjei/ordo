@@ -7,7 +7,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
-// Mirrors migrations/0001_initial.sql. Timestamps are ISO 8601 UTC text, dates
+// Mirrors migrations/0001_initial.sql and later numbered migrations. Timestamps are ISO 8601 UTC text, dates
 // `YYYY-MM-DD`, times `HH:MM`; booleans are stored as 0/1.
 const now = sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`;
 const timestampFields = () => ({
@@ -139,10 +139,11 @@ export const audioSettings = sqliteTable('audio_settings', {
   ownerUserId: text('owner_user_id')
     .primaryKey()
     .references(() => users.id, { onDelete: 'cascade' }),
+  // 0002 rebuilt this table: providers are 'workers_ai' (default) or 'openai'.
   provider: text('provider')
-    .$type<'local_whisper' | 'openai'>()
+    .$type<'workers_ai' | 'openai'>()
     .notNull()
-    .default('local_whisper'),
+    .default('workers_ai'),
   encryptedApiKey: text('encrypted_api_key'),
   ...timestampFields(),
 });

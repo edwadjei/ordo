@@ -101,6 +101,15 @@ export const projectPatch = z
   })
   .strict();
 
+/**
+ * Transcription providers an account can choose. `workers_ai` (Cloudflare
+ * Workers AI Whisper, through the Worker's `AI` binding) is the default;
+ * `openai` uses the account's own saved key.
+ */
+export const audioProviders = ['workers_ai', 'openai'] as const;
+export type AudioProvider = (typeof audioProviders)[number];
+export const defaultAudioProvider: AudioProvider = 'workers_ai';
+
 export type TaskInput = z.infer<typeof taskInput>;
 export type NoteInput = z.infer<typeof noteInput>;
 export interface User {

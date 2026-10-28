@@ -175,7 +175,8 @@ export function transform(
     case 'audio_settings':
       return {
         owner_user_id: text(row.owner_user_id),
-        provider: text(row.provider) ?? 'local_whisper',
+        // Local Whisper no longer exists; old exports become Workers AI.
+        provider: text(row.provider) === 'openai' ? 'openai' : 'workers_ai',
         encrypted_api_key: options.keepProviderKeys
           ? text(row.encrypted_api_key)
           : null,
