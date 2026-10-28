@@ -6,7 +6,7 @@
 
 **Method:** coordinated-development. The coordinator writes briefs and checks PRs; specialists build in PRs; Edward approves.
 
-**Implementation status:** the local build runs Fastify on embedded PostgreSQL (PGlite) in Node, with the Next.js server proxying `/api`. The choices below are the target; Phase 1 begins once the documentation PR is merged.
+**Implementation status:** the local build runs the Hono API in Node on embedded PostgreSQL (PGlite), with the Next.js dev server proxying `/api` and the web build producing a static export. Phase 1 is delivered; the remaining choices below are Phase 2 and 3 targets.
 
 ## Working choices
 

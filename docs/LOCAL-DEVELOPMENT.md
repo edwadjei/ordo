@@ -2,13 +2,13 @@
 
 **Scope:** Running Ordo on your own machine. No cloud deployment or native app is implied by these commands.
 
-**Implementation status:** today the API runs on Fastify with embedded PostgreSQL (PGlite) in Node, and the web app runs on the Next.js dev server with a `/api` proxy; `npm run build` also produces a static export of the web app. Hosted Ordo is one Cloudflare Worker with D1 ([technical architecture](TECHNICAL.md)). Phase 1 moves the local API to Hono in Node on the same database; Phase 2 moves local development to `wrangler dev` with a local D1 database.
+**Implementation status:** today the API runs on Hono in Node with embedded PostgreSQL (PGlite), and the web app runs on the Next.js dev server with a `/api` proxy; `npm run build` also produces a static export of the web app. Hosted Ordo is one Cloudflare Worker with D1 ([technical architecture](TECHNICAL.md)). Phase 2 moves local development to `wrangler dev` with a local D1 database.
 
 ## Today and the target
 
 | Concern | Today (local) | Target (Cloudflare) |
 |---|---|---|
-| API | Fastify in Node on `127.0.0.1:4318` | Hono in the Worker under `/api`; Phase 1 runs the same Hono app in Node on port 4318 |
+| API | Hono in Node on `127.0.0.1:4318` | Hono in the Worker under `/api` |
 | Web | Next.js dev server on `127.0.0.1:3318`, proxying `/api/*` to `/v1/*`; `npm run build` writes a static export to `apps/web/out` | Static export served by the Worker, which answers `/api` itself (Phase 2); the dev proxy stays for local work |
 | Database | Embedded PostgreSQL in `.data/ordo` | D1; locally a `wrangler dev` D1 database from Phase 2 |
 | Migrations | Applied by the API at startup, with checksums | `wrangler d1 migrations apply`; nothing runs at Worker boot |

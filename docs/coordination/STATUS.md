@@ -19,14 +19,14 @@
 
 Edward chose Cloudflare Workers (Free plan) with D1 on 27 October 2026 ("aligned"; "I don't want to pay $5"); see C25–C27 in the [decision register](DECISIONS.md).
 
-**Implementation status:** the code still runs the API on Fastify with embedded PostgreSQL (PGlite) in Node, and the web app on the Next.js server with a `/api` proxy. Nothing runs on Cloudflare yet.
+**Implementation status:** the API runs on Hono with Web Crypto adapters in Node on embedded PostgreSQL (PGlite); the web app runs on the Next.js dev server with a `/api` proxy and builds as a static export. Nothing runs on Cloudflare yet; D1 and the Worker are Phase 2.
 
 ## Work areas
 
 | Area | State |
 |---|---|
 | Coordination/docs | Cloudflare architecture, spec, and Phase 1 brief written; awaiting review |
-| API/domain/database | Everyday core merged and verified locally on Fastify + embedded PostgreSQL; Hono port (Phase 1) and D1 (Phase 2) next |
+| API/domain/database | Everyday core merged and verified locally; Phase 1 (Hono, Web Crypto) delivered on embedded PostgreSQL; D1 (Phase 2) next |
 | Responsive web/client | Everyday views, task times and people, search, OTP sign-in, memory-only transcription, light/dark merged; static export (Phase 1) next |
 | Mobile iOS/Android | Not implemented; Expo direction selected, iOS urgent; starts against the hosted API after Phase 3 |
 | macOS | Not implemented; follows priority mobile delivery |

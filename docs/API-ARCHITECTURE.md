@@ -2,7 +2,7 @@
 
 **Direction:** Adapt the organization and concepts of Edward's local `damsyn-ecommerce-api` to Ordo. Keep Ordo's personal-workspace model and current HTTP contract. The API is a Hono app in one Cloudflare Worker on D1 ([technical architecture](TECHNICAL.md)).
 
-**Implementation status:** the code today hosts these boundaries on Fastify in Node with embedded PostgreSQL and Node `crypto` adapters. Phase 1 moves them to Hono and Web Crypto; Phase 2 moves persistence to D1 with check-on-save writes ([platform spec](specs/02-cloudflare-platform.md)).
+**Implementation status:** the code today hosts these boundaries on Hono in Node with embedded PostgreSQL and Web Crypto adapters. Phase 2 moves persistence to D1 with check-on-save writes ([platform spec](specs/02-cloudflare-platform.md)).
 
 ## Four boundaries
 
@@ -54,7 +54,7 @@ Controllers use strict shared validation from `packages/core`. Responses omit pr
 
 Session material uses `SessionTokens` (random bytes, SHA-256 digest). Code sign-in uses `OtpSecrets` (random six-digit codes, HMAC-SHA256 with a Worker secret) and `OtpDelivery` (Gatekeeper). Task idempotency fingerprints use `ContentHasher` (SHA-256). Provider keys use the `SecretCipher` (AES-GCM). All of these are Web Crypto adapters. Platform request security depends on `SessionAuthenticator`; Identity supplies that behavior without Platform importing Identity. `PasswordHasher` exists only to convert legacy local password accounts and is never part of the Worker.
 
-**Implementation status:** today these adapters use Node `crypto`, including scrypt for passwords and codes; Web Crypto is Phase 1.
+**Implementation status:** these adapters use Web Crypto (HMAC-SHA256 for codes). Node `crypto` remains only to verify legacy scrypt passwords, which hosted Ordo does not serve.
 
 The database is a concrete adapter over the shared Drizzle schema in `packages/db`, bound to D1 in the Worker. There is no invented `DatabaseProvider` port suggesting the database is interchangeable.
 

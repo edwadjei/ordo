@@ -2,7 +2,7 @@
 
 **Status:** Decided by Edward on 27 October 2026 ("aligned"; "I don't want to pay $5"). Documentation first, then Phase 1.
 
-**Implementation status:** the local build still runs Fastify on embedded PostgreSQL in Node. Nothing here is implemented or deployed yet. Phase 1 (Hono port) and Phase 2 (D1) are the next engineering work; Phase 3 (hosted staging) follows with Edward's approval at each deploy.
+**Implementation status:** Phase 1 is delivered: the API runs on Hono with Web Crypto adapters in Node on embedded PostgreSQL, and the web app builds as a static export. Nothing is deployed. Phase 2 (D1 and the Worker) is the next engineering work; Phase 3 (hosted staging) follows with Edward's approval at each deploy.
 
 **References:** [Technical architecture](../TECHNICAL.md), [API architecture](../API-ARCHITECTURE.md), [everyday core spec](01-everyday-core.md), [decision register](../coordination/DECISIONS.md), [Phase 1 brief](../coordination/CLOUDFLARE-PHASE-1-BRIEF.md).
 

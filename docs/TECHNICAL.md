@@ -4,7 +4,7 @@
 
 **Architectural principle:** **Fast deterministic core; AI is asynchronous, optional, and replaceable.**
 
-**Implementation status:** this document describes Ordo's architecture. The local build still runs the API in Node with Fastify on embedded PostgreSQL (PGlite), and the web app runs on the Next.js dev server with a dev proxy (its build is a static export, not yet hosted). The Hono port is Phase 1 and D1 is Phase 2 of the [Cloudflare platform spec](specs/02-cloudflare-platform.md); Phase 3 is hosted staging. Nothing is deployed. Where a section is not yet true of the running code, the [delivery ledger](PLAN.md) and the [local development guide](LOCAL-DEVELOPMENT.md) say so.
+**Implementation status:** this document describes Ordo's architecture. The local build runs the Hono API with Web Crypto adapters in Node on embedded PostgreSQL (PGlite), and the web app runs on the Next.js dev server with a dev proxy (its build is a static export, not yet hosted). Phase 1 (Hono port) is done; D1 is Phase 2 of the [Cloudflare platform spec](specs/02-cloudflare-platform.md); Phase 3 is hosted staging. Nothing is deployed. Where a section is not yet true of the running code, the [delivery ledger](PLAN.md) and the [local development guide](LOCAL-DEVELOPMENT.md) say so.
 
 ## 1. Architecture at a glance
 
@@ -202,7 +202,7 @@ Hosted Ordo is **code-only**: email or Ghana phone, then a six-digit code delive
 - Account-owned provider keys (for transcription or AI) are encrypted with AES-256-GCM, a fresh 96-bit nonce, and the owner ID as additional authenticated data. Only ciphertext is stored. Another account cannot use the ciphertext because decryption authenticates owner identity.
 - The Worker uses no scrypt, bcrypt, or Argon2: they do not fit 10 ms CPU and are not needed for a code-only sign-in.
 
-**Implementation status:** the local build uses Node `crypto` adapters (scrypt for passwords and codes, SHA-256 for sessions and fingerprints, AES-GCM for provider keys) and can fall back to a local key file at `.data/secrets/audio-key` when `ORDO_CREDENTIAL_KEY` is unset. Web Crypto adapters are Phase 1; the Worker reads the master key only from its secret.
+**Implementation status:** the local build uses Web Crypto adapters (HMAC-SHA256 for sign-in codes, SHA-256 for sessions and fingerprints, AES-GCM for provider keys). Node `crypto` remains only to verify legacy scrypt passwords. Locally, `ORDO_CREDENTIAL_KEY` and `OTP_HMAC_KEY` fall back to owner-only key files under `.data/secrets/`; the Worker reads both only from its secrets.
 
 ## 10. API design — REST v1
 
