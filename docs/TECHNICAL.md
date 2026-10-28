@@ -58,7 +58,7 @@ Ordo runs as **one Cloudflare Worker on the Workers Free plan**. The same Worker
 | Mobile | **Expo (React Native) for iOS and Android** | Shared native codebase; same API; token sign-in |
 | Editor | **Tiptap** | Restrained rich text, loaded only on editing screens |
 | AI text | **Provider abstraction for OpenAI and Anthropic** | Account-owned keys and model switching |
-| Transcription | **Account-owned OpenAI key** (hosted); local Whisper on a developer's Mac only | Audio is never stored; Workers AI Whisper is an open option |
+| Transcription | **Workers AI Whisper** (`whisper-large-v3-turbo`) by default; account-owned OpenAI key optional | Free within the daily Workers AI allowance; audio is never stored |
 | Background work | **Cloudflare Queues / cron** when AI workers arrive | No Redis, BullMQ, or separate worker host |
 | Agent access | **REST endpoints + MCP server** over the same authorized services | Works with scripts and compatible AI clients |
 
