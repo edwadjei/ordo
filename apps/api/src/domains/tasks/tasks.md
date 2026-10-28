@@ -6,17 +6,17 @@
 
 ## Atomic hierarchy rules
 
-Creation, edits, and archive run inside an owner transaction with the user's row locked. The service traverses the proposed ancestry inside that transaction, rejects self/descendant cycles, and limits traversal to 500 visited IDs. A foreign or archived parent is unavailable, and a parent in a different destination cannot be attached.
+D1 has no row locks or interactive transactions, so every rule is a save precondition written into the statement (check-on-save). The service reads the proposed ancestry in one recursive query bounded to 500 IDs, rejects self/descendant cycles and over-deep chains, and refuses a foreign, archived or missing parent (`404`) or one in a different destination (`SCOPE_MISMATCH`). The save is then conditional on the task's revision and on the revision of every ancestor it read, so a concurrent move anywhere in that chain makes one of the two saves fail with `409 REVISION_CONFLICT`. Two crossing moves (A under B, B under A) therefore cannot both succeed.
 
-Changing a parent's destination while it has active children is rejected; the user must explicitly move/archive children first. Archive is soft deletion, is allowed for a leaf, and cannot hide active children behind an archived parent. Completing a parent changes only that task; children remain open unless explicitly completed.
+Changing a parent's destination while it has active children is rejected (`409 HAS_SUBTASKS`); the user must explicitly move/archive children first. The `UPDATE` itself carries `NOT EXISTS (active child)`, so a child created between the check and the write still blocks it. Archive is soft deletion, is allowed for a leaf, and cannot hide active children behind an archived parent. A subtask insert is `INSERT … SELECT … WHERE` the parent is still active, unchanged and in the same destination. Completing a parent changes only that task; children remain open unless explicitly completed.
 
-The repository performs scoped reads/inserts/updates; it does not decide lifecycle transitions. The controller has no SQL or transaction code.
+The repository performs scoped reads and guarded inserts/updates; it does not decide lifecycle transitions. When a guarded write changes nothing, the service re-reads to report why (`404`, `HAS_SUBTASKS` or `REVISION_CONFLICT`); nothing has been written. The controller has no SQL.
 
 ## Retry identity versus record revision
 
-`create()` fingerprints the normalized create payload through the Tasks-owned `ContentHasher` port. The owner-scoped idempotency key, fingerprint, and task insertion commit atomically. Same key/same payload returns the original task; same key/different payload is a conflict. An archived original does not reappear when its create is retried.
+`create()` fingerprints the normalized create payload through the Tasks-owned `ContentHasher` port. The task and its owner-scoped idempotency key are inserted in one D1 `batch()` (an implicit transaction); the key row is inserted only if the task row was. A concurrent create with the same key loses on the unique `(owner_user_id, key)` constraint, its batch rolls back, and the stored fingerprint decides between returning the original (`200`) and `409 IDEMPOTENCY_CONFLICT`. Same key/same payload returns the original task; same key/different payload is a conflict. An archived original does not reappear when its create is retried.
 
-Revision is a different concern: PATCH/DELETE require the current revision and reject stale edits before writing. The service increments revision and timestamps. PATCH schemas intentionally have no creation defaults, so completing or renaming a task preserves unrelated scope, dates, parent, and description.
+Revision is a different concern: PATCH/DELETE require the current revision and reject stale edits before writing; the write is `UPDATE … WHERE id = ? AND owner_user_id = ? AND revision = ?`, which increments the revision, so a save that loses a race also gets `409 REVISION_CONFLICT`. PATCH schemas intentionally have no creation defaults, so completing or renaming a task preserves unrelated scope, dates, parent, and description.
 
 ## Dates and completion
 
@@ -24,7 +24,7 @@ Due and follow-up dates are date-only strings, not arbitrary midnight timestamps
 
 ## Times and people
 
-`dueTime` and `followUpTime` are optional `HH:MM` (24-hour) local wall-clock times in the user's timezone, kept in their own columns so date-only storage and date logic are unchanged. A time refines its date: the service checks the merged task (after a PATCH is applied to the stored row) and rejects a time whose date is null with `400 INVALID_INPUT`. Clearing a date therefore must clear its time in the same request. Migration `0005_task_times_people.sql` enforces the same format and date requirement with CHECK constraints.
+`dueTime` and `followUpTime` are optional `HH:MM` (24-hour) local wall-clock times in the user's timezone, kept in their own columns so date-only storage and date logic are unchanged. A time refines its date: the service checks the merged task (after a PATCH is applied to the stored row) and rejects a time whose date is null with `400 INVALID_INPUT`. Clearing a date therefore must clear its time in the same request. Migration `0001_initial.sql` enforces the same format, date requirement and 1–80 character name length with CHECK constraints.
 
 `responsiblePerson` and `waitingOn` are plain-text names: trimmed, at most 80 characters, an empty string becomes `null`. They are never resolved to accounts and grant nothing. `waitingOn` says who a Waiting task is waiting on; it does not change Waiting On membership, which remains `status: waiting`. Both names are included in task search. Reminders are in-app view calculations only; the service schedules nothing.
 
@@ -34,6 +34,4 @@ Archive tombstones are returned by the mutation and omitted from refreshed snaps
 
 ## On Cloudflare
 
-D1 has no row locks or interactive transactions, so the same rules become save preconditions (check-on-save). Edits and archives are `UPDATE … WHERE revision = ?`. A hierarchy change is conditional on the task's revision and on the revisions of every ancestor read during the cycle check, so a concurrent move in that chain refuses one save. Archive and destination moves include a `NOT EXISTS` active-children guard; a subtask insert requires its parent to still be active in the same destination. Create inserts the task and its idempotency key in one `batch()`; a repeated key rolls the batch back and the stored fingerprint decides between returning the original and `409 IDEMPOTENCY_CONFLICT`. Search triggers keep `tasks_fts` current.
-
-**Implementation status:** today the routes run on the Hono app in Node (embedded PostgreSQL), and fingerprints use Web Crypto SHA-256 with the same output as before, so stored idempotency keys still match. These guarantees come from the PostgreSQL owner transaction described above; check-on-save is Phase 2, with concurrency tests on local D1.
+The rules above are how the code works on D1, locally under `wrangler dev` and in tests. `test/concurrency.test.ts` exercises each rule twice: deterministically at the statement level (a precondition changed between the read and the write) and as concurrent requests through the API. Fingerprints use Web Crypto SHA-256 with the same output as the earlier Node implementation, so imported idempotency keys still match. Triggers keep `tasks_fts` current.

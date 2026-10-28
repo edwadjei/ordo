@@ -10,6 +10,6 @@ The fixture set provides four named sample contexts, at least 21 MTN projects, a
 
 `demo.repository.ts` is the deliberate fixture-only exception to normal domain table ownership. It inserts a coordinated synthetic dataset across workspaces/projects/tasks/notes and updates the user's `demo_loaded` marker. Normal application domains must still call the owning service rather than copy this cross-table pattern.
 
-`demo.service.ts` owns the owner-lock transaction and checks the marker inside that transaction before invoking the repository's insert. A repeated or concurrent sample-data request does not duplicate content. Insertions and marker update commit together; a partial fixture load cannot appear as a completed setup.
+The load is one D1 `batch()`. It starts with the claim `UPDATE users SET demo_loaded = 1, demo_claim = <fresh random value> WHERE id = ? AND demo_loaded = 0`; each fixture insert (one guarded multi-row insert per table) runs only while `demo_claim` is this request's value. A repeated or concurrent request claims nothing and inserts nothing, and because the batch is one transaction a partial fixture load cannot appear as a completed setup.
 
 The post-seed response comes from HomeService, keeping its response contract and authorization behavior identical to an ordinary Home refresh. This domain is not a migration mechanism, a production seed command, or a back door for shared-data changes.

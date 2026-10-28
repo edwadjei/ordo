@@ -19,14 +19,14 @@
 
 Edward chose Cloudflare Workers (Free plan) with D1 on 27 October 2026 ("aligned"; "I don't want to pay $5"); see C25–C27 in the [decision register](DECISIONS.md).
 
-**Implementation status:** the API runs on Hono with Web Crypto adapters in Node on embedded PostgreSQL (PGlite); the web app runs on the Next.js dev server with a `/api` proxy and builds as a static export. Nothing runs on Cloudflare yet; D1 and the Worker are Phase 2.
+**Implementation status:** the API runs as a Cloudflare Worker on a local D1 database under `wrangler dev`, with code-only sign-in, check-on-save and FTS5 search (Phase 2, pending merge). The web app runs on Next.js dev proxying `/api` and builds as a static export the Worker serves. Nothing is deployed; hosted staging is Phase 3.
 
 ## Work areas
 
 | Area | State |
 |---|---|
 | Coordination/docs | Cloudflare architecture, spec, and Phase 1 brief written; awaiting review |
-| API/domain/database | Everyday core merged and verified locally; Phase 1 (Hono, Web Crypto) delivered on embedded PostgreSQL; D1 (Phase 2) next |
+| API/domain/database | Phase 1 (Hono, Web Crypto) merged; Phase 2 (D1, code-only sign-in, check-on-save, FTS5, Worker) in review; hosted staging (Phase 3) next |
 | Responsive web/client | Everyday views, task times and people, search, OTP sign-in, memory-only transcription, light/dark merged; static export (Phase 1) next |
 | Mobile iOS/Android | Not implemented; Expo direction selected, iOS urgent; starts against the hosted API after Phase 3 |
 | macOS | Not implemented; follows priority mobile delivery |
@@ -48,12 +48,11 @@ The coordinator owns root tooling, docs, and integration evidence, checks every 
 
 | Environment | State | Release / rollback |
 |---|---|---|
-| Local | Web `http://127.0.0.1:3318`; API `http://127.0.0.1:4318`; embedded PostgreSQL in `.data/ordo` | Local build only; private local backups under `.data/backups` |
-| Local D1 (`wrangler dev`) | Not built; Phase 2 | None |
+| Local (`npm run dev`) | Worker on `wrangler dev` at `http://127.0.0.1:8788` with a local D1 database under `apps/api/.wrangler`; Next.js dev at `http://127.0.0.1:3358` proxying `/api` | Local only. The old embedded PostgreSQL data in `.data/ordo` is kept until it is imported |
 | Staging (Cloudflare Worker + D1) | Not provisioned; Phase 3 | None |
 | Production | Not provisioned | None |
 
-No Cloudflare account access, Worker, D1 database, secret, DNS record, or hosted CI run exists for Ordo. The local servers on 3318/4318 were started by another tool and do not hot-reload; do not stop them unasked. Verify changes on a separate stack (for example ports 3328/4328 with their own `ORDO_DATA_DIR`). Keep `.data` and private `.env` values out of Git.
+No Cloudflare account access, Worker, D1 database, secret, DNS record, or hosted CI run exists for Ordo. Specialists verify on separate ports with fictional data and never touch `.data`. Keep `.data`, `apps/api/.dev.vars` and private `.env` values out of Git.
 
 The documentation site is generated into `docs/html`; a preview may run on port 4317. The static prototype is `design/home-preview.html` (port 4319 when its preview runs); do not confuse it with the working app on 3318.
 

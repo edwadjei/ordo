@@ -66,8 +66,6 @@ export function createClient(
     options: RequestInit = {},
   ): Promise<T> {
     const authenticatedRequest = ![
-      '/auth/register',
-      '/auth/login',
       '/auth/otp/request',
       '/auth/otp/verify',
       '/auth/me',
@@ -174,13 +172,6 @@ export function createClient(
       }),
     home: () => request<HomeSnapshot>('/home'),
     me: () => request<{ user: User }>('/auth/me'),
-    register: (data: {
-      email: string;
-      password: string;
-      displayName: string;
-    }) => send<{ user: User }>('/auth/register', 'POST', data),
-    login: (data: { email: string; password: string }) =>
-      send<{ user: User }>('/auth/login', 'POST', data),
     logout: async () => {
       const signingOut = accountId;
       try {

@@ -1,29 +1,27 @@
 import { AudioProviders } from '../../capabilities/audio-providers.contract.js';
+import { Transcriber } from '../../capabilities/transcriber.contract.js';
 import { OpenAiTranscriber } from './openai-transcriber.js';
-import {
-  LocalWhisperTranscriber,
-  FfmpegDecoder,
-} from './local-whisper-transcriber.js';
-export class ConfiguredAudioProviders extends AudioProviders {
-  private readonly whisper: LocalWhisperTranscriber;
-  constructor(
-    environment: NodeJS.ProcessEnv = process.env,
-    private readonly transport: typeof fetch = fetch,
-  ) {
-    super();
-    this.whisper = new LocalWhisperTranscriber(
-      environment.ORDO_WHISPER_URL ?? 'http://127.0.0.1:4316',
-      new FfmpegDecoder(
-        environment.ORDO_FFMPEG_PATH ?? '/opt/homebrew/bin/ffmpeg',
-      ),
-      transport,
-    );
+
+class UnavailableTranscriber extends Transcriber {
+  async transcribe(_audio: Uint8Array, _mimeType: string): Promise<string> {
+    throw new Error('Local Whisper is not available on the Worker.');
   }
-  localAvailable() {
-    return this.whisper.available();
+}
+
+/**
+ * Providers on the Worker: the account's own OpenAI key. Local Whisper needs
+ * a local decoder process, which a Worker cannot start, so it always reports
+ * unavailable here.
+ */
+export class ConfiguredAudioProviders extends AudioProviders {
+  constructor(private readonly transport: typeof fetch = fetch) {
+    super();
+  }
+  async localAvailable() {
+    return false;
   }
   local() {
-    return this.whisper;
+    return new UnavailableTranscriber();
   }
   cloud(apiKey: string) {
     return new OpenAiTranscriber(apiKey, this.transport);

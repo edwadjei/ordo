@@ -6,10 +6,13 @@ const shared: NextConfig = {
   transpilePackages: ['@ordo/core', '@ordo/client'],
 };
 
+/** Where `next dev` forwards same-origin `/api/*`: the local `wrangler dev` Worker. */
+export const defaultWorkerUrl = 'http://127.0.0.1:8788';
+
 /**
- * `next dev` proxies same-origin `/api/*` to the local API's `/v1/*`.
- * Every other phase builds a static export into `out/`; whatever serves
- * those files (the Worker in Phase 2, `npm run serve:export` locally) owns `/api`.
+ * `next dev` proxies same-origin `/api/*` unchanged to the Worker, which maps
+ * it to the API's `/v1/*` exactly as it does for the static export it serves.
+ * Every other phase builds a static export into `out/`, served by the Worker.
  */
 export default function config(phase: string): NextConfig {
   if (phase === PHASE_DEVELOPMENT_SERVER)
@@ -19,7 +22,7 @@ export default function config(phase: string): NextConfig {
         return [
           {
             source: '/api/:path*',
-            destination: `${process.env.ORDO_API_URL || 'http://127.0.0.1:4318'}/v1/:path*`,
+            destination: `${process.env.ORDO_API_URL || defaultWorkerUrl}/api/:path*`,
           },
         ];
       },

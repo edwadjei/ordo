@@ -1,82 +1,73 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { eq } from 'drizzle-orm';
-import { openDatabase, users, sessions, otpChallenges, tasks } from '@ordo/db';
-import { DatabaseAdapter } from '../src/adapters/database/database.adapter.js';
-import { IdentityRepository } from '../src/domains/identity/identity.repository.js';
+import { users, sessions, otpChallenges, tasks } from '@ordo/db';
 import { buildApp } from '../src/app.js';
+import { DatabaseAdapter } from '../src/adapters/database/database.adapter.js';
+import { fromHex } from '../src/adapters/cryptography/encoding.js';
 import { testClient } from './http-harness.js';
-import { OtpDelivery } from '../src/capabilities/otp-delivery.contract.js';
 import { GatekeeperOtpDelivery } from '../src/adapters/gatekeeper/gatekeeper-otp-delivery.js';
-const origin = 'http://localhost:3318';
-// Fictional 32-byte test key; real deployments read the OTP_HMAC_KEY secret.
-const testOtpKey = '0f'.repeat(32);
-class TestDelivery extends OtpDelivery {
-  messages: { contact: string; code: string }[] = [];
-  failing = false;
-  enabled = true;
-  available() {
-    return this.enabled;
-  }
-  async send(contact: string, code: string) {
-    if (this.failing)
-      throw new Error('Sensitive provider response must stay private');
-    this.messages.push({ contact, code });
-  }
-}
-async function harness(dataDir?: string) {
-  const connection = await openDatabase({ dataDir });
-  const delivery = new TestDelivery();
+import {
+  ConsoleOtpDelivery,
+  maskContact,
+} from '../src/adapters/console/console-otp-delivery.js';
+import {
+  apiHarness,
+  origin,
+  signIn,
+  testOtpKey,
+  type Harness,
+} from './d1-harness.js';
+async function harness() {
   let now = Date.now();
-  const app = testClient(
-    await buildApp({
-      connection,
-      otpDelivery: delivery,
-      otpNow: () => now,
-      otpHmacKey: testOtpKey,
-    }),
-  );
-  await app.ready();
+  const h = await apiHarness({ otpNow: () => now });
+  return withHelpers(h, {
+    advance: (ms: number) => {
+      now += ms;
+    },
+  });
+}
+function withHelpers<T extends object>(h: Harness, extra: T) {
   const post = (url: string, payload: object) =>
-    app.inject({ method: 'POST', url, headers: { origin }, payload });
+    h.app.inject({ method: 'POST', url, headers: { origin }, payload });
   const request = (contact: string) =>
     post('/v1/auth/otp/request', { contact });
   const verify = (challengeId: string, code: string) =>
     post('/v1/auth/otp/verify', { challengeId, code });
-  return {
-    app,
-    db: connection.db,
-    delivery,
-    post,
-    request,
-    verify,
-    advance: (ms: number) => {
-      now += ms;
-    },
-  };
+  return { ...h, post, request, verify, ...extra };
 }
-
-test('OTP verifies an existing email without changing account identity; hashed code, replay protection and session', async (t) => {
+test('OTP converts a legacy account: same ID and data, old sessions revoked, hashed code, replay refused', async (t) => {
   const h = await harness();
   t.after(() => h.app.close());
   const email = `${randomUUID()}@example.invalid`;
-  const registered = await h.post('/v1/auth/register', {
-    email,
-    password: 'Fictional-Password-For-Test',
-    displayName: 'Email tester',
+  // A legacy local account as the import loads it: no verified email, and a
+  // session left from before (the import never copies sessions, but a
+  // squatter's or an old session must not survive the first email proof).
+  const legacyId = randomUUID();
+  await h.db
+    .insert(users)
+    .values({ id: legacyId, email, displayName: 'Email tester' });
+  await h.db.insert(sessions).values({
+    tokenHash: 'e'.repeat(64),
+    userId: legacyId,
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
   });
-  assert.equal(registered.statusCode, 201);
-  const [beforeAccount] = await h.db.select().from(users);
   const taskId = randomUUID();
   await h.db.insert(tasks).values({
     id: taskId,
-    ownerUserId: registered.json().user.id,
+    ownerUserId: legacyId,
     title: 'Existing preserved task',
   });
+  assert.equal(
+    (
+      await h.app.inject({
+        url: '/v1/home',
+        headers: { cookie: `ordo_session=${'e'.repeat(64)}` },
+      })
+    ).statusCode,
+    401,
+    'a stored digest is not itself a token',
+  );
   const request = await h.request(`  ${email.toUpperCase()} `);
   assert.equal(request.statusCode, 202, request.body);
   assert.deepEqual(Object.keys(request.json()).sort(), [
@@ -93,32 +84,17 @@ test('OTP verifies an existing email without changing account identity; hashed c
   assert.equal((await h.db.select().from(users))[0].emailVerifiedAt, null);
   const verified = await h.verify(request.json().challengeId, code);
   assert.equal(verified.statusCode, 200, verified.body);
-  assert.equal(verified.json().user.id, registered.json().user.id);
+  assert.equal(verified.json().user.id, legacyId);
   assert.ok(verified.headers['set-cookie']);
   assert.ok((await h.db.select().from(users))[0].emailVerifiedAt);
   assert.equal((await h.db.select().from(tasks))[0].id, taskId);
-  const oldCookie = registered.headers['set-cookie']!.toString().split(';')[0];
-  assert.equal(
-    (await h.app.inject({ url: '/v1/home', headers: { cookie: oldCookie } }))
-      .statusCode,
-    401,
-  );
-  const oldPassword = await h.post('/v1/auth/login', {
-    email,
-    password: 'Fictional-Password-For-Test',
-  });
-  assert.equal(oldPassword.statusCode, 401);
-  // A password check that completed before conversion cannot mint a new session afterwards.
-  const identityRepository = new IdentityRepository(new DatabaseAdapter(h.db));
-  assert.equal(
-    await identityRepository.insertSession(
-      'f'.repeat(64),
-      beforeAccount.id,
-      new Date(Date.now() + 60000).toISOString(),
-      beforeAccount.passwordHash,
-    ),
-    false,
-  );
+  const remaining = await h.db.select().from(sessions);
+  assert.equal(remaining.length, 1);
+  assert.notEqual(remaining[0].tokenHash, 'e'.repeat(64));
+  const [consumed] = await h.db.select().from(otpChallenges);
+  assert.equal(consumed.consumed, true);
+  assert.equal(consumed.codeHash, '');
+  assert.match(consumed.consumedBy!, /^[0-9a-f-]{36}$/);
   const replay = await h.verify(request.json().challengeId, code);
   assert.equal(replay.statusCode, 401);
   assert.equal(replay.headers['set-cookie'], undefined);
@@ -140,14 +116,6 @@ test('OTP handles new email and Ghana phone with identical challenge shape; reje
     const result = await h.verify(request.json().challengeId, message.code);
     assert.equal(result.statusCode, 200, result.body);
   }
-  // The passwordless marker cannot become a password or accidentally authenticate
-  // through the legacy dummy-hash path.
-  const legacy = await h.post('/v1/auth/login', {
-    email: 'new@example.invalid',
-    password: 'not-an-account-password',
-  });
-  assert.equal(legacy.statusCode, 401);
-  assert.equal(legacy.headers['set-cookie'], undefined);
   const accounts = await h.db.select().from(users);
   const phone = accounts.find((user) => user.phone);
   assert.equal(phone?.phone, '+233241234567');
@@ -192,21 +160,34 @@ test('expiry, wrong-attempt limits, resend cooldown and cumulative attempts do n
   assert.equal((await h.db.select().from(users)).length, 0);
 });
 
-test('OTP consumed state persists across API/database restart and concurrent verify creates one session', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'ordo-otp-'));
-  t.after(() => rm(directory, { recursive: true, force: true }));
-  const first = await harness(directory);
+test('OTP consumed state is in D1, so a fresh app (new isolate) refuses replays; concurrent verify creates one session', async (t) => {
+  const first = await harness();
+  t.after(() => first.app.close());
   const req = await first.request('restart@example.invalid');
   const code = first.delivery.messages.at(-1)!.code;
-  await first.app.close();
-  const second = await harness(directory);
-  t.after(() => second.app.close());
+  const second = withHelpers(
+    {
+      ...first,
+      app: testClient(
+        buildApp({
+          database: new DatabaseAdapter(first.db),
+          trustedOrigins: [origin],
+          secureCookies: false,
+          otpDelivery: first.delivery,
+          otpHmacKey: fromHex(testOtpKey),
+        }),
+      ),
+    },
+    {},
+  );
   const results = await Promise.all([
     second.verify(req.json().challengeId, code),
     second.verify(req.json().challengeId, code),
+    first.verify(req.json().challengeId, code),
   ]);
-  assert.deepEqual(results.map((r) => r.statusCode).sort(), [200, 401]);
+  assert.deepEqual(results.map((r) => r.statusCode).sort(), [200, 401, 401]);
   assert.equal((await second.db.select().from(sessions)).length, 1);
+  assert.equal((await second.db.select().from(users)).length, 1);
 });
 
 test('delivery failure and unavailable provider return safe messages; CSRF and IP limits cover OTP', async (t) => {
@@ -296,15 +277,23 @@ test('Gatekeeper transport uses separate email and Ghana SMS payloads and hides 
   );
 });
 
+test('the console code transport works only in development and masks the contact', async () => {
+  assert.throws(() => new ConsoleOtpDelivery(false), /ORDO_ENV=development/);
+  const lines: string[] = [];
+  const delivery = new ConsoleOtpDelivery(true, (line) => lines.push(line));
+  assert.equal(delivery.available(), true);
+  await delivery.send('person@example.invalid', '123456');
+  await delivery.send('+233241234567', '654321');
+  assert.match(lines[0], /p•••@example\.invalid: 123456/);
+  assert.ok(!lines[0].includes('person@'));
+  assert.match(lines[1], /\+233•••••67: 654321/);
+  assert.equal(maskContact('+233241234567'), '+233•••••67');
+});
+
 test('authenticated reads reject stale expected account after a cookie account switch', async (t) => {
   const h = await harness();
   t.after(() => h.app.close());
-  const registration = await h.post('/v1/auth/register', {
-    email: 'read-scope@example.invalid',
-    password: 'Fictional-Read-Scope-Password',
-    displayName: 'Read scope',
-  });
-  const cookie = registration.headers['set-cookie']!.toString().split(';')[0];
+  const { cookie, user } = await signIn(h, 'read-scope@example.invalid');
   for (const url of ['/v1/search?q=scope', '/v1/notes']) {
     const mismatch = await h.app.inject({
       url,
@@ -314,7 +303,7 @@ test('authenticated reads reject stale expected account after a cookie account s
     assert.equal(mismatch.json().error.code, 'SESSION_CHANGED');
     const correct = await h.app.inject({
       url,
-      headers: { cookie, 'x-ordo-account': registration.json().user.id },
+      headers: { cookie, 'x-ordo-account': user.id },
     });
     assert.equal(correct.statusCode, 200, correct.body);
   }

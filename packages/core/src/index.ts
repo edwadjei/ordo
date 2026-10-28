@@ -14,18 +14,6 @@ const personName = z
   .trim()
   .max(80)
   .transform((v) => (v === '' ? null : v));
-export const userCredentials = z
-  .object({
-    email: z
-      .email()
-      .max(254)
-      .transform((v) => v.trim().toLowerCase()),
-    password: z.string().min(12).max(128),
-  })
-  .strict();
-export const registration = userCredentials.extend({
-  displayName: z.string().trim().min(1).max(80),
-});
 export const workspaceInput = z
   .object({
     name,

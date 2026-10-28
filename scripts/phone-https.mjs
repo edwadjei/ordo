@@ -20,7 +20,7 @@ const server = createServer(
     const upstream = request(
       {
         hostname: '127.0.0.1',
-        port: 3318,
+        port: Number(process.env.ORDO_WEB_PORT ?? 3358),
         path: incoming.url,
         method: incoming.method,
         headers: { ...incoming.headers, 'x-forwarded-proto': 'https' },

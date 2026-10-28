@@ -9,16 +9,16 @@ import {
   createHmac,
   randomBytes,
 } from 'node:crypto';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { WebContentHasher } from '../src/adapters/cryptography/web-content-hasher.js';
 import { WebSessionTokens } from '../src/adapters/cryptography/web-session-tokens.js';
 import { WebOtpSecrets } from '../src/adapters/cryptography/web-otp-secrets.js';
-import { FileSecretCipher } from '../src/adapters/secrets/file-secret-cipher.js';
-import { localKeySource } from '../src/adapters/secrets/local-key-file.js';
+import { WebSecretCipher } from '../src/adapters/secrets/web-secret-cipher.js';
+import { fromHex } from '../src/adapters/cryptography/encoding.js';
 import { newId } from '../src/platform/identifiers/new-id.js';
-import { readApiConfig } from '../src/platform/config/api-config.js';
+import {
+  localOrigins,
+  readWorkerConfig,
+} from '../src/platform/config/worker-config.js';
 
 // Fictional fixture key and owner. The ciphertext below was produced by the
 // previous Node `createCipheriv('aes-256-gcm')` implementation before the
@@ -31,7 +31,7 @@ const fixtureCiphertext =
   'v1.MwhadEo4LjamicnC.mnMl/zx9BHPM98u15nGbcg==.arrRaiYA0TgGi2+RSnEfsDU3emHIS4VLUA+/uQs=';
 
 test('secret cipher decrypts ciphertext produced by the former Node implementation', async () => {
-  const cipher = new FileSecretCipher('/nonexistent/never-read', fixtureKey);
+  const cipher = new WebSecretCipher(async () => fromHex(fixtureKey));
   assert.equal(
     await cipher.decrypt(fixtureOwner, fixtureCiphertext),
     fixturePlaintext,
@@ -42,7 +42,7 @@ test('secret cipher decrypts ciphertext produced by the former Node implementati
 });
 
 test('secret cipher output decrypts with Node AES-256-GCM and vice versa', async () => {
-  const cipher = new FileSecretCipher('/nonexistent/never-read', fixtureKey);
+  const cipher = new WebSecretCipher(async () => fromHex(fixtureKey));
   const sealed = await cipher.encrypt(fixtureOwner, fixturePlaintext);
   const [version, nonce, tag, data] = sealed.split('.');
   assert.equal(version, 'v1');
@@ -139,39 +139,39 @@ test('OTP secrets: uniform six-digit codes and HMAC-SHA256 bound to the challeng
   assert.equal(await other.verify(challenge, '123456', stored), false);
 });
 
-test('local key file is generated lazily, owner-only, and reused', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'ordo-otp-key-'));
-  t.after(() => rm(directory, { recursive: true, force: true }));
-  const filename = join(directory, 'secrets', 'otp-key');
-  const source = localKeySource(filename, undefined, 'invalid');
-  const first = await source();
-  assert.equal(first.length, 32);
-  assert.equal((await stat(filename)).mode & 0o777, 0o600);
-  assert.deepEqual(new Uint8Array(await readFile(filename)), first);
-  assert.deepEqual(
-    await localKeySource(filename, undefined, 'invalid')(),
-    first,
-  );
-  await assert.rejects(() => localKeySource(filename, 'short', 'invalid')(), {
-    message: 'invalid',
-  });
-});
-
-test('production refuses to start without a valid OTP_HMAC_KEY', () => {
-  const base = {
-    NODE_ENV: 'production',
-    DATABASE_URL: 'postgres://fictional.invalid/ordo',
-    TRUSTED_ORIGINS: 'https://ordo.example.invalid',
-  };
-  assert.throws(() => readApiConfig(base, '/tmp'), /OTP_HMAC_KEY/);
+test('the Worker refuses to run hosted without OTP_HMAC_KEY and TRUSTED_ORIGINS', () => {
+  const hosted = { TRUSTED_ORIGINS: 'https://ordo.example.invalid' };
+  assert.throws(() => readWorkerConfig(hosted), /OTP_HMAC_KEY/);
   assert.throws(
-    () => readApiConfig({ ...base, OTP_HMAC_KEY: 'not-hex' }, '/tmp'),
+    () => readWorkerConfig({ ...hosted, OTP_HMAC_KEY: 'not-hex' }),
     /OTP_HMAC_KEY/,
   );
-  assert.equal(
-    readApiConfig({ ...base, OTP_HMAC_KEY: 'ab'.repeat(32) }, '/tmp')
-      .otpHmacKey,
-    'ab'.repeat(32),
+  assert.throws(
+    () => readWorkerConfig({ OTP_HMAC_KEY: 'ab'.repeat(32) }),
+    /TRUSTED_ORIGINS/,
   );
-  assert.equal(readApiConfig({}, '/tmp').otpHmacKey, undefined);
+  assert.throws(
+    () =>
+      readWorkerConfig({
+        ...hosted,
+        OTP_HMAC_KEY: 'ab'.repeat(32),
+        ORDO_CREDENTIAL_KEY: 'short',
+      }),
+    /ORDO_CREDENTIAL_KEY/,
+  );
+  const ready = readWorkerConfig({ ...hosted, OTP_HMAC_KEY: 'ab'.repeat(32) });
+  assert.equal(ready.development, false);
+  assert.equal(ready.secureCookies, true);
+  assert.equal(ready.otpHmacKey, 'ab'.repeat(32));
+  assert.deepEqual(ready.trustedOrigins, ['https://ordo.example.invalid']);
+  // Anything but an explicit ORDO_ENV=development counts as hosted.
+  assert.throws(
+    () => readWorkerConfig({ ORDO_ENV: 'staging' }),
+    /OTP_HMAC_KEY/,
+  );
+  const local = readWorkerConfig({ ORDO_ENV: 'development' });
+  assert.equal(local.development, true);
+  assert.equal(local.secureCookies, false);
+  assert.equal(local.otpHmacKey, undefined);
+  assert.deepEqual(local.trustedOrigins, localOrigins);
 });

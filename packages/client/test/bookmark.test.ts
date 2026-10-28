@@ -66,6 +66,61 @@ test('stores the latest bookmark and forwards it on the next request', async () 
   assert.equal(saved.map.get('ordo.bookmark.v1:alice'), 'b2');
 });
 
+test('an older bookmark arriving late does not replace a newer one', async () => {
+  const saved = storage();
+  const sent: (string | undefined)[] = [];
+  let releaseSlow!: () => void;
+  const slowGate = new Promise<void>((resolve) => (releaseSlow = resolve));
+  const reply = (bookmark: string) =>
+    new Response('{}', {
+      status: 200,
+      headers: { 'X-Ordo-Bookmark': bookmark },
+    });
+  const transport = (async (url: string, init?: RequestInit) => {
+    sent.push((init?.headers as Record<string, string>)['X-Ordo-Bookmark']);
+    if (url.endsWith('/home') && sent.length === 1) {
+      await slowGate; // the read started first but finishes last
+      return reply('00000001-00000005-older');
+    }
+    if (url.endsWith('/notes')) return reply('00000001-00000009-newer');
+    return new Response('{}', { status: 200 });
+  }) as typeof fetch;
+  const client = createClient(
+    '/api',
+    transport,
+    undefined,
+    createBookmarkStore(() => saved),
+  );
+  client.setAccount('alice');
+  const slowRead = client.home();
+  await client.createNote({ title: 'Saved while the read was slow' });
+  releaseSlow();
+  await slowRead;
+  await client.home();
+  assert.equal(sent.at(-1), '00000001-00000009-newer');
+  assert.equal(
+    saved.map.get('ordo.bookmark.v1:alice'),
+    '00000001-00000009-newer',
+  );
+});
+
+test('a newer bookmark from sign-in replaces an older stored one', async () => {
+  const saved = storage();
+  saved.setItem('ordo.bookmark.v1:alice', 'b1');
+  const api = server(['b2']);
+  const client = createClient(
+    '/api',
+    api.transport,
+    undefined,
+    createBookmarkStore(() => saved),
+  );
+  await client.verifyOtp({ challengeId: 'c', code: '000000' });
+  client.setAccount('alice');
+  await client.home();
+  assert.deepEqual(api.sent, [undefined, 'b2']);
+  assert.equal(saved.map.get('ordo.bookmark.v1:alice'), 'b2');
+});
+
 test('a reloaded client picks up the stored bookmark for that account', async () => {
   const saved = storage();
   saved.setItem('ordo.bookmark.v1:alice', 'from-last-visit');

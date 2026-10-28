@@ -1,35 +1,22 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { openDatabase, users, sessions } from '@ordo/db';
+import { users, sessions } from '@ordo/db';
 import { buildApp } from '../src/app.js';
+import { DatabaseAdapter } from '../src/adapters/database/database.adapter.js';
+import { fromHex } from '../src/adapters/cryptography/encoding.js';
 import { testClient, type HttpMethods, type TestApp } from './http-harness.js';
-const origin = 'http://localhost:3318';
-const password = 'Fictional-Test-Passphrase-42';
+import {
+  apiHarness,
+  origin,
+  signIn,
+  testOtpKey,
+  type Harness,
+} from './d1-harness.js';
 async function harness() {
-  const connection = await openDatabase();
-  const app = testClient(await buildApp({ connection }));
-  await app.ready();
-  return { app, db: connection.db };
+  return apiHarness();
 }
-async function account(app: TestApp) {
-  const email = `${randomUUID()}@example.invalid`;
-  const response = await app.inject({
-    method: 'POST',
-    url: '/v1/auth/register',
-    headers: { origin },
-    payload: { email, password, displayName: 'Fictional Tester' },
-  });
-  assert.equal(response.statusCode, 201, response.body);
-  return {
-    cookie: response.headers['set-cookie']!.toString().split(';')[0],
-    email,
-    user: response.json().user,
-  };
-}
+const account = (h: Harness) => signIn(h);
 async function call(
   app: TestApp,
   cookie: string,
@@ -58,27 +45,25 @@ async function createTask(app: TestApp, cookie: string, input: object) {
   return result.json();
 }
 
-test('account/session credentials, CSRF rejection, sign-in and revoked sign-out', async (t) => {
-  const { app, db } = await harness();
+test('code sign-in sessions, CSRF rejection and revoked sign-out', async (t) => {
+  const h = await harness();
+  const { app, db } = h;
   t.after(() => app.close());
   assert.equal((await app.inject('/v1/home')).statusCode, 401);
   assert.equal(
     (
       await app.inject({
         method: 'POST',
-        url: '/v1/auth/register',
-        payload: { email: 'bad@example.invalid', password, displayName: 'Bad' },
+        url: '/v1/auth/otp/request',
+        payload: { contact: 'bad@example.invalid' },
       })
     ).statusCode,
     403,
   );
-  const user = await account(app);
+  const user = await account(h);
   const cookie = user.cookie;
   assert.match(cookie, /^ordo_session=[a-f0-9]{64}$/);
-  const [stored] = await db.select().from(users);
   const [session] = await db.select().from(sessions);
-  assert.notEqual(stored.passwordHash, password);
-  assert.match(stored.passwordHash, /^scrypt:/);
   assert.ok(!cookie.includes(session.tokenHash));
   assert.equal(
     (await call(app, cookie, 'GET', '/v1/auth/me')).json().user.id,
@@ -95,30 +80,36 @@ test('account/session credentials, CSRF rejection, sign-in and revoked sign-out'
     ).statusCode,
     403,
   );
-  const wrong = await app.inject({
-    method: 'POST',
-    url: '/v1/auth/login',
-    headers: { origin },
-    payload: { email: user.email, password: 'Wrong-password-42' },
-  });
-  assert.equal(wrong.statusCode, 401);
+  // Password sign-in is gone: hosted Ordo is code-only. Without a session
+  // the guard answers first; with one, the routes do not exist.
+  for (const url of ['/v1/auth/login', '/v1/auth/register']) {
+    const payload = { email: user.contact, password: 'Fictional-Password-42' };
+    const anonymous = await app.inject({
+      method: 'POST',
+      url,
+      headers: { origin },
+      payload,
+    });
+    assert.equal(anonymous.statusCode, 401);
+    assert.equal(anonymous.headers['set-cookie'], undefined);
+    assert.equal(
+      (await call(app, cookie, 'POST', url, payload)).statusCode,
+      404,
+    );
+  }
   const logout = await call(app, cookie, 'POST', '/v1/auth/logout');
   assert.equal(logout.statusCode, 200);
   assert.equal((await call(app, cookie, 'GET', '/v1/home')).statusCode, 401);
-  const login = await app.inject({
-    method: 'POST',
-    url: '/v1/auth/login',
-    headers: { origin },
-    payload: { email: user.email, password },
-  });
-  assert.equal(login.statusCode, 200);
-  assert.ok(!login.body.includes('passwordHash'));
+  const again = await account(h);
+  assert.notEqual(again.cookie, cookie);
+  assert.equal((await db.select().from(users)).length, 2);
 });
 
 test('task retries are idempotent, conflicting retries fail, edits use revision guards', async (t) => {
-  const { app } = await harness();
+  const h = await harness();
+  const { app } = h;
   t.after(() => app.close());
-  const { cookie } = await account(app);
+  const { cookie } = await account(h);
   const key = randomUUID();
   const payload = { title: 'A durable Inbox thought' };
   const first = await call(app, cookie, 'POST', '/v1/tasks', payload, key);
@@ -176,10 +167,11 @@ test('task retries are idempotent, conflicting retries fail, edits use revision 
 });
 
 test('owner and workspace/project isolation hold for reads, writes, home and notes', async (t) => {
-  const { app } = await harness();
+  const h = await harness();
+  const { app } = h;
   t.after(() => app.close());
-  const alice = await account(app);
-  const bob = await account(app);
+  const alice = await account(h);
+  const bob = await account(h);
   const workspace = (
     await call(app, alice.cookie, 'POST', '/v1/workspaces', {
       name: 'Private context',
@@ -303,9 +295,10 @@ test('owner and workspace/project isolation hold for reads, writes, home and not
 });
 
 test('nested task cycles, scope changes, parent archive and independent completion', async (t) => {
-  const { app } = await harness();
+  const h = await harness();
+  const { app } = h;
   t.after(() => app.close());
-  const { cookie } = await account(app);
+  const { cookie } = await account(h);
   const parent = await createTask(app, cookie, { title: 'Parent' });
   const child = await createTask(app, cookie, {
     title: 'Child',
@@ -397,10 +390,11 @@ test('nested task cycles, scope changes, parent archive and independent completi
 });
 
 test('fictional fixtures load only explicitly, once, and only for the signed-in owner', async (t) => {
-  const { app } = await harness();
+  const h = await harness();
+  const { app } = h;
   t.after(() => app.close());
-  const alice = await account(app);
-  const bob = await account(app);
+  const alice = await account(h);
+  const bob = await account(h);
   assert.equal(
     (await call(app, alice.cookie, 'GET', '/v1/home')).json().workspaces.length,
     0,
@@ -424,49 +418,37 @@ test('fictional fixtures load only explicitly, once, and only for the signed-in 
   );
 });
 
-test('file-backed PostgreSQL persists account, session, task and migration across restart', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'ordo-api-test-'));
-  try {
-    let app = testClient(
-      await buildApp({
-        connection: await openDatabase({
-          dataDir: join(directory, 'fresh', 'nested', 'database'),
-        }),
-      }),
-    );
-    const { cookie } = await account(app);
-    const task = await createTask(app, cookie, {
-      title: 'Survives process restart',
-    });
-    await app.close();
-    app = testClient(
-      await buildApp({
-        connection: await openDatabase({
-          dataDir: join(directory, 'fresh', 'nested', 'database'),
-        }),
-      }),
-    );
-    try {
-      const result = await call(app, cookie, 'GET', `/v1/tasks/${task.id}`);
-      assert.equal(result.statusCode, 200);
-      assert.equal(result.json().title, task.title);
-      assert.equal(
-        (await call(app, cookie, 'GET', '/v1/home')).json().tasks.length,
-        1,
-      );
-    } finally {
-      await app.close();
-    }
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
+test('a fresh app on the same D1 database (a new Worker isolate) keeps account, session and task', async (t) => {
+  const h = await harness();
+  t.after(() => h.app.close());
+  const { cookie } = await account(h);
+  const task = await createTask(h.app, cookie, {
+    title: 'Survives a new isolate',
+  });
+  const next = testClient(
+    buildApp({
+      database: new DatabaseAdapter(h.db),
+      trustedOrigins: [origin],
+      secureCookies: false,
+      otpDelivery: h.delivery,
+      otpHmacKey: fromHex(testOtpKey),
+    }),
+  );
+  const result = await call(next, cookie, 'GET', `/v1/tasks/${task.id}`);
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.json().title, task.title);
+  assert.equal(
+    (await call(next, cookie, 'GET', '/v1/home')).json().tasks.length,
+    1,
+  );
 });
 
 test('partial updates preserve all omitted fields and reject an old account queue after session switch', async (t) => {
-  const { app } = await harness();
+  const h = await harness();
+  const { app } = h;
   t.after(() => app.close());
-  const alice = await account(app);
-  const bob = await account(app);
+  const alice = await account(h);
+  const bob = await account(h);
   const workspace = (
     await call(app, alice.cookie, 'POST', '/v1/workspaces', {
       name: 'Scoped',
@@ -571,20 +553,25 @@ test('partial updates preserve all omitted fields and reject an old account queu
   assert.equal(bobTasks.length, 0);
 });
 
-test('login throttling never prevents an authenticated user from signing out', async (t) => {
-  const { app } = await harness();
+test('sign-in throttling never prevents an authenticated user from signing out', async (t) => {
+  const h = await harness();
+  const { app } = h;
   t.after(() => app.close());
-  const user = await account(app);
+  const user = await account(h);
   let blocked = false;
-  for (let i = 0; i < 13; i++) {
+  // The account's own verify used one of this route's 12 requests a minute.
+  for (let i = 0; i < 12; i++) {
     const response = await app.inject({
       method: 'POST',
-      url: '/v1/auth/login',
+      url: '/v1/auth/otp/verify',
       headers: { origin },
-      payload: { email: user.email, password: 'Wrong-password-42' },
+      payload: { challengeId: randomUUID(), code: '000000' },
     });
-    if (response.statusCode === 429) blocked = true;
-    else assert.equal(response.statusCode, 401);
+    if (response.statusCode === 429) {
+      blocked = true;
+      assert.equal(response.json().error.code, 'RATE_LIMITED');
+      assert.equal(response.headers['retry-after'], '60');
+    } else assert.equal(response.statusCode, 401);
   }
   assert.ok(blocked);
   assert.equal(
@@ -598,10 +585,11 @@ test('login throttling never prevents an authenticated user from signing out', a
 });
 
 test('task times and people round-trip, preserve when omitted, and require their dates', async (t) => {
-  const { app } = await harness();
+  const h = await harness();
+  const { app } = h;
   t.after(() => app.close());
-  const alice = await account(app);
-  const bob = await account(app);
+  const alice = await account(h);
+  const bob = await account(h);
   const blank = await createTask(app, alice.cookie, { title: 'Defaults' });
   assert.equal(blank.dueTime, null);
   assert.equal(blank.followUpTime, null);

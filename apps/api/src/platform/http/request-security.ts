@@ -1,4 +1,5 @@
 import type { SessionAuthenticator } from '../../capabilities/session-authenticator.contract.js';
+import type { SignInThrottle } from '../../capabilities/sign-in-throttle.contract.js';
 import { fail } from './api-failure.js';
 import type { RequestGuard } from './http.js';
 import { currentUser } from './request-context.js';
@@ -6,26 +7,23 @@ import { readSession } from './session-cookie.js';
 
 export interface RequestSecurityOptions {
   authenticator: SessionAuthenticator;
+  /** Per-route, per-client sign-in limit; omitted means unthrottled (tests only). */
+  throttle?: SignInThrottle;
   trustedOrigins: string[];
 }
 
-const signInPaths = new Set([
-  '/v1/auth/register',
-  '/v1/auth/login',
-  '/v1/auth/otp/request',
-  '/v1/auth/otp/verify',
-]);
+const signInPaths = new Set(['/v1/auth/otp/request', '/v1/auth/otp/verify']);
 const publicPaths = new Set([...signInPaths, '/health', '/v1/capabilities']);
 
 /**
- * Origin check for mutations, per-IP sign-in throttle, session resolution and
- * the `X-Ordo-Account` guard. Runs before every request, before the body is read.
+ * Origin check for mutations, per-client sign-in throttle, session resolution
+ * and the `X-Ordo-Account` guard. Runs before every request, before the body
+ * is read. Sign-out is never throttled.
  */
 export function createRequestSecurity(
   options: RequestSecurityOptions,
 ): RequestGuard {
   const origins = new Set(options.trustedOrigins);
-  const rate = new Map<string, { count: number; reset: number }>();
   return async (request, reply) => {
     reply
       .header('Cache-Control', 'no-store')
@@ -40,26 +38,17 @@ export function createRequestSecurity(
           'ORIGIN_REJECTED',
           'This request did not come from an allowed app origin.',
         );
-      if (signInPaths.has(pathname)) {
-        const now = Date.now();
-        if (rate.size > 10000)
-          for (const [key, bucket] of rate)
-            if (bucket.reset < now) rate.delete(key);
-        const key = request.ip;
-        let bucket = rate.get(key);
-        if (!bucket || bucket.reset < now) {
-          bucket = { count: 0, reset: now + 60000 };
-          rate.set(key, bucket);
-        }
-        bucket.count++;
-        if (bucket.count > 12) {
-          reply.header('Retry-After', '60');
-          fail(
-            429,
-            'RATE_LIMITED',
-            'Too many sign-in attempts. Try again in a minute.',
-          );
-        }
+      if (
+        signInPaths.has(pathname) &&
+        options.throttle &&
+        !(await options.throttle.attempt(pathname, request.ip))
+      ) {
+        reply.header('Retry-After', '60');
+        fail(
+          429,
+          'RATE_LIMITED',
+          'Too many sign-in attempts. Try again in a minute.',
+        );
       }
     }
     if (publicPaths.has(pathname)) return;

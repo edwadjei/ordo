@@ -63,17 +63,11 @@ export class AudioSettingsService {
         );
       }
     }
-    await this.repository.forOwner(owner, async (transaction) => {
-      const previous = await this.repository.find(owner, transaction);
-      await this.repository.save(
-        owner,
-        input.provider,
-        input.removeApiKey
-          ? null
-          : (encrypted ?? previous?.encryptedApiKey ?? null),
-        transaction,
-      );
-    });
+    await this.repository.save(
+      owner,
+      input.provider,
+      input.removeApiKey ? null : encrypted,
+    );
     return this.status(owner);
   }
   async resolve(owner: string, expectedProvider?: 'local_whisper' | 'openai') {

@@ -1,10 +1,8 @@
-import type { z } from 'zod';
-import type { registration, userCredentials, User } from '@ordo/core';
-import { PasswordHasher } from '../../capabilities/password-hasher.contract.js';
+import { isoNow } from '../../platform/time/iso-now.js';
+import type { User } from '@ordo/core';
 import { SessionTokens } from '../../capabilities/session-tokens.contract.js';
 import { SessionAuthenticator } from '../../capabilities/session-authenticator.contract.js';
-import { newId } from '../../platform/identifiers/new-id.js';
-import { fail } from '../../platform/http/api-failure.js';
+import { SignInThrottle } from '../../capabilities/sign-in-throttle.contract.js';
 import type { UserRecord } from '../../adapters/database/database.adapter.js';
 import { IdentityRepository } from './identity.repository.js';
 
@@ -18,51 +16,11 @@ export function publicUser(user: UserRecord): User {
 }
 
 export class IdentityService extends SessionAuthenticator {
-  private dummyPasswordHash = '';
-
   constructor(
     private readonly repository: IdentityRepository,
-    private readonly passwords: PasswordHasher,
     private readonly tokens: SessionTokens,
   ) {
     super();
-  }
-
-  async prepare() {
-    this.dummyPasswordHash = await this.passwords.hash(
-      'not-an-account-password',
-    );
-  }
-
-  async register(input: z.infer<typeof registration>) {
-    const passwordHash = await this.passwords.hash(input.password);
-    const user = await this.repository.insertAccount({
-      id: newId(),
-      email: input.email,
-      displayName: input.displayName,
-      passwordHash,
-    });
-    if (!user)
-      fail(409, 'ACCOUNT_EXISTS', 'An account with this email already exists.');
-    return {
-      user: publicUser(user),
-      token: await this.createSession(user.id, user.passwordHash),
-    };
-  }
-
-  async login(input: z.infer<typeof userCredentials>) {
-    const user = await this.repository.findByEmail(input.email);
-    const hasPassword = Boolean(user?.passwordHash.startsWith('scrypt:'));
-    const valid = await this.passwords.verify(
-      input.password,
-      hasPassword ? user!.passwordHash : this.dummyPasswordHash,
-    );
-    if (!user || !hasPassword || !valid)
-      fail(401, 'INVALID_CREDENTIALS', 'Email or password is incorrect.');
-    return {
-      user: publicUser(user),
-      token: await this.createSession(user.id, user.passwordHash),
-    };
   }
 
   async logout(token: string) {
@@ -72,21 +30,37 @@ export class IdentityService extends SessionAuthenticator {
   async resolveSession(token: string) {
     const user = await this.repository.findActiveSessionUser(
       await this.tokens.digest(token),
-      new Date().toISOString(),
+      isoNow(),
     );
     return user ? publicUser(user) : null;
   }
+}
 
-  private async createSession(userId: string, expectedPasswordHash: string) {
-    const token = this.tokens.create();
-    const created = await this.repository.insertSession(
-      await this.tokens.digest(token),
-      userId,
-      new Date(Date.now() + 7 * 86400000).toISOString(),
-      expectedPasswordHash,
+/** Sign-in requests allowed per client and route in each window. */
+export const SIGN_IN_LIMIT = 12;
+const WINDOW_MS = 60_000;
+
+/**
+ * D1-backed per-route, per-client sign-in limit (12 a minute). The client
+ * address is stored only as a SHA-256 digest.
+ */
+export class IdentitySignInThrottle extends SignInThrottle {
+  constructor(
+    private readonly repository: IdentityRepository,
+    private readonly tokens: SessionTokens,
+    private readonly now: () => number = Date.now,
+  ) {
+    super();
+  }
+
+  async attempt(route: string, client: string) {
+    const at = this.now();
+    const count = await this.repository.countThrottled(
+      route,
+      await this.tokens.digest(client),
+      isoNow(at),
+      isoNow(at - WINDOW_MS),
     );
-    if (!created)
-      fail(401, 'INVALID_CREDENTIALS', 'Sign in with a code to continue.');
-    return token;
+    return count <= SIGN_IN_LIMIT;
   }
 }

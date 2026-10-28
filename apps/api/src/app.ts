@@ -1,9 +1,7 @@
-import type { DatabaseConnection } from '@ordo/db';
 import { DatabaseAdapter } from './adapters/database/database.adapter.js';
 import { HttpPipeline } from './platform/http/http.js';
 import { createRequestSecurity } from './platform/http/request-security.js';
 import { createHonoHost } from './adapters/http/hono-host.js';
-import { nodeClientAddress } from './adapters/http/node-client-address.js';
 import { registerHealth } from './platform/http/health.js';
 import { createIdentityModule } from './domains/identity/identity.module.js';
 import { createWorkspacesModule } from './domains/workspaces/workspaces.module.js';
@@ -23,31 +21,33 @@ import {
 } from './domains/transcriptions/transcriptions.module.js';
 
 export interface AppOptions {
-  connection: DatabaseConnection;
-  trustedOrigins?: string[];
-  secureCookies?: boolean;
-  closeConnection?: boolean;
-  otpDelivery?: OtpDelivery;
+  /** Request-scoped D1 access; the Worker binds each request's session to it. */
+  database: DatabaseAdapter;
+  trustedOrigins: string[];
+  secureCookies: boolean;
+  /** Code transport: Gatekeeper, or the development-only console. */
+  otpDelivery: OtpDelivery;
+  /** The 32-byte `OTP_HMAC_KEY` secret. */
+  otpHmacKey: Uint8Array;
   otpNow?: () => number;
-  otpHmacKey?: string;
-  otpKeyFile?: string;
+  /** Per-client sign-in throttle on D1; on unless a test turns it off. */
+  signInThrottle?: boolean;
   transcriptions?: TranscriptionOptions;
   audioSettings?: AudioSettingsOptions;
 }
 
-export async function buildApp(options: AppOptions) {
+/**
+ * Composes the API. Building it does no I/O, so a Worker isolate builds it
+ * once and reuses it for every request.
+ */
+export function buildApp(options: AppOptions) {
   const http = new HttpPipeline();
-  const database = new DatabaseAdapter(options.connection.db);
-  const identity = await createIdentityModule(
-    database,
-    options.secureCookies ?? false,
-    {
-      otpDelivery: options.otpDelivery,
-      otpNow: options.otpNow,
-      otpHmacKey: options.otpHmacKey,
-      otpKeyFile: options.otpKeyFile,
-    },
-  );
+  const database = options.database;
+  const identity = createIdentityModule(database, options.secureCookies, {
+    otpDelivery: options.otpDelivery,
+    otpHmacKey: options.otpHmacKey,
+    otpNow: options.otpNow,
+  });
   const workspaces = createWorkspacesModule(database);
   const tasks = createTasksModule(database, workspaces.service);
   const notes = createNotesModule(database, workspaces.service);
@@ -70,20 +70,14 @@ export async function buildApp(options: AppOptions) {
   http.guard(
     createRequestSecurity({
       authenticator: identity.service,
-      trustedOrigins: options.trustedOrigins ?? [
-        'http://localhost:3318',
-        'http://127.0.0.1:3318',
-      ],
+      throttle:
+        options.signInThrottle === false ? undefined : identity.throttle,
+      trustedOrigins: options.trustedOrigins,
     }),
   );
   registerHealth(http);
   http.get('/v1/capabilities', async () => {
-    const deliveryAvailable =
-      options.otpDelivery?.available() ??
-      Boolean(
-        process.env.GATEKEEPER_API_KEY?.trim() &&
-        process.env.GATEKEEPER_API_URL?.trim(),
-      );
+    const deliveryAvailable = options.otpDelivery.available();
     const audio = await audioSettings.service.capabilities();
     const localReady = audio.transcriptionProviders.localWhisper;
     return {
@@ -96,8 +90,6 @@ export async function buildApp(options: AppOptions) {
       credentialStorage: audio.credentialStorage,
     };
   });
-  if (options.closeConnection !== false)
-    http.onClose(async () => options.connection.close());
   for (const module of [
     identity,
     workspaces,
@@ -110,5 +102,5 @@ export async function buildApp(options: AppOptions) {
     audioSettings,
   ])
     module.register(http);
-  return createHonoHost(http, { clientAddress: nodeClientAddress });
+  return createHonoHost(http);
 }

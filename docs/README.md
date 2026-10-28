@@ -28,6 +28,7 @@ Edward's confirmed delivery order is **Ordo Web (responsive) → Ordo for iOS (u
 | [Foundation specialist brief](coordination/FOUNDATION-BRIEF.md) | Foundation kickoff brief for the completed web/API foundation |
 | [Active build plan](coordination/BUILD-PLAN.md) | Current working choices, allocation, and verification sequence |
 | [Cloudflare Phase 1 brief](coordination/CLOUDFLARE-PHASE-1-BRIEF.md) | Standalone backend and web specialist briefs for the Hono port and static export |
+| [Cloudflare Phase 2 brief](coordination/CLOUDFLARE-PHASE-2-BRIEF.md) | D1, check-on-save, code-only sign-in, Worker under `wrangler dev`, local data import |
 | [Everyday views brief](coordination/EVERYDAY-VIEWS-BRIEF.md) | Shared contract and scope for distinct views, task times, and people |
 | [Verification evidence](coordination/VERIFICATION.md) | Actual checks, browser journeys, screenshots, and unverified release work |
 | [Web specialist brief](coordination/WEB-FOUNDATION-BRIEF.md) | Completed responsive web foundation scope and white-background design direction |

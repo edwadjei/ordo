@@ -4,7 +4,7 @@ import {
   PHASE_DEVELOPMENT_SERVER,
   PHASE_PRODUCTION_BUILD,
 } from 'next/constants';
-import config from '../next.config.ts';
+import config, { defaultWorkerUrl } from '../next.config.ts';
 
 test('production build is a static export without request-time rewrites', () => {
   const built = config(PHASE_PRODUCTION_BUILD);
@@ -14,14 +14,18 @@ test('production build is a static export without request-time rewrites', () => 
   assert.equal(built.redirects, undefined);
 });
 
-test('dev server keeps the same-origin /api proxy to /v1', async () => {
+test('dev server proxies same-origin /api to the local Worker', async () => {
   const dev = config(PHASE_DEVELOPMENT_SERVER);
   assert.equal(dev.output, undefined);
   const rewrites = await dev.rewrites!();
   assert.deepEqual(rewrites, [
     {
       source: '/api/:path*',
-      destination: `${process.env.ORDO_API_URL || 'http://127.0.0.1:4318'}/v1/:path*`,
+      destination: `${process.env.ORDO_API_URL || defaultWorkerUrl}/api/:path*`,
     },
   ]);
+});
+
+test('the default dev upstream is wrangler dev on 8788, not the old Node API', () => {
+  assert.equal(defaultWorkerUrl, 'http://127.0.0.1:8788');
 });

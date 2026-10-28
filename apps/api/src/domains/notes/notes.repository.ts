@@ -4,8 +4,8 @@ import {
   asc,
   eq,
   isNull,
+  sql,
   tables,
-  type TransactionContext,
   type NewNote,
 } from '../../adapters/database/database.adapter.js';
 
@@ -20,12 +20,12 @@ export class NotesRepository {
       .select()
       .from(notes)
       .where(and(eq(notes.ownerUserId, owner), isNull(notes.deletedAt)))
-      .orderBy(asc(notes.createdAt));
+      .orderBy(asc(notes.createdAt), asc(notes.id));
   }
 
-  async find(owner: string, id: string, transaction?: TransactionContext) {
+  async find(owner: string, id: string) {
     const [row] = await this.database
-      .use(transaction)
+      .use()
       .select()
       .from(notes)
       .where(
@@ -38,26 +38,34 @@ export class NotesRepository {
     return row;
   }
 
-  async insert(input: NewNote, transaction: TransactionContext) {
+  async insert(input: NewNote) {
     const [row] = await this.database
-      .use(transaction)
+      .use()
       .insert(notes)
       .values(input)
       .returning();
     return row;
   }
 
-  async update(
+  /** Conditional on the revision the caller read; `undefined` if it changed. */
+  async updateGuarded(
     owner: string,
     id: string,
+    expectedRevision: number,
     patch: Partial<NewNote>,
-    transaction: TransactionContext,
   ) {
     const [row] = await this.database
-      .use(transaction)
+      .use()
       .update(notes)
-      .set(patch)
-      .where(and(eq(notes.id, id), eq(notes.ownerUserId, owner)))
+      .set({ ...patch, revision: sql`${notes.revision} + 1` })
+      .where(
+        and(
+          eq(notes.id, id),
+          eq(notes.ownerUserId, owner),
+          eq(notes.revision, expectedRevision),
+          isNull(notes.deletedAt),
+        ),
+      )
       .returning();
     return row;
   }

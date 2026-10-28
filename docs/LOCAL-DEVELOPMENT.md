@@ -2,19 +2,19 @@
 
 **Scope:** Running Ordo on your own machine. No cloud deployment or native app is implied by these commands.
 
-**Implementation status:** today the API runs on Hono in Node with embedded PostgreSQL (PGlite), and the web app runs on the Next.js dev server with a `/api` proxy; `npm run build` also produces a static export of the web app. Hosted Ordo is one Cloudflare Worker with D1 ([technical architecture](TECHNICAL.md)). Phase 2 moves local development to `wrangler dev` with a local D1 database.
+**Implementation status:** Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database: the Worker serves the web app's static export and answers `/api` itself. For day-to-day web work the Next.js dev server runs beside it and proxies `/api` to the Worker. Nothing is hosted and no Cloudflare account is used; hosting is Phase 3 ([technical architecture](TECHNICAL.md)).
 
-## Today and the target
+## Local and hosted
 
-| Concern | Today (local) | Target (Cloudflare) |
+| Concern | Local (`npm run dev`) | Hosted (Phase 3) |
 |---|---|---|
-| API | Hono in Node on `127.0.0.1:4318` | Hono in the Worker under `/api` |
-| Web | Next.js dev server on `127.0.0.1:3318`, proxying `/api/*` to `/v1/*`; `npm run build` writes a static export to `apps/web/out` | Static export served by the Worker, which answers `/api` itself (Phase 2); the dev proxy stays for local work |
-| Database | Embedded PostgreSQL in `.data/ordo` | D1; locally a `wrangler dev` D1 database from Phase 2 |
-| Migrations | Applied by the API at startup, with checksums | `wrangler d1 migrations apply`; nothing runs at Worker boot |
-| Search | PostgreSQL full-text indexes | SQLite FTS5 tables kept in sync by triggers |
-| Sign-in | Email/phone OTP; legacy password accounts still sign in | Code-only; legacy accounts convert at first code sign-in |
-| Secrets | Optional root `.env`; credential key file fallback in `.data/secrets` | Workers secrets set with `wrangler secret put` |
+| API | Hono in the Worker under `wrangler dev` on `127.0.0.1:8788`; `/api/*` is mapped to `/v1/*` | The same Worker under `/api` |
+| Web | Next.js dev server on `127.0.0.1:3358` with hot reload, proxying `/api/*` to the Worker; the Worker also serves the last static export (`apps/web/out`) on 8788 | Static export served by the Worker |
+| Database | Local D1 in `apps/api/.wrangler/state` (ignored by Git) | D1 |
+| Migrations | `wrangler d1 migrations apply ordo --local`, run by `npm run dev` before it starts the servers | `wrangler d1 migrations apply`; nothing runs at Worker boot |
+| Search | SQLite FTS5 tables kept in sync by triggers | The same |
+| Sign-in | Code only; with no Gatekeeper values the code prints in the terminal | Code only, delivered by Gatekeeper |
+| Secrets | `apps/api/.dev.vars` (ignored by Git; names in `.dev.vars.example`) | Workers secrets set with `wrangler secret put` |
 
 ## Start Ordo
 
@@ -25,29 +25,47 @@ npm ci
 npm run dev
 ```
 
-Open [Ordo Web](http://127.0.0.1:3318). The API listens on `127.0.0.1:4318`; the web app proxies `/api` requests to `/v1` on that API so authentication stays on the browser's app origin. Both servers bind to loopback in the local configuration.
+Open [Ordo Web](http://127.0.0.1:3358). `npm run dev` creates `apps/api/.dev.vars` from the example if it is missing, applies any new local D1 migrations, then starts two processes and stops both on Ctrl+C:
 
-No Docker, cloud account, AI key, or `.env` file is required for this local setup. Today embedded PostgreSQL persists application data in repository `.data/ordo`. Keep one API process per data directory. Stop with Ctrl+C so database state closes cleanly. Do not delete `.data` when updating dependencies; it contains local account data.
+- `wrangler dev` on `127.0.0.1:8788`: the API on local D1, plus the static export from `apps/web/out`.
+- `next dev` on `127.0.0.1:3358`: the web app with hot reload. It forwards `/api/*` unchanged to the Worker, so the browser uses one origin and an HttpOnly first-party session cookie, and the `X-Ordo-Bookmark` header passes through in both directions.
 
-Sign in with email or a Ghana phone number and a six-digit OTP. Gatekeeper delivery requires a privately configured key and URL; unavailable delivery shows Coming soon. Existing password accounts remain accessible, and successful first email OTP verification converts that account to passwordless access. Automated tests use injected delivery and never send real messages. Workspaces start empty. The sample-data action explicitly creates fictional MTN, DAMSYN, Dorsh, and Personal examples for the signed-in account; no real project data is imported.
+Sign in with any email address. With `ORDO_ENV=development` and no Gatekeeper values in `.dev.vars`, the six-digit code is printed in the terminal (`[ordo dev] Sign-in code for a•••@example.test: …`) and nothing is sent. There are no passwords. Automated tests use injected delivery and never send real messages. Workspaces start empty; the sample-data action creates fictional MTN, DAMSYN, Dorsh, and Personal examples for the signed-in account only.
 
-Individual servers can be started with `npm run dev:api` and `npm run dev:web`. To check the static export instead of the dev server, run `npm run build --workspace @ordo/web` and then `npm run serve:export --workspace @ordo/web`, which serves `apps/web/out` on port 3318 (`WEB_PORT` overrides) and forwards `/api/*` to the API's `/v1/*` the way the Worker will; stop `dev:web` first or choose another port. The combined `npm run dev` script loads optional repository-root `.env` before launching both processes. The API also loads optional root `.env` when started individually; web-only commands use their process environment.
+No Docker, cloud account, `wrangler login`, AI key, or root `.env` file is needed. `npm run dev` no longer reads a root `.env`; local Worker settings live only in `apps/api/.dev.vars`.
+
+### Checking the built export on the Worker
+
+The Worker serves whatever is in `apps/web/out` on port 8788, as hosted Ordo will. To check it with the current code:
+
+```bash
+npm run build --workspace @ordo/web
+npm run dev
+```
+
+Then open `http://127.0.0.1:8788`. If `apps/web/out` does not exist yet, `npm run dev` creates it empty so `wrangler dev` can start; port 3358 still works. The export has a single page and no client-side routes, so the Worker's `404-page` handling is enough; single-page fallback routing is not needed.
+
+### Running the pieces separately
+
+```bash
+cp apps/api/.dev.vars.example apps/api/.dev.vars
+npm run db:migrate:local --workspace @ordo/api
+npm run dev --workspace @ordo/api
+npm run dev --workspace @ordo/web
+```
+
+Run the last two in separate terminals. `npm run dev:api` and `npm run dev:web` from the root are shortcuts for them; neither applies migrations.
 
 ## Configuration names
 
-The root `.env.example` contains only non-secret local defaults. Set real credentials privately and never commit a populated `.env`.
+| Name | Where | Purpose |
+|---|---|---|
+| `ORDO_API_URL` | Environment of `next dev` | Worker origin for the dev proxy; default `http://127.0.0.1:8788`. Not exposed to the browser |
+| `ORDO_ENV` | `apps/api/.dev.vars` | `development` enables the console code transport, a temporary OTP key when `OTP_HMAC_KEY` is empty, non-Secure cookies and the local trusted origins |
+| `TRUSTED_ORIGINS` | `apps/api/.dev.vars` | Exact browser origins permitted for writes; empty in development means `127.0.0.1` and `localhost` on ports 8788 and 3358 |
+| `OTP_HMAC_KEY`, `ORDO_CREDENTIAL_KEY`, `GATEKEEPER_API_KEY`, `GATEKEEPER_API_URL` | `apps/api/.dev.vars` locally; Worker secrets when hosted | See the API guide, `apps/api/README.md` ("Configuration") |
 
-| Name | Purpose |
-|---|---|
-| `API_PORT` | Local API port, default 4318 |
-| `ORDO_API_URL` | API origin used by the Next.js dev proxy and `serve:export`; default `http://127.0.0.1:4318` |
-| `WEB_PORT` | Port for `npm run serve:export --workspace @ordo/web`; default 3318 |
-| `ORDO_DATA_DIR` | Optional embedded database path; default repository `.data/ordo` |
-| `DATABASE_URL` | Today only: optional standard PostgreSQL connection that bypasses the embedded database; unverified and not part of the Cloudflare design |
-| `TRUSTED_ORIGINS` | Exact browser origins permitted for writes; defaults to localhost/127.0.0.1 on port 3318 |
-| `NODE_ENV` | Today, production mode requires `DATABASE_URL` and explicit trusted origins; the session cookie becomes Secure |
-
-Hosted Worker secrets (names only): `OTP_HMAC_KEY`, `ORDO_CREDENTIAL_KEY`, `GATEKEEPER_API_KEY`, `GATEKEEPER_API_URL`. The D1 database is a Worker binding, not a connection string. Native token sign-in is designed alongside the Hono port.
+Ports 8788 (Worker) and 3358 (web) are set in `apps/api/wrangler.jsonc` and `apps/web/package.json`. The D1 database is a Worker binding, not a connection string. Native token sign-in is designed alongside the Hono port.
 
 ## Checks and documentation
 
@@ -64,17 +82,17 @@ Documentation source is Markdown in `docs/`. `npm run docs:check` generates the 
 
 ## API and migration reference
 
-The API workspace guide is `apps/api/README.md`; shared types and validation live in `packages/core/src/index.ts`. Request/response shapes and current limitations are documented there alongside the implementation. The baseline SQL is `packages/db/migrations/0001_core.sql` and the corresponding Drizzle schema is `packages/db/src/schema.ts`.
+The API workspace guide is `apps/api/README.md`; shared types and validation live in `packages/core/src/index.ts`. Request/response shapes and current limitations are documented there alongside the implementation. The SQLite schema is `packages/db/migrations/0001_initial.sql` and the corresponding Drizzle schema is `packages/db/src/schema.ts`.
 
-Today the first local startup initializes that schema and records its checksum; an applied migration is not silently edited or replayed. From Phase 2 the schema is SQLite: numbered files applied with `wrangler d1 migrations apply --local` for development and, with Edward's approval, against staging. The Worker never runs migrations itself. Every shared-environment migration needs the owner's approval, a D1 restore point, and the rollback gates in the engineering method.
+Numbered files are applied with `wrangler d1 migrations apply ordo --local` for development and, with Edward's approval, against staging; an applied file is never edited. The Worker never runs migrations itself. Every shared-environment migration needs the owner's approval, a D1 restore point, and the rollback gates in the engineering method.
 
-## Phase 2 local workflow (target)
+## Moving content from the old embedded database
 
-Once Phase 2 lands, a fresh machine will run Ordo with `wrangler dev` against a local D1 database, without a separate Node API process. The exact commands are added here by the Phase 2 PR that implements them; until then use `npm run dev` above. A one-time import script moves the content of `.data/ordo` into local D1 (see the [platform spec](specs/02-cloudflare-platform.md#data-import-from-the-local-database)).
+A one-time import moves content from the old `.data/ordo` into local D1: export a copy with `packages/db/scripts/export-embedded.mjs` from a pre-Phase-2 checkout, then load it with `npm run db:import:local --workspace @ordo/api -- --from <export folder>`, which checks counts per table. See `apps/api/README.md` ("Moving content from the old embedded database") and the [platform spec](specs/02-cloudflare-platform.md#data-import-from-the-local-database).
 
 ## Current release limits
 
-This build is local development, not a hosted release. Hosted staging is Phase 3. Today's sign-in throttle is per process in memory; the hosted design stores it in D1 keyed by `CF-Connecting-IP`. Contact linking/recovery and native-client authentication need further work. Recording-to-transcription uses temporary memory only; Ordo stores no audio or uploaded files. AI extraction and transcript imports show Coming soon. MCP, native mobile packages, and Mac packaging remain separate slices. See [phone verification](PHONE-TESTING.md) for HTTPS requirements and the actual-device checklist.
+This build is local development, not a hosted release. Hosted staging is Phase 3. The sign-in throttle is stored in D1 (`auth_throttle`) keyed by route and `CF-Connecting-IP`. Contact linking/recovery and native-client authentication need further work. Recording-to-transcription uses temporary memory only; Ordo stores no audio or uploaded files. AI extraction and transcript imports show Coming soon. MCP, native mobile packages, and Mac packaging remain separate slices. See [phone verification](PHONE-TESTING.md) for HTTPS requirements and the actual-device checklist.
 
 ## Delivery and audio settings
 
