@@ -65,7 +65,7 @@ Ordo runs as one Cloudflare Worker on the Workers Free plan: Next.js static expo
 | 2 | D1 schema, FTS5, check-on-save, code-only sign-in, Worker entry, data import | `wrangler dev` with local D1 |
 | 3 | Hosted staging | Edward's Cloudflare account, with his approval per deploy |
 
-**Implementation status:** the local build uses Fastify and embedded PostgreSQL; phases 1–3 replace them.
+**Implementation status:** the local build runs the Hono API in Node on embedded PostgreSQL (Phase 1 done); D1 is Phase 2 and hosting is Phase 3.
 
 The trade-off is deliberate: the Free plan allows 10 ms CPU per request and D1 has no interactive transactions. Ordo therefore keeps every request light (HMAC rather than scrypt, indexed owner-scoped queries) and saves with check-on-save rules instead of row locks. In return hosting costs nothing, and a limit is never billed; at worst requests fail until 00:00 UTC, and Workers Paid ($5/month) is a plan switch, not a rewrite.
 

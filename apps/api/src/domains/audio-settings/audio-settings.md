@@ -14,4 +14,4 @@ The owning service resolves the account's chosen transcriber for each transcript
 
 The master key is only the `ORDO_CREDENTIAL_KEY` Worker secret; there is no key file. Encryption uses AES-256-GCM through Web Crypto with the same nonce and owner-binding rules, so ciphertext stays compatible. Hosted Ordo uses the account's own OpenAI key; local Whisper is a local-Mac development option and reports unavailable on the Worker. Workers AI Whisper is an open option for Edward.
 
-**Implementation status:** today encryption uses Node `crypto` and the local key-file fallback described above. Web Crypto is Phase 1; the Worker secret is set in Phase 3.
+**Implementation status:** today encryption uses AES-256-GCM through Web Crypto (`WebSecretCipher`), byte-compatible with ciphertext saved by the earlier Node implementation (a test decrypts a value it produced). Locally `FileSecretCipher` supplies the key from `ORDO_CREDENTIAL_KEY` or the key-file fallback described above; the key-file loader is the only Node-specific part. The Worker secret is set in Phase 3.

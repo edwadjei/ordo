@@ -9,9 +9,12 @@ import { openDatabase, users, sessions, otpChallenges, tasks } from '@ordo/db';
 import { DatabaseAdapter } from '../src/adapters/database/database.adapter.js';
 import { IdentityRepository } from '../src/domains/identity/identity.repository.js';
 import { buildApp } from '../src/app.js';
+import { testClient } from './http-harness.js';
 import { OtpDelivery } from '../src/capabilities/otp-delivery.contract.js';
 import { GatekeeperOtpDelivery } from '../src/adapters/gatekeeper/gatekeeper-otp-delivery.js';
 const origin = 'http://localhost:3318';
+// Fictional 32-byte test key; real deployments read the OTP_HMAC_KEY secret.
+const testOtpKey = '0f'.repeat(32);
 class TestDelivery extends OtpDelivery {
   messages: { contact: string; code: string }[] = [];
   failing = false;
@@ -29,11 +32,14 @@ async function harness(dataDir?: string) {
   const connection = await openDatabase({ dataDir });
   const delivery = new TestDelivery();
   let now = Date.now();
-  const app = await buildApp({
-    connection,
-    otpDelivery: delivery,
-    otpNow: () => now,
-  });
+  const app = testClient(
+    await buildApp({
+      connection,
+      otpDelivery: delivery,
+      otpNow: () => now,
+      otpHmacKey: testOtpKey,
+    }),
+  );
   await app.ready();
   const post = (url: string, payload: object) =>
     app.inject({ method: 'POST', url, headers: { origin }, payload });
@@ -82,7 +88,7 @@ test('OTP verifies an existing email without changing account identity; hashed c
   assert.equal(contact, email);
   assert.match(code, /^\d{6}$/);
   const [stored] = await h.db.select().from(otpChallenges);
-  assert.match(stored.codeHash, /^scrypt:/);
+  assert.match(stored.codeHash, /^hmac-sha256:[a-f0-9]{64}$/);
   assert.ok(!stored.codeHash.includes(`:${code}`));
   assert.equal((await h.db.select().from(users))[0].emailVerifiedAt, null);
   const verified = await h.verify(request.json().challengeId, code);

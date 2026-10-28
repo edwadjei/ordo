@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import Fastify from 'fastify';
 import {
   openDatabase,
   users,
@@ -18,8 +17,7 @@ import { createSearchModule } from '../src/domains/search/search.module.js';
 import { createTranscriptionsModule } from '../src/domains/transcriptions/transcriptions.module.js';
 import { TranscriptionsService } from '../src/domains/transcriptions/transcriptions.service.js';
 import { OpenAiTranscriber } from '../src/adapters/transcription/openai-transcriber.js';
-import { registerErrorHandler } from '../src/platform/http/error-handler.js';
-import { registerRequestSecurity } from '../src/platform/http/request-security.js';
+import { guardedApp } from './http-harness.js';
 import { SessionAuthenticator } from '../src/capabilities/session-authenticator.contract.js';
 import { Transcriber } from '../src/capabilities/transcriber.contract.js';
 const owner = randomUUID(),
@@ -54,18 +52,14 @@ function webHeaders(account = 'owner') {
 }
 async function apiHarness(transcriber?: Transcriber, timeoutMs?: number) {
   const directory = await mkdtemp(join(tmpdir(), 'ordo-temporary-audio-'));
-  const app = Fastify({ logger: false });
-  registerErrorHandler(app);
-  registerRequestSecurity(app, {
-    authenticator: new TestSessions(),
-    trustedOrigins: [origin],
-  });
   const module = createTranscriptionsModule({
     transcriber: transcriber ?? null,
     timeoutMs,
   });
-  module.register(app);
-  await app.ready();
+  const app = await guardedApp(
+    { authenticator: new TestSessions(), trustedOrigins: [origin] },
+    module,
+  );
   return {
     app,
     directory,
@@ -174,14 +168,11 @@ test('PostgreSQL search stems content, ranks results, excludes archives and othe
     title: 'Strategy',
     body: 'We planned launches carefully',
   });
-  const app = Fastify();
+  const app = await guardedApp(
+    { authenticator: new TestSessions(), trustedOrigins: [origin] },
+    createSearchModule(new DatabaseAdapter(connection.db)),
+  );
   t.after(() => app.close());
-  registerErrorHandler(app);
-  registerRequestSecurity(app, {
-    authenticator: new TestSessions(),
-    trustedOrigins: [origin],
-  });
-  createSearchModule(new DatabaseAdapter(connection.db)).register(app);
   const result = await app.inject({
     url: '/v1/search?q=plan',
     headers: webHeaders(),

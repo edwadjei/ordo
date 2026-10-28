@@ -1,6 +1,6 @@
-import type { FastifyInstance } from 'fastify';
+import type { HttpRoutes } from '../../platform/http/http.js';
 import type { DatabaseAdapter } from '../../adapters/database/database.adapter.js';
-import { NodeContentHasher } from '../../adapters/cryptography/node-content-hasher.js';
+import { WebContentHasher } from '../../adapters/cryptography/web-content-hasher.js';
 import type { WorkspacesService } from '../workspaces/workspaces.service.js';
 import { TasksRepository } from './tasks.repository.js';
 import { TasksService } from './tasks.service.js';
@@ -14,10 +14,10 @@ export function createTasksModule(
     new TasksRepository(database),
     database,
     workspaces,
-    new NodeContentHasher(),
+    new WebContentHasher(),
   );
   return {
     service,
-    register: (app: FastifyInstance) => registerTasksController(app, service),
+    register: (routes: HttpRoutes) => registerTasksController(routes, service),
   };
 }

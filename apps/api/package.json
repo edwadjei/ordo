@@ -11,10 +11,11 @@
     "build": "tsc --noEmit"
   },
   "dependencies": {
+    "@hono/node-server": "2.1.4",
     "@ordo/core": "*",
     "@ordo/db": "*",
-    "fastify": "5.12.7",
     "drizzle-orm": "0.45.4",
+    "hono": "4.13.13",
     "zod": "^4.3.6"
   }
 }

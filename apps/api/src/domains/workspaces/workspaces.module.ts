@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { HttpRoutes } from '../../platform/http/http.js';
 import type { DatabaseAdapter } from '../../adapters/database/database.adapter.js';
 import { WorkspacesRepository } from './workspaces.repository.js';
 import { WorkspacesService } from './workspaces.service.js';
@@ -11,7 +11,7 @@ export function createWorkspacesModule(database: DatabaseAdapter) {
   );
   return {
     service,
-    register: (app: FastifyInstance) =>
-      registerWorkspacesController(app, service),
+    register: (routes: HttpRoutes) =>
+      registerWorkspacesController(routes, service),
   };
 }

@@ -53,12 +53,12 @@ Markdown is the source of truth. The generated site works without a server; rebu
 
 Ordo is designed to run as one Cloudflare Worker on the Workers Free plan ($0/month): the web app as static files, a Hono API under `/api`, and Cloudflare D1 for data. See the [technical architecture](docs/TECHNICAL.md).
 
-**Implementation status:** the everyday web core is merged to `main` and works locally: code sign-in, owned workspaces/projects, tasks/subtasks with times and people, plain-text notes, daily views, search, and durable queued task capture. It still runs on Fastify with embedded PostgreSQL in Node. The Hono port is Phase 1, D1 is Phase 2, and hosted staging is Phase 3; nothing is deployed. This is not the complete MVP or a production release.
+**Implementation status:** the everyday web core is merged to `main` and works locally: code sign-in, owned workspaces/projects, tasks/subtasks with times and people, plain-text notes, daily views, search, and durable queued task capture. The API runs on Hono in Node with embedded PostgreSQL, and the web app builds as a static export (Phase 1). D1 is Phase 2, and hosted staging is Phase 3; nothing is deployed. This is not the complete MVP or a production release.
 
 | Area | Implementation |
 |---|---|
 | `apps/web` | Next.js / React responsive web client; static export served by the Worker (Phase 1) |
-| `apps/api` | Authenticated domain API: Fastify today; Hono from Phase 1, running in the Worker from Phase 2 |
+| `apps/api` | Authenticated domain API: Hono with Web Crypto adapters, running in Node today and in the Worker from Phase 2 |
 | `packages/core` | Domain contracts and validation |
 | `packages/db` | Drizzle schema and SQL migrations: embedded PostgreSQL today, D1 `sqlite-core` from Phase 2 |
 | `packages/client` | Typed API client and owner-bound task retry queue |

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { OtpService } from './otp.service.js';
-import type { FastifyInstance } from 'fastify';
+import type { HttpRoutes } from '../../platform/http/http.js';
 import { registration, userCredentials } from '@ordo/core';
 import { currentUser } from '../../platform/http/request-context.js';
 import {
@@ -10,20 +10,21 @@ import {
 import type { IdentityService } from './identity.service.js';
 
 export function registerIdentityController(
-  app: FastifyInstance,
+  routes: HttpRoutes,
   service: IdentityService,
   secureCookies: boolean,
   otp: OtpService,
 ) {
-  app.post('/v1/auth/otp/request', async (request, reply) => {
+  routes.post('/v1/auth/otp/request', async (request, reply) => {
     const input = z
       .object({ contact: z.string().min(3).max(254) })
       .strict()
       .parse(request.body);
     const result = await otp.request(input.contact);
-    return reply.code(202).send(result);
+    reply.status(202);
+    return result;
   });
-  app.post('/v1/auth/otp/verify', async (request, reply) => {
+  routes.post('/v1/auth/otp/verify', async (request, reply) => {
     const input = z
       .object({
         challengeId: z.uuid(),
@@ -33,23 +34,25 @@ export function registerIdentityController(
       .strict()
       .parse(request.body);
     const result = await otp.verify(input);
-    reply.header('Set-Cookie', sessionCookie(result.token, secureCookies));
+    reply.setCookie(sessionCookie(result.token, secureCookies));
     return { user: result.user };
   });
-  app.post('/v1/auth/register', async (request, reply) => {
+  routes.post('/v1/auth/register', async (request, reply) => {
     const result = await service.register(registration.parse(request.body));
-    reply.header('Set-Cookie', sessionCookie(result.token, secureCookies));
-    return reply.code(201).send({ user: result.user });
-  });
-  app.post('/v1/auth/login', async (request, reply) => {
-    const result = await service.login(userCredentials.parse(request.body));
-    reply.header('Set-Cookie', sessionCookie(result.token, secureCookies));
+    reply.status(201).setCookie(sessionCookie(result.token, secureCookies));
     return { user: result.user };
   });
-  app.get('/v1/auth/me', async (request) => ({ user: currentUser(request) }));
-  app.post('/v1/auth/logout', async (request, reply) => {
-    await service.logout(readSession(request.headers.cookie)!);
-    reply.header('Set-Cookie', sessionCookie('', secureCookies, true));
+  routes.post('/v1/auth/login', async (request, reply) => {
+    const result = await service.login(userCredentials.parse(request.body));
+    reply.setCookie(sessionCookie(result.token, secureCookies));
+    return { user: result.user };
+  });
+  routes.get('/v1/auth/me', async (request) => ({
+    user: currentUser(request),
+  }));
+  routes.post('/v1/auth/logout', async (request, reply) => {
+    await service.logout(readSession(request)!);
+    reply.setCookie(sessionCookie('', secureCookies, true));
     return { ok: true };
   });
 }

@@ -2,17 +2,17 @@
 
 Ordo adopts the API concepts and layout from Edward's local `damsyn-ecommerce-api`, as requested on 21 October 2026. The reference was read-only: `docs/architecture.md`, the relevant `CLAUDE.md` sections, and identity/address controller, service, and repository examples. No secrets, environment files, commerce rules, deployment bindings, or application code were copied.
 
-**Target:** a Hono app in one Cloudflare Worker, on D1, with Web Crypto adapters and check-on-save writes ([technical architecture](../../../docs/TECHNICAL.md), [platform spec](../../../docs/specs/02-cloudflare-platform.md)). **Implementation status:** this guide describes today's code, which composes the same boundaries on Fastify with embedded PostgreSQL and Node `crypto`. Where the target differs, it says so.
+**Target:** a Hono app in one Cloudflare Worker, on D1, with Web Crypto adapters and check-on-save writes ([technical architecture](../../../docs/TECHNICAL.md), [platform spec](../../../docs/specs/02-cloudflare-platform.md)). **Implementation status:** this guide describes today's code, which composes the same boundaries as a Hono app served in Node by `@hono/node-server`, on embedded PostgreSQL (D1 is Phase 2), with Web Crypto adapters (only the legacy password verifier uses Node `crypto`). Where the target differs, it says so.
 
 ## Composition and explicit imports
 
-`src/app.ts` is the composition root. It creates the HTTP app (Fastify today; Hono from Phase 1, with a Worker entry and a Node entry wiring bindings and secrets), wires concrete adapters into the owning leaf domain modules, installs platform HTTP behavior, registers controllers, and owns connection cleanup. It contains no business queries, route handlers, hierarchy rules, or fixture content.
+`src/app.ts` is the composition root. It builds a framework-neutral `HttpPipeline` (guards, routes, close hooks) and hands it to `adapters/http/hono-host.ts`, which mounts it on a Hono app (routes under `/v1`, plus `/health`). `src/server.ts` is the Node entry: it serves `app.hono.fetch` with `@hono/node-server` on `127.0.0.1:4318`, so the web dev proxy is unchanged. In Phase 2 a Worker entry serves the same app under `/api` and wires D1 and secrets. It wires concrete adapters into the owning leaf domain modules, installs platform HTTP behavior, registers controllers, and owns connection cleanup. It contains no business queries, route handlers, hierarchy rules, or fixture content.
 
 ```text
 src/
   platform/       cross-cutting HTTP, errors, request identity, config, identifiers
   capabilities/   abstract runtime contracts for real cryptography/auth seams
-  adapters/       concrete database, cryptography (Node today, Web Crypto from Phase 1), Gatekeeper, transcription
+  adapters/       concrete database, cryptography (Web Crypto; legacy scrypt verifier Node-only), Gatekeeper, transcription
   domains/
     identity/     accounts, password sign-in, sessions
     workspaces/   workspace/project ownership and destination validation
@@ -46,14 +46,14 @@ Repositories import the specific `adapters/database/database.adapter.ts` wrapper
 
 ## Capability ownership
 
-| Abstract contract      | Concrete adapter                                                         | Owning domain                            |
-| ---------------------- | ------------------------------------------------------------------------ | ---------------------------------------- |
-| `PasswordHasher`       | `NodePasswordHasher` using salted scrypt (legacy local accounts only; never in the Worker) | Identity                   |
-| `SessionTokens`        | `NodeSessionTokens` using secure randomness and SHA-256 storage digests (Web Crypto from Phase 1) | Identity          |
-| `OtpSecrets`           | `NodeOtpSecrets` for codes (HMAC-SHA256 with `OTP_HMAC_KEY` from Phase 1) | Identity                                |
-| `SecretCipher`         | `FileSecretCipher` using AES-256-GCM (Web Crypto from Phase 1)           | Audio settings                           |
-| `SessionAuthenticator` | `IdentityService`, resolving an active stored session to public identity | Identity; platform consumes the contract |
-| `ContentHasher`        | `NodeContentHasher` using SHA-256 (Web Crypto from Phase 1)              | Tasks, for write-request fingerprints    |
+| Abstract contract      | Concrete adapter                                                                           | Owning domain                            |
+| ---------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| `PasswordHasher`       | `NodePasswordHasher` using salted scrypt (legacy local accounts only; never in the Worker) | Identity                                 |
+| `SessionTokens`        | `WebSessionTokens`: 32 random bytes as hex, SHA-256 hex storage digests (Web Crypto)       | Identity                                 |
+| `OtpSecrets`           | `WebOtpSecrets`: unbiased six-digit codes, HMAC-SHA256 with `OTP_HMAC_KEY` (Web Crypto)    | Identity                                 |
+| `SecretCipher`         | `WebSecretCipher` AES-256-GCM; `FileSecretCipher` supplies the local key (Web Crypto)      | Audio settings                           |
+| `SessionAuthenticator` | `IdentityService`, resolving an active stored session to public identity                   | Identity; platform consumes the contract |
+| `ContentHasher`        | `WebContentHasher` using SHA-256 hex (Web Crypto)                                          | Tasks, for write-request fingerprints    |
 
 These are actual runtime seams exercised by requests. Cryptography adapters are wired only by the owning domain's module. The platform guard receives `SessionAuthenticator`; it never imports IdentityService or a database repository. Password/session hashes stay inside identity persistence and do not enter the request actor, Home snapshot, or auth responses.
 
@@ -77,8 +77,11 @@ The demo domain is a deliberate, narrow exception to normal table ownership: its
 
 ## Platform behavior
 
-- `platform/http/request-security.ts` checks configured browser origins, limits login/register attempts, resolves session identity through its contract, and enforces optional `X-Ordo-Account` queued-write protection. Logout remains outside sign-in throttling.
-- `platform/http/error-handler.ts` maps expected failures and validation errors to the stable safe error envelope. No raw query, password, token, or content is exposed.
+- `platform/http/http.ts` is the framework-neutral HTTP surface: `HttpRequest` (method, path, params, query, headers, cookies, parsed JSON or raw bytes, client IP, an abort signal for client disconnect, and the resolved actor), `HttpReply` (status, headers, `Set-Cookie`), and `HttpRoutes`, the only thing a module's `register` receives. Handlers return the JSON body. It also fixes the 150,000-byte JSON body limit; a raw-body route (transcription audio) declares its accepted content types and its own limit. Nothing under `platform/`, `domains/` or `capabilities/` imports an HTTP framework; `test/architecture.test.ts` enforces this.
+- `adapters/http/hono-host.ts` mounts the pipeline on Hono. Guards run first, before the body is read, on every request including unknown routes (which then return `404 NOT_FOUND` in the error envelope). Bodies: JSON up to 150,000 bytes (prototype keys rejected), plain text, or a route's declared raw content types up to that route's limit (20 MiB for transcription audio); oversized is 413, malformed is 400, other media types are 415. Client disconnect aborts `request.signal` (the Node server aborts the request when the connection closes). `node-client-address.ts` reads the socket address for the sign-in throttle; the Worker entry will read `CF-Connecting-IP` instead.
+- `GET /v1/capabilities` (composed in `app.ts`) adds `transcriptionProviders: { localWhisper, openai }` and `credentialStorage` to the existing flags. Local Whisper is true only when its loopback health check succeeds; `openai` and `credentialStorage` are true only when the secret cipher has a usable master key.
+- `platform/http/request-security.ts` is a request guard that checks configured browser origins, limits login/register attempts, resolves session identity through its contract, and enforces optional `X-Ordo-Account` queued-write protection. Logout remains outside sign-in throttling.
+- `platform/http/error-handler.ts` maps expected failures, validation errors and host body errors to the stable safe error envelope. No raw query, password, token, or content is exposed.
 - `platform/http/request-context.ts` makes the authenticated **public** user available to controllers and validates UUID path IDs.
 - `platform/http/session-cookie.ts` owns cookie parsing/formatting, keeping transport concerns out of identity service logic.
 - `platform/config/api-config.ts` reads startup configuration and refuses the embedded local database fallback in production.
@@ -95,6 +98,6 @@ The platform imports no business domain or concrete adapter. It can depend on a 
 
 ## Verification and current limits
 
-`test/architecture.test.ts` parses TypeScript imports to enforce platform isolation, runtime abstract capabilities, the documented domain graph, vendor access through adapters, thin controllers, and cryptography adapter ownership. The eight existing integration scenarios continue to exercise the same public API, including scope/owner rejection, cycles, idempotency, revision conflicts, session changes, persistence, and sign-out after throttling.
+`test/architecture.test.ts` parses TypeScript imports to enforce platform isolation, runtime abstract capabilities, the documented domain graph, vendor access through adapters, thin controllers, cryptography adapter ownership, and that Node `crypto` appears only in the legacy password verifier. `test/web-crypto.test.ts` proves the Web Crypto adapters match the former Node output for session digests and content fingerprints and decrypt provider keys saved by the former cipher. The eight existing integration scenarios continue to exercise the same public API, including scope/owner rejection, cycles, idempotency, revision conflicts, session changes, persistence, and sign-out after throttling.
 
 Hosted staging, audit trails, native authentication, background jobs, incremental sync, and OpenAPI are not implemented. Those limits remain in the API README and must not be mistaken for completed infrastructure.

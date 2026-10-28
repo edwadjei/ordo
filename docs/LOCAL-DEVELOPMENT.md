@@ -2,14 +2,14 @@
 
 **Scope:** Running Ordo on your own machine. No cloud deployment or native app is implied by these commands.
 
-**Implementation status:** today the API runs on Fastify with embedded PostgreSQL (PGlite) in Node, and the web app runs on the Next.js server with a `/api` proxy. Hosted Ordo is one Cloudflare Worker with D1 ([technical architecture](TECHNICAL.md)). Phase 1 moves the local API to Hono in Node on the same database; Phase 2 moves local development to `wrangler dev` with a local D1 database.
+**Implementation status:** today the API runs on Hono in Node with embedded PostgreSQL (PGlite), and the web app runs on the Next.js dev server with a `/api` proxy; `npm run build` also produces a static export of the web app. Hosted Ordo is one Cloudflare Worker with D1 ([technical architecture](TECHNICAL.md)). Phase 2 moves local development to `wrangler dev` with a local D1 database.
 
 ## Today and the target
 
 | Concern | Today (local) | Target (Cloudflare) |
 |---|---|---|
-| API | Fastify in Node on `127.0.0.1:4318` | Hono in the Worker under `/api`; Phase 1 runs the same Hono app in Node on port 4318 |
-| Web | Next.js server on `127.0.0.1:3318`, proxying `/api/*` to `/v1/*` | Static export served by the Worker; the dev proxy stays for local work |
+| API | Hono in Node on `127.0.0.1:4318` | Hono in the Worker under `/api` |
+| Web | Next.js dev server on `127.0.0.1:3318`, proxying `/api/*` to `/v1/*`; `npm run build` writes a static export to `apps/web/out` | Static export served by the Worker, which answers `/api` itself (Phase 2); the dev proxy stays for local work |
 | Database | Embedded PostgreSQL in `.data/ordo` | D1; locally a `wrangler dev` D1 database from Phase 2 |
 | Migrations | Applied by the API at startup, with checksums | `wrangler d1 migrations apply`; nothing runs at Worker boot |
 | Search | PostgreSQL full-text indexes | SQLite FTS5 tables kept in sync by triggers |
@@ -31,7 +31,7 @@ No Docker, cloud account, AI key, or `.env` file is required for this local setu
 
 Sign in with email or a Ghana phone number and a six-digit OTP. Gatekeeper delivery requires a privately configured key and URL; unavailable delivery shows Coming soon. Existing password accounts remain accessible, and successful first email OTP verification converts that account to passwordless access. Automated tests use injected delivery and never send real messages. Workspaces start empty. The sample-data action explicitly creates fictional MTN, DAMSYN, Dorsh, and Personal examples for the signed-in account; no real project data is imported.
 
-Individual servers can be started with `npm run dev:api` and `npm run dev:web`. The combined `npm run dev` script loads optional repository-root `.env` before launching both processes. The API also loads optional root `.env` when started individually; web-only commands use their process environment.
+Individual servers can be started with `npm run dev:api` and `npm run dev:web`. To check the static export instead of the dev server, run `npm run build --workspace @ordo/web` and then `npm run serve:export --workspace @ordo/web`, which serves `apps/web/out` on port 3318 (`WEB_PORT` overrides) and forwards `/api/*` to the API's `/v1/*` the way the Worker will; stop `dev:web` first or choose another port. The combined `npm run dev` script loads optional repository-root `.env` before launching both processes. The API also loads optional root `.env` when started individually; web-only commands use their process environment.
 
 ## Configuration names
 
@@ -40,7 +40,8 @@ The root `.env.example` contains only non-secret local defaults. Set real creden
 | Name | Purpose |
 |---|---|
 | `API_PORT` | Local API port, default 4318 |
-| `ORDO_API_URL` | API origin used by the Next.js proxy; default `http://127.0.0.1:4318` |
+| `ORDO_API_URL` | API origin used by the Next.js dev proxy and `serve:export`; default `http://127.0.0.1:4318` |
+| `WEB_PORT` | Port for `npm run serve:export --workspace @ordo/web`; default 3318 |
 | `ORDO_DATA_DIR` | Optional embedded database path; default repository `.data/ordo` |
 | `DATABASE_URL` | Today only: optional standard PostgreSQL connection that bypasses the embedded database; unverified and not part of the Cloudflare design |
 | `TRUSTED_ORIGINS` | Exact browser origins permitted for writes; defaults to localhost/127.0.0.1 on port 3318 |

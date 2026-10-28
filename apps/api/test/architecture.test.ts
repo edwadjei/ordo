@@ -219,9 +219,11 @@ test('crypto capability adapters are wired only by the owning domain modules', a
   const owners: Record<string, string> = {
     'adapters/cryptography/node-password-hasher.js':
       'domains/identity/identity.module.ts',
-    'adapters/cryptography/node-session-tokens.js':
+    'adapters/cryptography/web-session-tokens.js':
       'domains/identity/identity.module.ts',
-    'adapters/cryptography/node-content-hasher.js':
+    'adapters/cryptography/web-otp-secrets.js':
+      'domains/identity/identity.module.ts',
+    'adapters/cryptography/web-content-hasher.js':
       'domains/tasks/tasks.module.ts',
   };
   for (const file of await sources()) {
@@ -234,6 +236,47 @@ test('crypto capability adapters are wired only by the owning domain modules', a
           owners[target],
           `Only the capability owner may wire ${target}`,
         );
+    }
+  }
+});
+
+test('Node crypto is confined to the legacy password verifier; everything else uses Web Crypto', async () => {
+  const allowed = new Set(['adapters/cryptography/node-password-hasher.ts']);
+  for (const file of await sources())
+    for (const dependency of imports(file.source))
+      if (['node:crypto', 'crypto'].includes(dependency.specifier))
+        assert.ok(
+          allowed.has(file.relative),
+          `${file.relative} imports Node crypto; use the Web Crypto adapters`,
+        );
+});
+
+test('platform and domains are framework-neutral: no HTTP framework types or imports', async () => {
+  const frameworks = ['fastify', 'hono', '@hono/', '@fastify/'];
+  for (const file of await sources()) {
+    if (
+      !file.relative.startsWith('platform/') &&
+      !file.relative.startsWith('domains/') &&
+      !file.relative.startsWith('capabilities/')
+    )
+      continue;
+    for (const dependency of imports(file.source)) {
+      const target = dependency.specifier.startsWith('.')
+        ? resolved(file.filename, dependency.specifier)
+        : dependency.specifier;
+      assert.ok(
+        !frameworks.some((framework) =>
+          framework.endsWith('/')
+            ? dependency.specifier.startsWith(framework)
+            : dependency.specifier === framework ||
+              dependency.specifier.startsWith(`${framework}/`),
+        ),
+        `${file.relative} imports HTTP framework ${dependency.specifier}`,
+      );
+      assert.ok(
+        !target.startsWith('adapters/http/'),
+        `${file.relative} must use platform/http, not the host ${target}`,
+      );
     }
   }
 });

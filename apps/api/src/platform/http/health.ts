@@ -1,5 +1,5 @@
-import type { FastifyInstance } from 'fastify';
+import type { HttpRoutes } from './http.js';
 
-export function registerHealth(app: FastifyInstance) {
-  app.get('/health', async () => ({ status: 'ok' }));
+export function registerHealth(routes: HttpRoutes) {
+  routes.get('/health', () => ({ status: 'ok' }));
 }

@@ -6,8 +6,10 @@ docs/html/
 !.env.example
 *.log
 .next/
+out/
 .data/
 coverage/
 *.tsbuildinfo
 playwright-report/
 test-results/
+.claude/worktrees/

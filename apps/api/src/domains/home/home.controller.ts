@@ -1,12 +1,12 @@
-import type { FastifyInstance } from 'fastify';
+import type { HttpRoutes } from '../../platform/http/http.js';
 import { currentUser } from '../../platform/http/request-context.js';
 import type { HomeService } from './home.service.js';
 
 export function registerHomeController(
-  app: FastifyInstance,
+  routes: HttpRoutes,
   service: HomeService,
 ) {
-  app.get('/v1/home', async (request) =>
+  routes.get('/v1/home', async (request) =>
     service.snapshot(currentUser(request)),
   );
 }

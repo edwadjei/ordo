@@ -2,7 +2,7 @@
 
 Hono + TypeScript + Zod in one Cloudflare Worker on the Workers Free plan, with Drizzle on Cloudflare D1. The Worker serves this API under `/api` on the same origin as the web app. The same domain/API boundary serves the React Native/Expo iOS/Android clients with token sign-in. See the [technical architecture](../../docs/TECHNICAL.md) and the [Cloudflare platform spec](../../docs/specs/02-cloudflare-platform.md).
 
-**Implementation status:** the code today is Fastify + TypeScript with Drizzle on embedded PostgreSQL (PGlite) in Node, running locally only. Phase 1 ports it to Hono and Web Crypto (still in Node, same database); Phase 2 moves it to D1 and the Worker. Native authentication is not implemented yet. Sections below describe today's behaviour unless they say otherwise.
+**Implementation status:** the code today is a Hono + TypeScript app served in Node by `@hono/node-server`, with Drizzle on embedded PostgreSQL (PGlite), running locally only; D1 and the Worker entry are Phase 2. Controllers and platform guards use a framework-neutral HTTP layer (`src/platform/http/http.ts`). Its cryptography already uses Web Crypto adapters, except the Node-only scrypt verifier for legacy local password accounts. Phase 2 moves it to D1 and the Worker. Native authentication is not implemented yet. Sections below describe today's behaviour unless they say otherwise.
 
 ## Architecture and concept notes
 
@@ -107,7 +107,7 @@ npm run typecheck --workspace @ordo/db
 npm run test --workspace @ordo/api
 ```
 
-The integration tests use isolated embedded PostgreSQL instances and temporary filesystem directories, never existing user data. Phase 1 keeps them in Node against the Hono app; Phase 2 runs them against a local D1 database. They cover passwords/session revocation, CSRF, idempotency, revisions, cross-owner and scope rejection, cycles, independent parent completion, archival, explicitly requested fixture seeding, fresh nested-directory persistence across restart, omitted PATCH field preservation, queued account-switch rejection, and logout after login throttling.
+The integration tests use isolated embedded PostgreSQL instances and temporary filesystem directories, never existing user data. They run in Node against the Hono app through a small shim (`test/http-harness.ts`) that calls `app.request()` and returns `{ statusCode, body, json(), headers, cookies }`; Phase 2 runs them against a local D1 database. They cover passwords/session revocation, CSRF, idempotency, revisions, cross-owner and scope rejection, cycles, independent parent completion, archival, explicitly requested fixture seeding, fresh nested-directory persistence across restart, omitted PATCH field preservation, queued account-switch rejection, and logout after login throttling.
 
 ## Current limits
 
@@ -115,15 +115,15 @@ Not yet implemented: contact linking/recovery, account/export/deletion UI, sessi
 
 ## Passwordless, search, and recordings
 
-| Route | Behavior |
-|---|---|
-| `GET /v1/capabilities` | Public configuration availability; no credentials |
-| `POST /v1/auth/otp/request` | `{contact}` email or Ghana phone → 202 `{challengeId,retryAfterSeconds,expiresInSeconds}` |
-| `POST /v1/auth/otp/verify` | `{challengeId,code,displayName?}` → user and session cookie |
-| `GET /v1/search?q=...` | Ranked owner-scoped task/note/project full-text results, max 30 (PostgreSQL today; FTS5 on D1) |
-| `POST /v1/transcriptions` | Raw supported audio, max 20 MiB → `{transcript}`; memory only, audio discarded after processing; 503 when unavailable |
+| Route                       | Behavior                                                                                                              |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/capabilities`      | Public configuration availability, including `transcriptionProviders` and `credentialStorage`; no credentials         |
+| `POST /v1/auth/otp/request` | `{contact}` email or Ghana phone → 202 `{challengeId,retryAfterSeconds,expiresInSeconds}`                             |
+| `POST /v1/auth/otp/verify`  | `{challengeId,code,displayName?}` → user and session cookie                                                           |
+| `GET /v1/search?q=...`      | Ranked owner-scoped task/note/project full-text results, max 30 (PostgreSQL today; FTS5 on D1)                        |
+| `POST /v1/transcriptions`   | Raw supported audio, max 20 MiB → `{transcript}`; memory only, audio discarded after processing; 503 when unavailable |
 
-OTP is valid for five minutes, single-use, with 60-second resend spacing, five sends and five attempts per 15-minute contact window; resending does not clear failed attempts. Email and phone accounts are not automatically linked. Today codes are stored as salted scrypt hashes; the hosted design uses HMAC-SHA256 with the `OTP_HMAC_KEY` secret. Details live in the identity, search, and transcriptions domain concept notes. Ordo stores no audio/files or recording metadata. Audio buffers are request-scoped and cleared after processing; transcripts persist only when separately saved through Notes. Per-process concurrency limits apply. `X-Ordo-Account` guards tagged authenticated reads as well as writes against stale-tab account switches.
+OTP is valid for five minutes, single-use, with 60-second resend spacing, five sends and five attempts per 15-minute contact window; resending does not clear failed attempts. Email and phone accounts are not automatically linked. Codes are stored as HMAC-SHA256 hashes keyed by `OTP_HMAC_KEY` (64 hex characters); locally, when it is unset, an owner-only key file is generated at `.data/secrets/otp-key`, and production refuses to start without it. Details live in the identity, search, and transcriptions domain concept notes. Ordo stores no audio/files or recording metadata. Audio buffers are request-scoped and cleared after processing; transcripts persist only when separately saved through Notes. Per-process concurrency limits apply. `X-Ordo-Account` guards tagged authenticated reads as well as writes against stale-tab account switches.
 
 ## Audio provider settings
 

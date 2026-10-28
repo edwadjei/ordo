@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { HttpRoutes } from '../../platform/http/http.js';
 import { z } from 'zod';
 import { fail } from '../../platform/http/api-failure.js';
 import { actorId } from '../../platform/http/request-context.js';
@@ -17,14 +17,16 @@ const input = z
   })
   .strict();
 export function registerAudioSettingsController(
-  app: FastifyInstance,
+  routes: HttpRoutes,
   service: AudioSettingsService,
 ) {
-  app.get('/v1/settings/audio', (request) => service.status(actorId(request)));
-  app.patch('/v1/settings/audio', (request) => {
+  routes.get('/v1/settings/audio', (request) =>
+    service.status(actorId(request)),
+  );
+  routes.patch('/v1/settings/audio', (request) => {
     const changes = input.parse(request.body);
     if (changes.apiKey) {
-      const origin = new URL(request.headers.origin!);
+      const origin = new URL(request.header('origin')!);
       if (
         origin.protocol !== 'https:' &&
         !['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname)
@@ -37,7 +39,7 @@ export function registerAudioSettingsController(
     }
     return service.update(actorId(request), changes);
   });
-  app.post('/v1/settings/audio/test', (request) =>
+  routes.post('/v1/settings/audio/test', (request) =>
     service.test(actorId(request)),
   );
 }

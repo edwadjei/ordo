@@ -1,5 +1,5 @@
-import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import type { HttpRoutes } from '../../platform/http/http.js';
 import { actorId } from '../../platform/http/request-context.js';
 import { fail } from '../../platform/http/api-failure.js';
 import {
@@ -7,43 +7,36 @@ import {
   type TranscriptionsService,
 } from './transcriptions.service.js';
 export function registerTranscriptionsController(
-  app: FastifyInstance,
+  routes: HttpRoutes,
   service: TranscriptionsService,
 ) {
-  app.addContentTypeParser(
-    /^audio\/(?:webm|mp4|ogg|wav)(?:;.*)?$/,
-    { parseAs: 'buffer', bodyLimit: maximumAudioBytes },
-    (_request, body, done) => done(null, body),
-  );
-  app.post(
+  routes.post(
     '/v1/transcriptions',
-    { bodyLimit: maximumAudioBytes },
-    async (request, reply) => {
-      if (!Buffer.isBuffer(request.body))
+    async (request) => {
+      const audio = request.body;
+      if (!(audio instanceof Uint8Array))
         fail(415, 'UNSUPPORTED_AUDIO', 'Upload temporary audio to transcribe.');
-      const control = new AbortController();
-      const abort = () => control.abort();
-      const closed = () => {
-        if (!reply.raw.writableEnded) control.abort();
-      };
-      request.raw.once('aborted', abort);
-      reply.raw.once('close', closed);
       try {
+        // request.signal aborts when the caller disconnects.
         return await service.transcribe(
           actorId(request),
-          request.headers['content-type'] ?? '',
-          request.body,
-          control.signal,
+          request.header('content-type') ?? '',
+          audio,
+          request.signal,
           z
             .enum(['local_whisper', 'openai'])
             .optional()
-            .parse(request.headers['x-ordo-audio-provider']),
+            .parse(request.header('x-ordo-audio-provider')),
         );
       } finally {
-        request.body.fill(0);
-        request.raw.off('aborted', abort);
-        reply.raw.off('close', closed);
+        audio.fill(0);
       }
+    },
+    {
+      rawBody: {
+        contentType: /^audio\/(?:webm|mp4|ogg|wav)(?:;.*)?$/,
+        limit: maximumAudioBytes,
+      },
     },
   );
 }

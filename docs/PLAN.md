@@ -6,7 +6,7 @@
 
 **Application status:** Working locally. `main` is at `aa9d62b` (PRs #1–#3 merged; #3 on Edward's word on 22 October 2026; rollback point `e0dc0cc`). Nothing is deployed and no hosted environment exists.
 
-**Implementation status:** the local build runs Fastify on embedded PostgreSQL (PGlite) in Node. The [Cloudflare architecture](TECHNICAL.md) is delivered through H1–H3 below.
+**Implementation status:** the local build runs the Hono API with Web Crypto adapters in Node on embedded PostgreSQL (PGlite), and the web app builds as a static export. The [Cloudflare architecture](TECHNICAL.md) is delivered through H1–H3 below.
 
 ## Milestones
 
@@ -15,7 +15,7 @@
 | D0 | Import briefs, document workflow, create local documentation site | Verified locally | Identical source copies; documentation generation/link checks pass; checkpoint pushed |
 | F0 | Responsive web/API foundation, local database/auth, CI | Verified locally | Fresh install, format, typechecks, 16 tests, production build, and docs checks pass; no hosted CI/deployment claim |
 | W1 | Responsive web everyday core | Merged; remaining acceptance work | [Everyday core acceptance scenarios](specs/01-everyday-core.md#acceptance-scenarios) verified without AI keys, including phone-browser touch workflows and durable capture |
-| H1 | Cloudflare Phase 1: Hono port, Web Crypto adapters, web static export | Ready; [brief](coordination/CLOUDFLARE-PHASE-1-BRIEF.md) written | About five PRs merged; no Fastify dependency; all checks and existing tests pass in Node on the embedded database; signed-in browser journeys pass on `npm run dev` and on the static export through same-origin `/api`; existing sessions, fingerprints, and saved keys still work |
+| H1 | Cloudflare Phase 1: Hono port, Web Crypto adapters, web static export | Delivered in one combined PR; [brief](coordination/CLOUDFLARE-PHASE-1-BRIEF.md) | About five PRs merged; no Fastify dependency; all checks and existing tests pass in Node on the embedded database; signed-in browser journeys pass on `npm run dev` and on the static export through same-origin `/api`; existing sessions, fingerprints, and saved keys still work |
 | H2 | Cloudflare Phase 2: D1 | Proposed; briefed after H1 | SQLite schema applied by `wrangler d1 migrations apply --local`; FTS5 search; check-on-save and code-once sign-in pass concurrency tests on local D1; Worker runs under `wrangler dev`; local data import matches row counts; local-dev docs work on a fresh machine |
 | H3 | Cloudflare Phase 3: hosted staging | Proposed; needs Edward's approval for account access and each deploy | Worker and D1 on Edward's account; D1 restore point and rollback point recorded below; signed-in staging checks (sign-in, task create/edit/complete, note, search, reload); observed CPU per request and daily request/row counts recorded against the free-plan budget |
 | I2 | Shared iOS/Android mobile app — iOS urgent and prioritized | Priority confirmed; implementation pending | Native installation and token-authenticated task/note workflows against the hosted Worker; device, offline, lifecycle, and accessibility evidence |
@@ -50,7 +50,7 @@ Responsive phone-browser behavior is verified in W1; native app behavior is veri
 | Order | Work | Dependency | Owner area |
 |---|---|---|---|
 | 1 | Hosting documentation PR (this architecture, spec, brief, decisions) | Edward's review | Coordinator |
-| 2 | H1 backend PRs 1–3: Web Crypto adapters, framework-neutral HTTP layer, Hono app and test shim, Fastify removed | Docs PR merged | Backend specialist |
+| 2 | H1 backend PRs 1–3: Web Crypto adapters, framework-neutral HTTP layer, Hono app and test shim, Fastify removed | Delivered in the combined Phase 1 PR | Backend specialist |
 | 3 | H1 web PRs 4–5: static export with same-origin `/api`, bookmark header plumbing | Docs PR merged; can run beside backend work | Web specialist |
 | 4 | H2 brief and D1 work | H1 merged | Coordinator, then backend + web |
 | 5 | H3 hosted staging | H2 merged; Edward approves account access and the deploy | Coordinator |

@@ -66,12 +66,12 @@ export class IdentityService extends SessionAuthenticator {
   }
 
   async logout(token: string) {
-    await this.repository.revokeSession(this.tokens.digest(token));
+    await this.repository.revokeSession(await this.tokens.digest(token));
   }
 
   async resolveSession(token: string) {
     const user = await this.repository.findActiveSessionUser(
-      this.tokens.digest(token),
+      await this.tokens.digest(token),
       new Date().toISOString(),
     );
     return user ? publicUser(user) : null;
@@ -80,7 +80,7 @@ export class IdentityService extends SessionAuthenticator {
   private async createSession(userId: string, expectedPasswordHash: string) {
     const token = this.tokens.create();
     const created = await this.repository.insertSession(
-      this.tokens.digest(token),
+      await this.tokens.digest(token),
       userId,
       new Date(Date.now() + 7 * 86400000).toISOString(),
       expectedPasswordHash,

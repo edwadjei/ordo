@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { HttpRoutes } from '../../platform/http/http.js';
 import type { Transcriber } from '../../capabilities/transcriber.contract.js';
 import type { AudioSettingsService } from '../audio-settings/audio-settings.service.js';
 import { TranscriptionsService } from './transcriptions.service.js';
@@ -20,7 +20,7 @@ export function createTranscriptionsModule(
   );
   return {
     service,
-    register: (app: FastifyInstance) =>
-      registerTranscriptionsController(app, service),
+    register: (routes: HttpRoutes) =>
+      registerTranscriptionsController(routes, service),
   };
 }

@@ -1,11 +1,9 @@
+import type { HttpRequest } from './http.js';
+
 export const SESSION_COOKIE = 'ordo_session';
 
-export function readSession(header: string | undefined) {
-  const token = header
-    ?.split(';')
-    .map((value) => value.trim())
-    .find((value) => value.startsWith(`${SESSION_COOKIE}=`))
-    ?.slice(SESSION_COOKIE.length + 1);
+export function readSession(request: HttpRequest) {
+  const token = request.cookie(SESSION_COOKIE);
   return token && /^[a-f0-9]{64}$/.test(token) ? token : null;
 }
 

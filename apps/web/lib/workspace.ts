@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  createBookmarkStore,
   createClient,
   RequestError,
   type HomeSnapshot,
@@ -13,7 +14,12 @@ import {
   type PendingTask,
 } from '@ordo/client/offline';
 let sessionInvalid: (() => void) | null = null;
-export const api = createClient('/api', fetch, () => sessionInvalid?.());
+export const api = createClient(
+  '/api',
+  fetch,
+  () => sessionInvalid?.(),
+  createBookmarkStore(() => globalThis.localStorage),
+);
 const ownerKey = 'ordo.active-account.v1';
 const cacheKey = (id: string) => `ordo.home.v1:${id}`;
 export function useWorkspace() {
