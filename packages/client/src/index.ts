@@ -30,12 +30,13 @@ export interface AppCapabilities {
   otp: { email: boolean; sms: boolean };
   recording: boolean;
   transcription: boolean;
+  transcriptionProviders: { workersAi: boolean; openai: boolean };
   aiCapture: boolean;
   transcriptImport: boolean;
 }
 export interface AudioSettings {
-  provider: 'local_whisper' | 'openai';
-  localAvailable: boolean;
+  provider: 'workers_ai' | 'openai';
+  workersAiAvailable: boolean;
   hasApiKey: boolean;
   configured: boolean;
 }
