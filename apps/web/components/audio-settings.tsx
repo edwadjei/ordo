@@ -3,6 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import type { AudioSettings } from '@ordo/client';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
+import {
+  defaultProvider,
+  providerLabels,
+  settingsStatus,
+} from '../lib/transcription';
 export function AudioSettingsDialog({
   initial,
   onChange,
@@ -14,7 +19,7 @@ export function AudioSettingsDialog({
 }) {
   const [saved, setSaved] = useState<AudioSettings | null>(initial);
   const [provider, setProvider] = useState<AudioSettings['provider']>(
-    initial?.provider || 'local_whisper',
+    initial?.provider || defaultProvider,
   );
   const [apiKey, setApiKey] = useState('');
   const [secure, setSecure] = useState(false);
@@ -37,10 +42,13 @@ export function AudioSettingsDialog({
         onChange(result);
       })
       .catch((cause) => {
-        if (active.current) setError((cause as Error).message);
+        // An aborted load (closing, or React re-running this effect) is not
+        // an error to show; `active` alone can't tell, as it is shared.
+        if (active.current && !control.signal.aborted)
+          setError((cause as Error).message);
       })
       .finally(() => {
-        if (active.current) setLoading(false);
+        if (active.current && !control.signal.aborted) setLoading(false);
       });
     return () => {
       active.current = false;
@@ -133,28 +141,38 @@ export function AudioSettingsDialog({
                   setError('');
                 }}
               >
-                <option value="local_whisper">
-                  Local Whisper — this Mac / server
-                </option>
-                <option value="openai">OpenAI — my API key</option>
+                <option value="workers_ai">{providerLabels.workers_ai}</option>
+                <option value="openai">{providerLabels.openai}</option>
               </select>
             </label>
-            {provider === 'local_whisper' ? (
-              <p className="muted">
-                {saved?.localAvailable
-                  ? 'Local Whisper is ready on this Mac / server. Audio is processed here, including when you use Ordo from your phone.'
-                  : 'Local Whisper is not available on this Mac / server yet.'}{' '}
-                This does not run on your phone.
-              </p>
+            {provider === 'workers_ai' ? (
+              <>
+                <p className="muted">
+                  Nothing to set up. Your audio stays within Cloudflare, which
+                  runs Whisper to transcribe it.
+                </p>
+                <p className="muted small">
+                  Free for about 214 minutes of audio a day. If that runs out,
+                  transcription pauses until midnight UTC; you are never
+                  charged.
+                </p>
+                {saved && !saved.workersAiAvailable && (
+                  <p className="notice small" role="status">
+                    Cloudflare transcription isn’t available on this server.
+                    Choose OpenAI and add your key to transcribe here.
+                  </p>
+                )}
+              </>
             ) : (
               <>
                 <p className="muted">
-                  Your audio is sent to OpenAI to transcribe. Your API key is
-                  encrypted on the Ordo server and never stored in this browser.
+                  Your audio is sent to OpenAI to transcribe, and OpenAI’s
+                  charges and data policy apply. Your API key is encrypted on
+                  the Ordo server and never stored in this browser.
                 </p>
                 <p className="muted small">
-                  Estimated $0.003/minute (~$0.18/hour), billed to your OpenAI
-                  account.{' '}
+                  About $0.003 a minute (~$0.18 an hour), billed to your own
+                  OpenAI account.{' '}
                   <a
                     href="https://developers.openai.com/api/docs/pricing"
                     target="_blank"
@@ -223,9 +241,7 @@ export function AudioSettingsDialog({
             )}
             {saved && !dirty && (
               <p className="saved" role="status">
-                {saved.configured
-                  ? 'Voice transcription is configured.'
-                  : 'Voice transcription: Coming soon until configured.'}
+                {settingsStatus(saved)}
               </p>
             )}
           </fieldset>
