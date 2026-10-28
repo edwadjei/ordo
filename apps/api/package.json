@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "db:migrate:local": "wrangler d1 migrations apply ordo --local",
+    "db:import:local": "tsx ../../packages/db/scripts/import-local.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test --test-concurrency=1 test/*.test.ts",
     "build": "tsc --noEmit"
