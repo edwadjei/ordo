@@ -1,7 +1,7 @@
 /**
  * Worker configuration from its bindings: plain `vars` and secrets
  * (`OTP_HMAC_KEY`, `ORDO_CREDENTIAL_KEY`, `GATEKEEPER_API_KEY`,
- * `GATEKEEPER_API_URL`). Locally, `wrangler dev` reads them from
+ * `GATEKEEPER_API_URL`) and `ORDO_WORKERS_AI`. Locally, `wrangler dev` reads them from
  * `apps/api/.dev.vars`. Values are validated here and never logged.
  */
 export interface WorkerVariables {
@@ -9,6 +9,7 @@ export interface WorkerVariables {
   TRUSTED_ORIGINS?: string;
   OTP_HMAC_KEY?: string;
   ORDO_CREDENTIAL_KEY?: string;
+  ORDO_WORKERS_AI?: string;
   GATEKEEPER_API_KEY?: string;
   GATEKEEPER_API_URL?: string;
   GATEKEEPER_SENDER_ID?: string;
@@ -24,6 +25,12 @@ export interface WorkerConfig {
   otpHmacKey?: string;
   /** 64 hex characters, or undefined when credential storage is off. */
   credentialKey?: string;
+  /**
+   * Whether to use the `AI` binding. On when hosted; off in development,
+   * where `wrangler dev --local` cannot reach Workers AI (it always runs on
+   * Cloudflare and needs a login). `ORDO_WORKERS_AI=on` or `off` overrides.
+   */
+  workersAi: boolean;
   gatekeeper: {
     apiKey?: string;
     apiUrl?: string;
@@ -50,6 +57,9 @@ export function readWorkerConfig(environment: WorkerVariables): WorkerConfig {
   const credentialKey = environment.ORDO_CREDENTIAL_KEY?.trim() || undefined;
   if (credentialKey && !hexKey.test(credentialKey))
     throw new Error('ORDO_CREDENTIAL_KEY must be 64 hexadecimal characters.');
+  const workersAiSetting = environment.ORDO_WORKERS_AI?.trim().toLowerCase();
+  if (workersAiSetting && !['on', 'off'].includes(workersAiSetting))
+    throw new Error('ORDO_WORKERS_AI must be on or off.');
   const trustedOrigins = environment.TRUSTED_ORIGINS?.split(',')
     .map((value) => value.trim())
     .filter(Boolean);
@@ -61,6 +71,7 @@ export function readWorkerConfig(environment: WorkerVariables): WorkerConfig {
     secureCookies: !development,
     otpHmacKey,
     credentialKey,
+    workersAi: workersAiSetting ? workersAiSetting === 'on' : !development,
     gatekeeper: {
       apiKey: environment.GATEKEEPER_API_KEY?.trim() || undefined,
       apiUrl: environment.GATEKEEPER_API_URL?.trim() || undefined,

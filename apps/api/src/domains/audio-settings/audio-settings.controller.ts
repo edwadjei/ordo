@@ -1,11 +1,12 @@
 import type { HttpRoutes } from '../../platform/http/http.js';
 import { z } from 'zod';
+import { audioProviders } from '@ordo/core';
 import { fail } from '../../platform/http/api-failure.js';
 import { actorId } from '../../platform/http/request-context.js';
 import type { AudioSettingsService } from './audio-settings.service.js';
 const input = z
   .object({
-    provider: z.enum(['local_whisper', 'openai']),
+    provider: z.enum(audioProviders),
     apiKey: z
       .string()
       .trim()

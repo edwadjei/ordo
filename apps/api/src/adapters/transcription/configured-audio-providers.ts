@@ -1,32 +1,32 @@
 import { AudioProviders } from '../../capabilities/audio-providers.contract.js';
-import { Transcriber } from '../../capabilities/transcriber.contract.js';
 import { OpenAiTranscriber } from './openai-transcriber.js';
-
-class UnavailableTranscriber extends Transcriber {
-  async transcribe(_audio: Uint8Array, _mimeType: string): Promise<string> {
-    throw new Error('Local Whisper is not available on the Worker.');
-  }
-}
+import {
+  WorkersAiTranscriber,
+  type WorkersAiBinding,
+} from './workers-ai-transcriber.js';
 
 /**
- * Providers on the Worker: the account's own OpenAI key. Local Whisper needs
- * a local decoder process, which a Worker cannot start, so it always reports
- * unavailable here.
+ * Providers on the Worker: Workers AI Whisper through the `AI` binding (when
+ * the Worker has one) and the account's own OpenAI key.
  */
 export class ConfiguredAudioProviders extends AudioProviders {
-  constructor(private readonly transport: typeof fetch = fetch) {
+  constructor(
+    private readonly ai?: WorkersAiBinding,
+    private readonly transport: typeof fetch = fetch,
+  ) {
     super();
   }
-  async localAvailable() {
-    return false;
+  workersAiAvailable() {
+    return Boolean(this.ai);
   }
-  local() {
-    return new UnavailableTranscriber();
+  workersAi() {
+    if (!this.ai) throw new Error('The Workers AI binding is not configured.');
+    return new WorkersAiTranscriber(this.ai);
   }
-  cloud(apiKey: string) {
+  openAi(apiKey: string) {
     return new OpenAiTranscriber(apiKey, this.transport);
   }
-  async testCloud(apiKey: string) {
+  async testOpenAi(apiKey: string) {
     try {
       const response = await this.transport(
         'https://api.openai.com/v1/models',

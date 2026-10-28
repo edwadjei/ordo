@@ -4,7 +4,7 @@ import { fromHex } from '../src/adapters/cryptography/encoding.js';
 import { AudioProviders } from '../src/capabilities/audio-providers.contract.js';
 import { Transcriber } from '../src/capabilities/transcriber.contract.js';
 import { OtpDelivery } from '../src/capabilities/otp-delivery.contract.js';
-import { apiHarness, origin } from './d1-harness.js';
+import { apiHarness, origin, signIn, TestDelivery } from './d1-harness.js';
 
 class NoDelivery extends OtpDelivery {
   available() {
@@ -21,28 +21,32 @@ class Providers extends AudioProviders {
   constructor(private readonly ready: boolean) {
     super();
   }
-  async localAvailable() {
+  workersAiAvailable() {
     return this.ready;
   }
-  local() {
+  workersAi() {
     return new StubTranscriber();
   }
-  cloud() {
+  openAi() {
     return new StubTranscriber();
   }
-  async testCloud() {
+  async testOpenAi() {
     return true;
   }
 }
 
 async function harness(
   t: { after(fn: () => Promise<void>): void },
-  options: { local?: boolean; credentialKey?: boolean } = {},
+  options: {
+    workersAi?: boolean;
+    credentialKey?: boolean;
+    delivery?: OtpDelivery;
+  } = {},
 ) {
   const { app } = await apiHarness({
-    otpDelivery: new NoDelivery(),
+    otpDelivery: options.delivery ?? new NoDelivery(),
     audioSettings: {
-      providers: new Providers(options.local ?? false),
+      providers: new Providers(options.workersAi ?? false),
       credentialKey:
         (options.credentialKey ?? true) ? fromHex('2b'.repeat(32)) : undefined,
     },
@@ -61,17 +65,52 @@ test('capabilities report transcription providers and credential storage', async
     transcription: false,
     aiCapture: false,
     transcriptImport: false,
-    transcriptionProviders: { localWhisper: false, openai: true },
+    transcriptionProviders: { workersAi: false, openai: true },
     credentialStorage: true,
   });
-  const local = await harness(t, { local: true });
-  const ready = (await local.inject('/v1/capabilities')).json();
-  assert.equal(ready.transcriptionProviders.localWhisper, true);
+  const bound = await harness(t, { workersAi: true });
+  const ready = (await bound.inject('/v1/capabilities')).json();
+  assert.equal(ready.transcriptionProviders.workersAi, true);
+  assert.equal(ready.recording, true);
   assert.equal(ready.transcription, true);
   const misconfigured = await harness(t, { credentialKey: false });
   const broken = (await misconfigured.inject('/v1/capabilities')).json();
   assert.equal(broken.credentialStorage, false);
   assert.equal(broken.transcriptionProviders.openai, false);
+});
+
+test('without Workers AI, capabilities report transcription for a signed-in account with a saved OpenAI key', async (t) => {
+  const delivery = new TestDelivery();
+  const app = await harness(t, { delivery });
+  const { cookie } = await signIn({ app, delivery });
+  const before = (
+    await app.inject({ url: '/v1/capabilities', headers: { cookie } })
+  ).json();
+  assert.equal(before.transcription, false);
+  const saved = await app.inject({
+    method: 'PATCH',
+    url: '/v1/settings/audio',
+    headers: { cookie, origin },
+    payload: { provider: 'openai', apiKey: 'sk-fictional-test-key-never-real' },
+  });
+  assert.equal(saved.statusCode, 200, saved.body);
+  const after = (
+    await app.inject({ url: '/v1/capabilities', headers: { cookie } })
+  ).json();
+  assert.equal(after.recording, true);
+  assert.equal(after.transcription, true);
+  assert.equal(after.transcriptionProviders.workersAi, false);
+  // Anonymous callers and unknown sessions still see the runtime only.
+  assert.equal(
+    (await app.inject('/v1/capabilities')).json().transcription,
+    false,
+  );
+  const stranger = await app.inject({
+    url: '/v1/capabilities',
+    headers: { cookie: `ordo_session=${'c'.repeat(64)}` },
+  });
+  assert.equal(stranger.statusCode, 200);
+  assert.equal(stranger.json().transcription, false);
 });
 
 test('Hono host keeps body limits, media types, the error envelope and security headers', async (t) => {

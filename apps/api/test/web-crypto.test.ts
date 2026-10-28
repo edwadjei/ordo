@@ -174,4 +174,24 @@ test('the Worker refuses to run hosted without OTP_HMAC_KEY and TRUSTED_ORIGINS'
   assert.equal(local.secureCookies, false);
   assert.equal(local.otpHmacKey, undefined);
   assert.deepEqual(local.trustedOrigins, localOrigins);
+  // Workers AI: on when hosted, off in development unless asked for.
+  assert.equal(ready.workersAi, true);
+  assert.equal(local.workersAi, false);
+  assert.equal(
+    readWorkerConfig({ ORDO_ENV: 'development', ORDO_WORKERS_AI: 'on' })
+      .workersAi,
+    true,
+  );
+  assert.equal(
+    readWorkerConfig({
+      ...hosted,
+      OTP_HMAC_KEY: 'ab'.repeat(32),
+      ORDO_WORKERS_AI: 'off',
+    }).workersAi,
+    false,
+  );
+  assert.throws(
+    () => readWorkerConfig({ ORDO_ENV: 'development', ORDO_WORKERS_AI: 'yes' }),
+    /ORDO_WORKERS_AI/,
+  );
 });

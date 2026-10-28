@@ -19,6 +19,11 @@ import {
 export interface Env extends WorkerVariables {
   DB: D1Database;
   ASSETS: Fetcher;
+  /**
+   * Workers AI. Under `wrangler dev --local` it exists but cannot reach
+   * Cloudflare, so development leaves it unused (see `ORDO_WORKERS_AI`).
+   */
+  AI?: Ai;
 }
 
 interface Composition {
@@ -55,6 +60,7 @@ function compose(env: Env): Composition {
     otpDelivery,
     otpHmacKey,
     audioSettings: {
+      ai: config.workersAi ? usableAiBinding(env.AI) : undefined,
       credentialKey: config.credentialKey
         ? fromHex(config.credentialKey)
         : undefined,
@@ -62,6 +68,11 @@ function compose(env: Env): Composition {
   });
   composed = { env, app, database };
   return composed;
+}
+
+/** The AI binding, or undefined when the Worker has none. */
+function usableAiBinding(ai: Ai | undefined) {
+  return ai && typeof ai.run === 'function' ? ai : undefined;
 }
 
 const unavailable = () =>

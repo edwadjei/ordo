@@ -76,14 +76,22 @@ export function buildApp(options: AppOptions) {
     }),
   );
   registerHealth(http);
-  http.get('/v1/capabilities', async () => {
+  http.get('/v1/capabilities', async (request) => {
     const deliveryAvailable = options.otpDelivery.available();
     const audio = await audioSettings.service.capabilities();
-    const localReady = audio.transcriptionProviders.localWhisper;
+    // Workers AI serves everyone; otherwise a signed-in account's own saved
+    // OpenAI key (credential storage must be on to read it).
+    const transcriptionReady =
+      audio.transcriptionProviders.workersAi ||
+      Boolean(
+        request.actor &&
+        audio.credentialStorage &&
+        (await audioSettings.service.hasSavedKey(request.actor.id)),
+      );
     return {
       otp: { email: deliveryAvailable, sms: deliveryAvailable },
-      recording: localReady,
-      transcription: localReady,
+      recording: transcriptionReady,
+      transcription: transcriptionReady,
       aiCapture: false,
       transcriptImport: false,
       transcriptionProviders: audio.transcriptionProviders,

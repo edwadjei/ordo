@@ -48,7 +48,9 @@ test('/api/* maps to the API, /api/health to health, everything else is a static
     true,
     'console transport in development',
   );
-  assert.equal(capabilities.transcriptionProviders.localWhisper, false);
+  // Development leaves Workers AI off (ORDO_WORKERS_AI), so no binding is used.
+  assert.equal(capabilities.transcriptionProviders.workersAi, false);
+  assert.equal(capabilities.transcription, false);
   assert.equal(capabilities.credentialStorage, false);
   assert.equal((await send('/api/home')).status, 401);
   assert.equal((await send('/v1/home')).status, 200, 'not an API path');
@@ -147,4 +149,29 @@ test('a hosted Worker without its secrets refuses API requests with a generic er
   assert.match(errors.join('\n'), /OTP_HMAC_KEY/);
   // Static assets do not depend on API configuration.
   assert.equal(await (await send('/')).text(), 'static asset');
+});
+
+test('the Worker passes its AI binding to Workers AI unless development leaves it off', async (t) => {
+  const ai = { run: async () => ({ text: 'never called' }) } as unknown as Ai;
+  const capabilities = async (vars: Partial<Env>) => {
+    const { send } = await workerEnv(t, vars);
+    return (await (await send('/api/capabilities')).json()) as {
+      transcription: boolean;
+      transcriptionProviders: { workersAi: boolean };
+    };
+  };
+  const local = await capabilities({ ORDO_ENV: 'development', AI: ai });
+  assert.equal(local.transcriptionProviders.workersAi, false);
+  const enabled = await capabilities({
+    ORDO_ENV: 'development',
+    ORDO_WORKERS_AI: 'on',
+    AI: ai,
+  });
+  assert.equal(enabled.transcriptionProviders.workersAi, true);
+  assert.equal(enabled.transcription, true);
+  const unbound = await capabilities({
+    ORDO_ENV: 'development',
+    ORDO_WORKERS_AI: 'on',
+  });
+  assert.equal(unbound.transcriptionProviders.workersAi, false);
 });

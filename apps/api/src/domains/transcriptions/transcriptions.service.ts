@@ -1,5 +1,6 @@
 import type { Transcriber } from '../../capabilities/transcriber.contract.js';
-import { fail } from '../../platform/http/api-failure.js';
+import type { AudioProvider } from '@ordo/core';
+import { ApiFailure, fail } from '../../platform/http/api-failure.js';
 export const maximumAudioBytes = 20 * 1024 * 1024;
 const allowedTypes = new Set([
   'audio/webm',
@@ -27,7 +28,7 @@ export class TranscriptionsService {
     timeoutMs = 65000,
     private readonly resolveProvider?: (
       owner: string,
-      expectedProvider?: 'local_whisper' | 'openai',
+      expectedProvider?: AudioProvider,
     ) => Promise<Transcriber | undefined>,
   ) {
     this.timeoutMs = Math.max(1, Math.min(timeoutMs, 65000));
@@ -40,7 +41,7 @@ export class TranscriptionsService {
     mime: string,
     audio: Uint8Array,
     signal?: AbortSignal,
-    expectedProvider?: 'local_whisper' | 'openai',
+    expectedProvider?: AudioProvider,
   ): Promise<{ transcript: string }> {
     let active = false;
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -115,7 +116,10 @@ export class TranscriptionsService {
         if (typeof transcript !== 'string' || transcript.length > 200000)
           throw new Error('Invalid transcript');
         return { transcript };
-      } catch {
+      } catch (error) {
+        // Specific provider failures (for example the daily Workers AI
+        // allowance) reach the client; everything else stays generic.
+        if (error instanceof ApiFailure) throw error;
         return fail(
           502,
           'TRANSCRIPTION_FAILED',

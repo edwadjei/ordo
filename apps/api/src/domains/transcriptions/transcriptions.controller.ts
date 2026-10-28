@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { audioProviders } from '@ordo/core';
 import type { HttpRoutes } from '../../platform/http/http.js';
 import { actorId } from '../../platform/http/request-context.js';
 import { fail } from '../../platform/http/api-failure.js';
@@ -24,7 +25,7 @@ export function registerTranscriptionsController(
           audio,
           request.signal,
           z
-            .enum(['local_whisper', 'openai'])
+            .enum(audioProviders)
             .optional()
             .parse(request.header('x-ordo-audio-provider')),
         );

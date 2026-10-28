@@ -16,6 +16,13 @@ OTP_HMAC_KEY=
 # Optional: without it, saving an account's provider API key is unavailable.
 ORDO_CREDENTIAL_KEY=
 
+# Workers AI transcription: off by default in development, because the AI
+# binding always runs on Cloudflare and `npm run dev` (`wrangler dev --local`)
+# has no Cloudflare login. Locally, transcription then needs an account's own
+# OpenAI key. Set to on only when running `wrangler dev` (without --local)
+# while logged in to Cloudflare; that uses the account's daily allowance.
+ORDO_WORKERS_AI=
+
 # Optional: real code delivery. When both are set they are used instead of
 # the console transport, so leave them empty for local work.
 GATEKEEPER_API_KEY=
