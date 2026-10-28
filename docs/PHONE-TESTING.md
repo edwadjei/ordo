@@ -4,15 +4,15 @@
 
 Desktop browser tests and responsive screenshots are local browser evidence. No actual iPhone or Android device has been exercised by this session. Native iOS/Android apps are not part of this web change.
 
-The current LAN URL is http://192.168.100.213:3318. Phone and Mac must share the same network. This address can change when Wi-Fi reconnects. Plain HTTP supports ordinary web browsing but cannot provide browser microphone access on a phone; recording is unavailable until trusted HTTPS and transcription are available.
+With `npm run dev` running, the web app is on port 3358 (Next.js dev, proxying `/api` to the Worker on 8788). On this Mac's last recorded LAN address that is http://192.168.100.213:3358; add that origin to `TRUSTED_ORIGINS` in `apps/api/.dev.vars`. Phone and Mac must share the same network. This address can change when Wi-Fi reconnects. Plain HTTP supports ordinary web browsing but cannot provide browser microphone access on a phone; recording is unavailable until trusted HTTPS and transcription are available.
 
 ## Secure microphone testing
 
 The web recorder requires a secure context, microphone permission, and supported MediaRecorder APIs. `localhost` is considered secure on the Mac; the Mac's plain HTTP LAN address is not a secure context on a phone.
 
-A local HTTPS proxy is available with `npm run phone:https`. It forwards only to the existing web server on loopback port 3318, including transient transcription requests. It requires an existing certificate whose subject alternative names cover the address used by the phone and whose issuer the phone trusts. Set `ORDO_TLS_KEY` and `ORDO_TLS_CERT` privately in root `.env` to those files. `ORDO_HTTPS_PORT` defaults to 3443.
+A local HTTPS proxy is available with `npm run phone:https`. It forwards only to the local web server on loopback port 3358 (override with `ORDO_WEB_PORT`), including transient transcription requests. It requires an existing certificate whose subject alternative names cover the address used by the phone and whose issuer the phone trusts. Set `ORDO_TLS_KEY` and `ORDO_TLS_CERT` privately in root `.env` to those files. `ORDO_HTTPS_PORT` defaults to 3443.
 
-Add the exact HTTPS browser origin to `TRUSTED_ORIGINS` alongside the localhost origins and restart the API. With the current IP/default HTTPS port this origin is `https://192.168.100.213:3443`. Start the web server, API, and then the HTTPS proxy. Open that HTTPS address on the phone. Do not bypass certificate warnings. This project does not automatically install a certificate authority or change device trust settings.
+Add the exact HTTPS browser origin to `TRUSTED_ORIGINS` in `apps/api/.dev.vars` and restart `npm run dev`. With the current IP/default HTTPS port this origin is `https://192.168.100.213:3443`. Start `npm run dev`, then the HTTPS proxy. A Cloudflare quick tunnel (`cloudflared tunnel --url http://127.0.0.1:3358`) is an alternative that needs no certificate; its address changes on every start and must also be added to `TRUSTED_ORIGINS`. Open that HTTPS address on the phone. Do not bypass certificate warnings. This project does not automatically install a certificate authority or change device trust settings.
 
 No phone-trusted certificate was provided or installed by this session, so local phone HTTPS remains unverified. A future hosted HTTPS environment can serve the same purpose after deployment is approved.
 
