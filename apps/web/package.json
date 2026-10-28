@@ -4,9 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1 --port 3318",
+    "dev": "next dev --hostname 127.0.0.1 --port 3358",
     "build": "next build",
-    "serve:export": "node scripts/serve-export.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts"
   },
