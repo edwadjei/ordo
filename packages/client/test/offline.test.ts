@@ -69,7 +69,7 @@ test('typed client passes session credentials and explicit task idempotency keys
   );
 });
 
-test('all authenticated writes carry displayed-account precondition; login does not', async () => {
+test('all authenticated writes carry displayed-account precondition; code sign-in does not', async () => {
   const requests: { url: string; headers: Record<string, string> }[] = [];
   const client = createClient('/api', async (url, init) => {
     requests.push({
@@ -83,10 +83,7 @@ test('all authenticated writes carry displayed-account precondition; login does 
   await client.createWorkspace({ name: 'Private space' });
   await client.demo();
   await client.logout();
-  await client.login({
-    email: 'bob@example.test',
-    password: 'not-a-real-password',
-  });
+  await client.verifyOtp({ challengeId: 'challenge', code: '000000' });
   assert.equal(requests[0].headers['X-Ordo-Account'], 'alice');
   assert.equal(requests[1].headers['X-Ordo-Account'], 'alice');
   assert.equal(requests[2].headers['X-Ordo-Account'], 'alice');
