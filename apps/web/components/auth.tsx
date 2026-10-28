@@ -11,7 +11,6 @@ export function Auth({
   onSuccess: () => Promise<unknown>;
   initialError: string;
 }) {
-  const [legacy, setLegacy] = useState(false);
   const [contact, setContact] = useState('');
   const [challenge, setChallenge] = useState<{
     challengeId: string;
@@ -34,7 +33,7 @@ export function Auth({
       .catch(() => {
         if (active)
           setError(
-            'Could not check sign-in availability. Reload or use your existing password.',
+            'Could not check sign-in availability. Reload to try again.',
           );
       });
     const clock = window.setInterval(() => setNow(Date.now()), 1000);
@@ -67,12 +66,7 @@ export function Auth({
     setBusy(true);
     setError('');
     try {
-      if (legacy) {
-        await api.login({
-          email: String(fields.get('email')),
-          password: String(fields.get('password')),
-        });
-      } else if (challenge) {
+      if (challenge) {
         await api.verifyOtp({
           challengeId: challenge.challengeId,
           code: String(fields.get('code')),
@@ -112,41 +106,15 @@ export function Auth({
       <section className="auth-form">
         <ThemeSelector />
         <div className="eyebrow">FROM THOUGHT TO DONE</div>
-        <h2>
-          {challenge && !legacy ? 'Check your messages.' : 'A calmer way in.'}
-        </h2>
+        <h2>{challenge ? 'Check your messages.' : 'A calmer way in.'}</h2>
         <p className="muted">
-          {legacy
-            ? 'Sign in with your existing Ordo password.'
-            : challenge
-              ? `Enter the six-digit code sent to ${contact}.`
-              : 'Enter your email or Ghana phone number. We’ll send a sign-in code.'}
+          {challenge
+            ? `Enter the six-digit code sent to ${contact}.`
+            : 'Enter your email or Ghana phone number. We’ll send a sign-in code.'}
         </p>
         <form onSubmit={submit}>
           <fieldset disabled={busy}>
-            {legacy ? (
-              <>
-                <label>
-                  Email
-                  <input
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                  />
-                </label>
-                <label>
-                  Password
-                  <input
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    maxLength={128}
-                  />
-                </label>
-              </>
-            ) : challenge ? (
+            {challenge ? (
               <>
                 <label>
                   Sign-in code
@@ -195,8 +163,7 @@ export function Auth({
                 {error || initialError}
               </p>
             )}
-            {!legacy &&
-              !challenge &&
+            {!challenge &&
               capabilities &&
               contact.trim() &&
               !channelAvailable && (
@@ -209,24 +176,19 @@ export function Auth({
               className="primary wide"
               disabled={
                 busy ||
-                (!legacy &&
-                  (!challenge
-                    ? !contact.trim() || !channelAvailable
-                    : !!expired))
+                (!challenge ? !contact.trim() || !channelAvailable : !!expired)
               }
             >
               {busy
                 ? 'Please wait…'
-                : legacy
-                  ? 'Sign in'
-                  : challenge
-                    ? 'Verify and continue'
-                    : 'Send sign-in code'}
+                : challenge
+                  ? 'Verify and continue'
+                  : 'Send sign-in code'}
               <ArrowRight size={16} />
             </button>
           </fieldset>
         </form>
-        {challenge && !legacy && (
+        {challenge && (
           <div className="auth-switch">
             <button
               disabled={busy || seconds > 0}
@@ -256,20 +218,6 @@ export function Auth({
             </button>
           </div>
         )}
-        <p className="auth-switch">
-          <button
-            disabled={busy}
-            onClick={() => {
-              setLegacy(!legacy);
-              setChallenge(null);
-              setError('');
-            }}
-          >
-            {legacy
-              ? 'Use a sign-in code instead'
-              : 'Use an existing password instead'}
-          </button>
-        </p>
         <p className="privacy-note">
           Your tasks and notes, in one personal workspace.
         </p>
