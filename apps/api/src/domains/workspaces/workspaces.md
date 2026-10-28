@@ -12,12 +12,8 @@ The personal Inbox is a null workspace/project destination with a non-null authe
 
 ## Transaction boundary
 
-`workspaces.service.ts` owns revision checks and update transactions. Tasks/notes can supply the same transaction context to `validateScope()` used for their write, avoiding a detached permission preflight. Repositories execute the actual scoped queries; they do not move children or infer destinations.
-
-The controller validates request bodies and UUID paths. Nested project creation takes its workspace from the URL as the authoritative route scope. PATCH omits creation defaults so renaming does not reset color or description. Project movement and workspace/project deletion are not part of the current endpoint contract.
+`workspaces.service.ts` owns revision checks. Workspace and project updates are `UPDATE … WHERE revision = ?` (check-on-save); a save that loses a race returns `409 REVISION_CONFLICT`. Tasks and notes call `validateScope()` before their write. That read cannot go stale, because workspaces and projects are never deleted and a project never changes workspace; composite foreign keys backstop containment in the database. Repositories execute the actual scoped queries; they do not move children or infer destinations.
 
 ## On Cloudflare
 
-On D1 the same rules hold without a shared transaction: workspace and project updates are conditional on `revision`, and tasks and notes re-check their destination inside their own conditional write rather than relying on an earlier read. Composite foreign keys still backstop containment.
-
-**Implementation status:** today validation shares the PostgreSQL owner transaction described above; check-on-save is Phase 2.
+These rules run on D1 as described above; there is no shared transaction or owner lock.

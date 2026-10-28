@@ -64,13 +64,25 @@ Documentation source is Markdown in `docs/`. `npm run docs:check` generates the 
 
 ## API and migration reference
 
-The API workspace guide is `apps/api/README.md`; shared types and validation live in `packages/core/src/index.ts`. Request/response shapes and current limitations are documented there alongside the implementation. The baseline SQL is `packages/db/migrations/0001_core.sql` and the corresponding Drizzle schema is `packages/db/src/schema.ts`.
+The API workspace guide is `apps/api/README.md`; shared types and validation live in `packages/core/src/index.ts`. Request/response shapes and current limitations are documented there alongside the implementation. The SQLite schema is `packages/db/migrations/0001_initial.sql` and the corresponding Drizzle schema is `packages/db/src/schema.ts`.
 
-Today the first local startup initializes that schema and records its checksum; an applied migration is not silently edited or replayed. From Phase 2 the schema is SQLite: numbered files applied with `wrangler d1 migrations apply --local` for development and, with Edward's approval, against staging. The Worker never runs migrations itself. Every shared-environment migration needs the owner's approval, a D1 restore point, and the rollback gates in the engineering method.
+Numbered files are applied with `wrangler d1 migrations apply ordo --local` for development and, with Edward's approval, against staging; an applied file is never edited. The Worker never runs migrations itself. Every shared-environment migration needs the owner's approval, a D1 restore point, and the rollback gates in the engineering method.
 
-## Phase 2 local workflow (target)
+## Phase 2 local workflow: the API on `wrangler dev`
 
-Once Phase 2 lands, a fresh machine will run Ordo with `wrangler dev` against a local D1 database, without a separate Node API process. The exact commands are added here by the Phase 2 PR that implements them; until then use `npm run dev` above. A one-time import script moves the content of `.data/ordo` into local D1 (see the [platform spec](specs/02-cloudflare-platform.md#data-import-from-the-local-database)).
+The backend half of Phase 2 has landed: the API is one Worker under `wrangler dev` on a local D1 database, and the Node API, PGlite and password sign-in are gone. A fresh machine runs it without a Node API process (no Cloudflare account or login is needed; everything is `--local`):
+
+```bash
+npm ci
+cp apps/api/.dev.vars.example apps/api/.dev.vars
+npm run db:migrate:local --workspace @ordo/api
+npm run build --workspace @ordo/web
+npm run dev --workspace @ordo/api
+```
+
+Open `http://127.0.0.1:8788`: the Worker serves the static export from `apps/web/out` and answers `/api/*` (as `/v1/*`) on the same origin. Sign in with any email address; with `ORDO_ENV=development` and no Gatekeeper values, the code is printed in the `wrangler dev` terminal and nothing is sent. The local D1 database lives in `apps/api/.wrangler/state` (git-ignored). Variable names and the development defaults are listed in the API guide, `apps/api/README.md` ("Configuration"). The web dev-server workflow on top of the Worker (and the root `npm run dev`, which still starts the Next.js dev server proxying to the old port 4318) is the web half of Phase 2.
+
+A one-time import moves content from the old `.data/ordo` into local D1: export a copy with `packages/db/scripts/export-embedded.mjs` from a pre-Phase-2 checkout, then load it with `npm run db:import:local --workspace @ordo/api -- --from <export folder>`, which checks counts per table. See `apps/api/README.md` ("Moving content from the old embedded database") and the [platform spec](specs/02-cloudflare-platform.md#data-import-from-the-local-database).
 
 ## Current release limits
 
