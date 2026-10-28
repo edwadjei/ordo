@@ -6,6 +6,7 @@ docs/html/
 !.env.example
 *.log
 .next/
+out/
 .data/
 coverage/
 *.tsbuildinfo
