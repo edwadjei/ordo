@@ -36,7 +36,7 @@ npm ci
 npm run dev
 ```
 
-Open [Ordo Web](http://127.0.0.1:3318). No Docker, cloud account, or AI key is required. Today the local API uses embedded PostgreSQL and persists accounts/content in `.data/ordo`; from hosting Phase 2, local development uses `wrangler dev` with a local D1 database. Create a local account; load fictional examples only if you want them. The UI uses white backgrounds with distinct workspace colors, following Edward's design feedback.
+Open [Ordo Web](http://127.0.0.1:3358). `npm run dev` applies local D1 migrations, then runs the Ordo Worker under `wrangler dev` (API and static export on `127.0.0.1:8788`, local D1 database) beside the Next.js dev server on 3358, which proxies `/api` to it. No Docker, Cloudflare account, or AI key is required. Sign in with any email address; locally the six-digit code is printed in the terminal. Load fictional examples only if you want them. The UI uses white backgrounds with distinct workspace colors, following Edward's design feedback.
 
 See [local development](docs/LOCAL-DEVELOPMENT.md) for configuration, database behavior, and release limits, and [the API guide](apps/api/README.md) for endpoint contracts.
 
