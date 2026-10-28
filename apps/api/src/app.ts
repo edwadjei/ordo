@@ -2,7 +2,8 @@ import type { DatabaseConnection } from '@ordo/db';
 import { DatabaseAdapter } from './adapters/database/database.adapter.js';
 import { HttpPipeline } from './platform/http/http.js';
 import { createRequestSecurity } from './platform/http/request-security.js';
-import { createFastifyHost } from './adapters/http/fastify-host.js';
+import { createHonoHost } from './adapters/http/hono-host.js';
+import { nodeClientAddress } from './adapters/http/node-client-address.js';
 import { registerHealth } from './platform/http/health.js';
 import { createIdentityModule } from './domains/identity/identity.module.js';
 import { createWorkspacesModule } from './domains/workspaces/workspaces.module.js';
@@ -83,13 +84,16 @@ export async function buildApp(options: AppOptions) {
         process.env.GATEKEEPER_API_KEY?.trim() &&
         process.env.GATEKEEPER_API_URL?.trim(),
       );
-    const localReady = await audioSettings.service.localAvailable();
+    const audio = await audioSettings.service.capabilities();
+    const localReady = audio.transcriptionProviders.localWhisper;
     return {
       otp: { email: deliveryAvailable, sms: deliveryAvailable },
       recording: localReady,
       transcription: localReady,
       aiCapture: false,
       transcriptImport: false,
+      transcriptionProviders: audio.transcriptionProviders,
+      credentialStorage: audio.credentialStorage,
     };
   });
   if (options.closeConnection !== false)
@@ -106,5 +110,5 @@ export async function buildApp(options: AppOptions) {
     audioSettings,
   ])
     module.register(http);
-  return createFastifyHost(http);
+  return createHonoHost(http, { clientAddress: nodeClientAddress });
 }

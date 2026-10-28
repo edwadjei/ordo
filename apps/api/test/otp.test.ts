@@ -9,6 +9,7 @@ import { openDatabase, users, sessions, otpChallenges, tasks } from '@ordo/db';
 import { DatabaseAdapter } from '../src/adapters/database/database.adapter.js';
 import { IdentityRepository } from '../src/domains/identity/identity.repository.js';
 import { buildApp } from '../src/app.js';
+import { testClient } from './http-harness.js';
 import { OtpDelivery } from '../src/capabilities/otp-delivery.contract.js';
 import { GatekeeperOtpDelivery } from '../src/adapters/gatekeeper/gatekeeper-otp-delivery.js';
 const origin = 'http://localhost:3318';
@@ -31,12 +32,14 @@ async function harness(dataDir?: string) {
   const connection = await openDatabase({ dataDir });
   const delivery = new TestDelivery();
   let now = Date.now();
-  const app = await buildApp({
-    connection,
-    otpDelivery: delivery,
-    otpNow: () => now,
-    otpHmacKey: testOtpKey,
-  });
+  const app = testClient(
+    await buildApp({
+      connection,
+      otpDelivery: delivery,
+      otpNow: () => now,
+      otpHmacKey: testOtpKey,
+    }),
+  );
   await app.ready();
   const post = (url: string, payload: object) =>
     app.inject({ method: 'POST', url, headers: { origin }, payload });

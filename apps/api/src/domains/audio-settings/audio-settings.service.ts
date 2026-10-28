@@ -17,6 +17,21 @@ export class AudioSettingsService {
   localAvailable() {
     return this.providers.localAvailable();
   }
+  /**
+   * Provider availability for this runtime. Local Whisper is available only
+   * when its loopback health check succeeds; an account's own OpenAI key
+   * needs credential storage (the secret cipher) to be configured.
+   */
+  async capabilities() {
+    const [localWhisper, credentialStorage] = await Promise.all([
+      this.localAvailable(),
+      this.cipher.configured(),
+    ]);
+    return {
+      transcriptionProviders: { localWhisper, openai: credentialStorage },
+      credentialStorage,
+    };
+  }
   async status(owner: string) {
     const row = await this.repository.find(owner),
       localAvailable = await this.localAvailable(),

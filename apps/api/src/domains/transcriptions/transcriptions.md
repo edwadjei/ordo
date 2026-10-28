@@ -4,7 +4,7 @@
 
 Authentication, trusted mutation origin, and expected-account checks apply. Supported media headers are `audio/webm`, `audio/mp4`, `audio/ogg`, and `audio/wav`, with a 20 MiB encoded-input limit and basic container-signature validation. Invalid/empty/oversized input is rejected. Request buffers are cleared on success, failure, validation rejection, missing provider, cancellation and timeout. Browser/provider runtime copies are released normally; this does not promise forensic memory erasure by the operating system.
 
-One provider call per account and two calls globally may run concurrently in a process. The server deadline is 65 seconds and adapter deadlines are 60 seconds. Client disconnection aborts decoding/provider work and releases request memory. Exceptions never expose provider payloads. These bounds are process-local, not distributed quotas.
+One provider call per account and two calls globally may run concurrently in a process. The server deadline is 65 seconds and adapter deadlines are 60 seconds. Client disconnection aborts decoding/provider work and releases request memory: the controller passes the framework-neutral `request.signal`, which the Hono Node server aborts when the connection closes. The route declares its raw audio content types and 20 MiB limit to the HTTP layer; JSON elsewhere is limited to 150,000 bytes. Exceptions never expose provider payloads. These bounds are process-local, not distributed quotas.
 
 Provider choice comes from the authenticated owner's [audio settings](../audio-settings/audio-settings.md). Tests can inject an explicit transcriber or `null` to disable processing deterministically. Global `OPENAI_API_KEY` is not a fallback for user accounts.
 
@@ -29,3 +29,5 @@ Sources: [whisper.cpp 1.9.2 server](https://github.com/ggml-org/whisper.cpp/blob
 ## On Cloudflare
 
 Hosted Ordo transcribes with the account's own OpenAI key; audio is held in memory only for the request and never stored. Local Whisper and FFmpeg exist only on a developer's Mac and report unavailable on the Worker. Concurrency limits there are per isolate, not global. Workers AI Whisper is an open option for Edward.
+
+**Implementation status:** today the route runs on the Hono app in Node; `GET /v1/capabilities` reports `transcriptionProviders.localWhisper` from the loopback health check and `transcriptionProviders.openai` from whether credential storage is configured. The Worker entry is Phase 2.

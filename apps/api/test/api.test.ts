@@ -6,16 +6,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDatabase, users, sessions } from '@ordo/db';
 import { buildApp } from '../src/app.js';
-import type { FastifyInstance, HTTPMethods } from 'fastify';
+import { testClient, type HttpMethods, type TestApp } from './http-harness.js';
 const origin = 'http://localhost:3318';
 const password = 'Fictional-Test-Passphrase-42';
 async function harness() {
   const connection = await openDatabase();
-  const app = await buildApp({ connection });
+  const app = testClient(await buildApp({ connection }));
   await app.ready();
   return { app, db: connection.db };
 }
-async function account(app: FastifyInstance) {
+async function account(app: TestApp) {
   const email = `${randomUUID()}@example.invalid`;
   const response = await app.inject({
     method: 'POST',
@@ -31,9 +31,9 @@ async function account(app: FastifyInstance) {
   };
 }
 async function call(
-  app: FastifyInstance,
+  app: TestApp,
   cookie: string,
-  method: HTTPMethods,
+  method: HttpMethods,
   url: string,
   payload?: unknown,
   key?: string,
@@ -45,7 +45,7 @@ async function call(
     ...(payload ? { payload: payload as object } : {}),
   });
 }
-async function createTask(app: FastifyInstance, cookie: string, input: object) {
+async function createTask(app: TestApp, cookie: string, input: object) {
   const result = await call(
     app,
     cookie,
@@ -427,21 +427,25 @@ test('fictional fixtures load only explicitly, once, and only for the signed-in 
 test('file-backed PostgreSQL persists account, session, task and migration across restart', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'ordo-api-test-'));
   try {
-    let app = await buildApp({
-      connection: await openDatabase({
-        dataDir: join(directory, 'fresh', 'nested', 'database'),
+    let app = testClient(
+      await buildApp({
+        connection: await openDatabase({
+          dataDir: join(directory, 'fresh', 'nested', 'database'),
+        }),
       }),
-    });
+    );
     const { cookie } = await account(app);
     const task = await createTask(app, cookie, {
       title: 'Survives process restart',
     });
     await app.close();
-    app = await buildApp({
-      connection: await openDatabase({
-        dataDir: join(directory, 'fresh', 'nested', 'database'),
+    app = testClient(
+      await buildApp({
+        connection: await openDatabase({
+          dataDir: join(directory, 'fresh', 'nested', 'database'),
+        }),
       }),
-    });
+    );
     try {
       const result = await call(app, cookie, 'GET', `/v1/tasks/${task.id}`);
       assert.equal(result.statusCode, 200);

@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { serve } from '@hono/node-server';
 import { openDatabase } from '@ordo/db';
 import { buildApp } from './app.js';
 import { readApiConfig } from './platform/config/api-config.js';
@@ -20,15 +21,19 @@ const app = await buildApp({
   otpHmacKey: config.otpHmacKey,
 });
 let stopping = false;
+const server = serve(
+  { fetch: app.hono.fetch, hostname: config.host, port: config.port },
+  () =>
+    console.log(
+      'Ordo API listening on loopback. No request content logging is enabled.',
+    ),
+);
 async function shutdown() {
   if (stopping) return;
   stopping = true;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
   await app.close();
   process.exit(0);
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
-await app.listen({ host: config.host, port: config.port });
-console.log(
-  'Ordo API listening on loopback. No request content logging is enabled.',
-);

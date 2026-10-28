@@ -38,6 +38,15 @@ export class WebSecretCipher extends SecretCipher {
       }));
   }
 
+  async configured() {
+    try {
+      await this.key();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async encrypt(owner: string, plaintext: string) {
     const key = await this.key();
     const nonce = randomBytes(12);
