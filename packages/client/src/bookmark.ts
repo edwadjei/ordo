@@ -1,11 +1,15 @@
 /**
- * Read-your-writes bookmark plumbing for the D1 Sessions API (Phase 2).
+ * Read-your-writes bookmark plumbing for the D1 Sessions API.
  *
- * The API may return an `X-Ordo-Bookmark` response header naming the newest
- * database version a request saw. The client keeps the latest value per
+ * The Worker returns an `X-Ordo-Bookmark` response header naming the newest
+ * database version a request saw. The client keeps the newest value per
  * account and sends it on that account's next request, so a read never lands
- * on a replica older than the user's own last save. Today the API never sends
- * the header, so nothing is stored or sent and behaviour is unchanged.
+ * on a replica older than the user's own last save.
+ *
+ * D1 documents bookmarks as lexicographically sortable, oldest to newest
+ * (https://developers.cloudflare.com/d1/reference/time-travel/#bookmarks), so
+ * when responses arrive out of order the store keeps the larger value instead
+ * of the last one to arrive.
  */
 export const bookmarkHeader = 'X-Ordo-Bookmark';
 const prefix = 'ordo.bookmark.v1:';
@@ -16,7 +20,7 @@ export interface BookmarkStorage {
   removeItem(key: string): void;
 }
 export interface BookmarkStore {
-  /** Latest bookmark for this account; `null` account means not signed in yet. */
+  /** Newest bookmark for this account; `null` account means not signed in yet. */
   get(account: string | null): string | null;
   set(account: string | null, value: string): void;
   clear(account: string | null): void;
@@ -58,6 +62,8 @@ export function createBookmarkStore(
   function set(account: string | null, value: string) {
     if (!value) return;
     const id = key(account);
+    const current = get(account);
+    if (current && current >= value) return;
     memory.set(id, value);
     if (id === anonymous) return;
     try {
@@ -83,7 +89,7 @@ export function createBookmarkStore(
     adopt(account) {
       const early = memory.get(anonymous);
       memory.delete(anonymous);
-      if (early && !get(account)) set(account, early);
+      if (early) set(account, early);
     },
   };
 }
