@@ -140,13 +140,7 @@ test('domain imports use owning services and keep database and crypto SDKs behin
     const ownDomain = file.relative.split('/')[1];
     for (const dependency of imports(file.source)) {
       assert.ok(
-        ![
-          '@ordo/db',
-          'drizzle-orm',
-          'postgres',
-          '@electric-sql/pglite',
-          'node:crypto',
-        ].some(
+        !['@ordo/db', 'drizzle-orm', 'node:crypto'].some(
           (vendor) =>
             dependency.specifier === vendor ||
             dependency.specifier.startsWith(`${vendor}/`),
@@ -217,8 +211,6 @@ test('controllers and app composition contain no SQL queries or transaction orch
 
 test('crypto capability adapters are wired only by the owning domain modules', async () => {
   const owners: Record<string, string> = {
-    'adapters/cryptography/node-password-hasher.js':
-      'domains/identity/identity.module.ts',
     'adapters/cryptography/web-session-tokens.js':
       'domains/identity/identity.module.ts',
     'adapters/cryptography/web-otp-secrets.js':
@@ -240,15 +232,20 @@ test('crypto capability adapters are wired only by the owning domain modules', a
   }
 });
 
-test('Node crypto is confined to the legacy password verifier; everything else uses Web Crypto', async () => {
-  const allowed = new Set(['adapters/cryptography/node-password-hasher.ts']);
+test('no Node crypto anywhere, and the Worker bundle uses only node:async_hooks from Node', async () => {
   for (const file of await sources())
-    for (const dependency of imports(file.source))
-      if (['node:crypto', 'crypto'].includes(dependency.specifier))
-        assert.ok(
-          allowed.has(file.relative),
-          `${file.relative} imports Node crypto; use the Web Crypto adapters`,
+    for (const dependency of imports(file.source)) {
+      assert.ok(
+        !['node:crypto', 'crypto'].includes(dependency.specifier),
+        `${file.relative} imports Node crypto; use the Web Crypto adapters`,
+      );
+      if (dependency.specifier.startsWith('node:') && !dependency.typeOnly)
+        assert.equal(
+          `${file.relative} -> ${dependency.specifier}`,
+          'adapters/database/database.adapter.ts -> node:async_hooks',
+          'Only the request-scoped database uses Node (AsyncLocalStorage, nodejs_als)',
         );
+    }
 });
 
 test('platform and domains are framework-neutral: no HTTP framework types or imports', async () => {

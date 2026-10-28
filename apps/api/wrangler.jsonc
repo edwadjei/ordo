@@ -1,0 +1,36 @@
+// Ordo as one Cloudflare Worker: the static web export plus the Hono API under
+// /api on a D1 database. Phase 2 runs it only locally with `wrangler dev`
+// and `wrangler d1 migrations apply ordo --local`; nothing here is deployed
+// and no Cloudflare account or resource exists yet (Phase 3).
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ordo",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  // AsyncLocalStorage (node:async_hooks) scopes each request's D1 session.
+  // Nothing else from Node is used, so full nodejs_compat is not enabled.
+  "compatibility_flags": ["nodejs_als"],
+  "assets": {
+    "directory": "../web/out",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*", "/api"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ordo",
+      // Placeholder for local development only; Phase 3 sets the real ID.
+      "database_id": "00000000-0000-4000-8000-000000000000",
+      "migrations_dir": "../../packages/db/migrations",
+    },
+  ],
+  "dev": {
+    "ip": "127.0.0.1",
+    "port": 8788,
+  },
+  // Secrets come from .dev.vars locally (see .dev.vars.example) and from
+  // Worker secrets when hosted: OTP_HMAC_KEY, ORDO_CREDENTIAL_KEY,
+  // GATEKEEPER_API_KEY, GATEKEEPER_API_URL.
+  "observability": { "enabled": true },
+}

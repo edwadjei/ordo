@@ -1,16 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { openDatabase } from '@ordo/db';
-import { buildApp } from '../src/app.js';
+import { fromHex } from '../src/adapters/cryptography/encoding.js';
 import { AudioProviders } from '../src/capabilities/audio-providers.contract.js';
 import { Transcriber } from '../src/capabilities/transcriber.contract.js';
 import { OtpDelivery } from '../src/capabilities/otp-delivery.contract.js';
-import { testClient } from './http-harness.js';
-
-const origin = 'http://localhost:3318';
+import { apiHarness, origin } from './d1-harness.js';
 
 class NoDelivery extends OtpDelivery {
   available() {
@@ -43,26 +37,17 @@ class Providers extends AudioProviders {
 
 async function harness(
   t: { after(fn: () => Promise<void>): void },
-  options: { local?: boolean; credentialKey?: string } = {},
+  options: { local?: boolean; credentialKey?: boolean } = {},
 ) {
-  const directory = await mkdtemp(join(tmpdir(), 'ordo-hono-host-'));
-  const app = testClient(
-    await buildApp({
-      connection: await openDatabase(),
-      otpDelivery: new NoDelivery(),
-      audioSettings: {
-        providers: new Providers(options.local ?? false),
-        keyFile: join(directory, 'audio-key'),
-        environment: options.credentialKey
-          ? { ORDO_CREDENTIAL_KEY: options.credentialKey }
-          : {},
-      },
-    }),
-  );
-  t.after(async () => {
-    await app.close();
-    await rm(directory, { recursive: true, force: true });
+  const { app } = await apiHarness({
+    otpDelivery: new NoDelivery(),
+    audioSettings: {
+      providers: new Providers(options.local ?? false),
+      credentialKey:
+        (options.credentialKey ?? true) ? fromHex('2b'.repeat(32)) : undefined,
+    },
   });
+  t.after(() => app.close());
   return app;
 }
 
@@ -83,7 +68,7 @@ test('capabilities report transcription providers and credential storage', async
   const ready = (await local.inject('/v1/capabilities')).json();
   assert.equal(ready.transcriptionProviders.localWhisper, true);
   assert.equal(ready.transcription, true);
-  const misconfigured = await harness(t, { credentialKey: 'not-a-key' });
+  const misconfigured = await harness(t, { credentialKey: false });
   const broken = (await misconfigured.inject('/v1/capabilities')).json();
   assert.equal(broken.credentialStorage, false);
   assert.equal(broken.transcriptionProviders.openai, false);

@@ -30,6 +30,15 @@ export function normalizeContact(input: string) {
     'Phone sign-in currently supports Ghana (+233) numbers. You can also use email.',
   );
 }
+
+function refused(): never {
+  return fail(
+    401,
+    'OTP_INVALID',
+    'The code is incorrect, expired, or already used. Request a new code if needed.',
+  );
+}
+
 export class OtpService {
   constructor(
     private readonly repository: OtpRepository,
@@ -70,28 +79,41 @@ export class OtpService {
     await this.repository.markReady(challengeId);
     return { challengeId, retryAfterSeconds: 60, expiresInSeconds: 300 };
   }
+  /**
+   * Three steps: count the attempt atomically, compare the code's HMAC in
+   * constant time, then consume the challenge and sign in within one batch
+   * guarded by a compare-and-set, so a code works exactly once.
+   */
   async verify(input: {
     challengeId: string;
     code: string;
     displayName?: string;
   }) {
+    const now = this.now();
+    const challenge = await this.repository.countAttempt(
+      input.challengeId,
+      now,
+    );
+    if (!challenge) refused();
+    if (
+      !(await this.secrets.verify(
+        input.challengeId,
+        input.code,
+        challenge.codeHash,
+      ))
+    )
+      refused();
     const token = this.tokens.create();
-    const user = await this.repository.verify({
+    const user = await this.repository.consume({
       challengeId: input.challengeId,
-      now: this.now(),
-      displayName: input.displayName,
+      contact: challenge.contact,
+      claim: newId(),
+      now,
       accountId: newId(),
-      passwordHash: 'passwordless-only',
+      displayName: input.displayName,
       sessionHash: await this.tokens.digest(token),
-      check: (row) =>
-        this.secrets.verify(input.challengeId, input.code, row.codeHash),
     });
-    if (!user)
-      fail(
-        401,
-        'OTP_INVALID',
-        'The code is incorrect, expired, or already used. Request a new code if needed.',
-      );
+    if (!user) refused();
     return { user: publicUser(user), token };
   }
 }

@@ -4,14 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  openDatabase,
-  users,
-  tasks,
-  notes,
-  workspaces,
-  projects,
-} from '@ordo/db';
+import { users, tasks, notes, workspaces, projects } from '@ordo/db';
+import { openTestDatabase } from './d1-harness.js';
 import { DatabaseAdapter } from '../src/adapters/database/database.adapter.js';
 import { createSearchModule } from '../src/domains/search/search.module.js';
 import { createTranscriptionsModule } from '../src/domains/transcriptions/transcriptions.module.js';
@@ -96,21 +90,19 @@ function transcribe(
     payload,
   });
 }
-test('PostgreSQL search stems content, ranks results, excludes archives and other owners', async (t) => {
-  const connection = await openDatabase();
+test('FTS5 search stems content, ranks results, excludes archives and other owners', async (t) => {
+  const connection = await openTestDatabase();
   t.after(() => connection.close());
   await connection.db.insert(users).values([
     {
       id: owner,
       email: `${owner}@example.invalid`,
       displayName: 'Owner',
-      passwordHash: 'test',
     },
     {
       id: other,
       email: `${other}@example.invalid`,
       displayName: 'Other',
-      passwordHash: 'test',
     },
   ]);
   const workspace = randomUUID(),
@@ -347,12 +339,12 @@ test('one request per owner and two global provider calls bound concurrency with
       (error as { code?: string }).code === 'TRANSCRIPTION_BUSY',
   );
   assert.equal(provider.calls, 2);
-  assert.ok(thirdAudio.every((byte) => byte === 0));
+  assert.ok(thirdAudio.every((byte: number) => byte === 0));
   finish('Temporary transcript');
   assert.deepEqual(await first, { transcript: 'Temporary transcript' });
   await second;
-  assert.ok(firstAudio.every((byte) => byte === 0));
-  assert.ok(secondAudio.every((byte) => byte === 0));
+  assert.ok(firstAudio.every((byte: number) => byte === 0));
+  assert.ok(secondAudio.every((byte: number) => byte === 0));
 });
 test('deadline aborts provider work and clears temporary input on timeout and failure', async () => {
   let aborted = false;
@@ -382,12 +374,12 @@ test('deadline aborts provider work and clears temporary input on timeout and fa
       (error as { code?: string }).code === 'TRANSCRIPTION_FAILED',
   );
   assert.equal(aborted, true);
-  assert.ok(temporary.every((byte) => byte === 0));
+  assert.ok(temporary.every((byte: number) => byte === 0));
   const unavailable = Buffer.from(audio);
   await assert.rejects(() =>
     new TranscriptionsService().transcribe(owner, 'audio/wav', unavailable),
   );
-  assert.ok(unavailable.every((byte) => byte === 0));
+  assert.ok(unavailable.every((byte: number) => byte === 0));
 });
 test('OpenAI adapter sends multipart to fixed endpoint and sanitizes failed provider response', async () => {
   let calls = 0;
@@ -458,25 +450,27 @@ test('disconnecting the caller aborts transcription and clears the request audio
   }
   const h = await apiHarness(new WaitingProvider());
   t.after(h.close);
-  const address = await h.app.listen({ port: 0, host: '127.0.0.1' });
+  // The Worker aborts `request.signal` when the client goes away; aborting
+  // the request's own signal exercises the same path.
   const control = new AbortController();
-  const pending = fetch(`${address}/v1/transcriptions`, {
+  const pending = h.app.inject({
     method: 'POST',
+    url: '/v1/transcriptions',
     headers: { ...webHeaders(), 'content-type': 'audio/wav' },
-    body: Buffer.from(audio),
+    payload: Buffer.from(audio),
     signal: control.signal,
   });
   await started;
   control.abort();
-  await assert.rejects(pending);
+  await pending.catch(() => undefined);
   await stopped;
   await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.ok(observed?.every((byte) => byte === 0));
+  assert.ok(observed?.every((byte: number) => byte === 0));
   const alreadyCancelled = Buffer.from(audio);
   await assert.rejects(() =>
     h.service.transcribe(owner, 'audio/wav', alreadyCancelled, control.signal),
   );
   assert.equal(calls, 1);
-  assert.ok(alreadyCancelled.every((byte) => byte === 0));
+  assert.ok(alreadyCancelled.every((byte: number) => byte === 0));
   assert.deepEqual(await readdir(h.directory), []);
 });

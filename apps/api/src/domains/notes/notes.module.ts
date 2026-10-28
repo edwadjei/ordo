@@ -9,11 +9,7 @@ export function createNotesModule(
   database: DatabaseAdapter,
   workspaces: WorkspacesService,
 ) {
-  const service = new NotesService(
-    new NotesRepository(database),
-    database,
-    workspaces,
-  );
+  const service = new NotesService(new NotesRepository(database), workspaces);
   return {
     service,
     register: (routes: HttpRoutes) => registerNotesController(routes, service),

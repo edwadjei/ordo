@@ -4,7 +4,7 @@ import {
   asc,
   eq,
   tables,
-  type TransactionContext,
+  sql,
   type NewWorkspace,
   type NewProject,
 } from '../../adapters/database/database.adapter.js';
@@ -20,16 +20,12 @@ export class WorkspacesRepository {
       .select()
       .from(workspaces)
       .where(eq(workspaces.ownerUserId, owner))
-      .orderBy(asc(workspaces.createdAt));
+      .orderBy(asc(workspaces.createdAt), asc(workspaces.id));
   }
 
-  async findWorkspace(
-    owner: string,
-    id: string,
-    transaction?: TransactionContext,
-  ) {
+  async findWorkspace(owner: string, id: string) {
     const [row] = await this.database
-      .use(transaction)
+      .use()
       .select()
       .from(workspaces)
       .where(and(eq(workspaces.id, id), eq(workspaces.ownerUserId, owner)));
@@ -45,17 +41,24 @@ export class WorkspacesRepository {
     return row;
   }
 
+  /** Conditional on the revision the caller read; `undefined` if it changed. */
   async updateWorkspace(
     owner: string,
     id: string,
+    expectedRevision: number,
     patch: Partial<NewWorkspace>,
-    transaction: TransactionContext,
   ) {
     const [row] = await this.database
-      .use(transaction)
+      .use()
       .update(workspaces)
-      .set(patch)
-      .where(and(eq(workspaces.id, id), eq(workspaces.ownerUserId, owner)))
+      .set({ ...patch, revision: sql`${workspaces.revision} + 1` })
+      .where(
+        and(
+          eq(workspaces.id, id),
+          eq(workspaces.ownerUserId, owner),
+          eq(workspaces.revision, expectedRevision),
+        ),
+      )
       .returning();
     return row;
   }
@@ -71,16 +74,12 @@ export class WorkspacesRepository {
           workspaceId ? eq(projects.workspaceId, workspaceId) : undefined,
         ),
       )
-      .orderBy(asc(projects.name));
+      .orderBy(asc(projects.name), asc(projects.id));
   }
 
-  async findProject(
-    owner: string,
-    id: string,
-    transaction?: TransactionContext,
-  ) {
+  async findProject(owner: string, id: string) {
     const [row] = await this.database
-      .use(transaction)
+      .use()
       .select()
       .from(projects)
       .where(and(eq(projects.id, id), eq(projects.ownerUserId, owner)));
@@ -96,17 +95,24 @@ export class WorkspacesRepository {
     return row;
   }
 
+  /** Conditional on the revision the caller read; `undefined` if it changed. */
   async updateProject(
     owner: string,
     id: string,
+    expectedRevision: number,
     patch: Partial<NewProject>,
-    transaction: TransactionContext,
   ) {
     const [row] = await this.database
-      .use(transaction)
+      .use()
       .update(projects)
-      .set(patch)
-      .where(and(eq(projects.id, id), eq(projects.ownerUserId, owner)))
+      .set({ ...patch, revision: sql`${projects.revision} + 1` })
+      .where(
+        and(
+          eq(projects.id, id),
+          eq(projects.ownerUserId, owner),
+          eq(projects.revision, expectedRevision),
+        ),
+      )
       .returning();
     return row;
   }

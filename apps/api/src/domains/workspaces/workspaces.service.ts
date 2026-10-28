@@ -1,3 +1,4 @@
+import { isoNow } from '../../platform/time/iso-now.js';
 import type { z } from 'zod';
 import type {
   workspaceInput,
@@ -5,13 +6,12 @@ import type {
   projectInput,
   projectPatch,
 } from '@ordo/core';
-import type {
-  DatabaseAdapter,
-  TransactionContext,
-} from '../../adapters/database/database.adapter.js';
 import { fail } from '../../platform/http/api-failure.js';
 import { publicRecord } from '../../platform/http/response.js';
-import { assertRevision } from '../../platform/http/revision.js';
+import {
+  assertRevision,
+  revisionConflict,
+} from '../../platform/http/revision.js';
 import { newId } from '../../platform/identifiers/new-id.js';
 import { WorkspacesRepository } from './workspaces.repository.js';
 
@@ -21,10 +21,7 @@ export interface WorkspaceScope {
 }
 
 export class WorkspacesService {
-  constructor(
-    private readonly repository: WorkspacesRepository,
-    private readonly transactions: DatabaseAdapter,
-  ) {}
+  constructor(private readonly repository: WorkspacesRepository) {}
 
   async listWorkspaces(owner: string) {
     return (await this.repository.listWorkspaces(owner)).map(publicRecord);
@@ -47,23 +44,20 @@ export class WorkspacesService {
     id: string,
     input: z.infer<typeof workspacePatch>,
   ) {
-    return this.transactions.forOwner(owner, async (transaction) => {
-      const row = await this.requireWorkspace(owner, id, transaction);
-      assertRevision(row.revision, input.expectedRevision);
-      const { expectedRevision: _revision, ...patch } = input;
-      return publicRecord(
-        await this.repository.updateWorkspace(
-          owner,
-          id,
-          {
-            ...patch,
-            revision: row.revision + 1,
-            updatedAt: new Date().toISOString(),
-          },
-          transaction,
-        ),
-      );
-    });
+    const row = await this.requireWorkspace(owner, id);
+    assertRevision(row.revision, input.expectedRevision);
+    const { expectedRevision: _revision, ...patch } = input;
+    const saved = await this.repository.updateWorkspace(
+      owner,
+      id,
+      row.revision,
+      {
+        ...patch,
+        updatedAt: isoNow(),
+      },
+    );
+    // Zero rows: another save won between the read and this write.
+    return publicRecord(saved ?? revisionConflict());
   }
 
   async listProjects(owner: string, workspaceId?: string) {
@@ -92,38 +86,27 @@ export class WorkspacesService {
     id: string,
     input: z.infer<typeof projectPatch>,
   ) {
-    return this.transactions.forOwner(owner, async (transaction) => {
-      const row = await this.requireProject(owner, id, transaction);
-      assertRevision(row.revision, input.expectedRevision);
-      const { expectedRevision: _revision, ...patch } = input;
-      return publicRecord(
-        await this.repository.updateProject(
-          owner,
-          id,
-          {
-            ...patch,
-            revision: row.revision + 1,
-            updatedAt: new Date().toISOString(),
-          },
-          transaction,
-        ),
-      );
+    const row = await this.requireProject(owner, id);
+    assertRevision(row.revision, input.expectedRevision);
+    const { expectedRevision: _revision, ...patch } = input;
+    const saved = await this.repository.updateProject(owner, id, row.revision, {
+      ...patch,
+      updatedAt: isoNow(),
     });
+    // Zero rows: another save won between the read and this write.
+    return publicRecord(saved ?? revisionConflict());
   }
 
-  async validateScope(
-    owner: string,
-    scope: WorkspaceScope,
-    transaction?: TransactionContext,
-  ) {
+  /**
+   * Workspaces and projects are never deleted and a project never changes
+   * workspace, so this read stays true until the save; composite foreign keys
+   * enforce the same ownership in the database.
+   */
+  async validateScope(owner: string, scope: WorkspaceScope) {
     if (scope.workspaceId)
-      await this.requireWorkspace(owner, scope.workspaceId, transaction);
+      await this.requireWorkspace(owner, scope.workspaceId);
     if (scope.projectId) {
-      const project = await this.requireProject(
-        owner,
-        scope.projectId,
-        transaction,
-      );
+      const project = await this.requireProject(owner, scope.projectId);
       if (project.workspaceId !== scope.workspaceId)
         fail(
           400,
@@ -133,24 +116,16 @@ export class WorkspacesService {
     }
   }
 
-  private async requireWorkspace(
-    owner: string,
-    id: string,
-    transaction?: TransactionContext,
-  ) {
+  private async requireWorkspace(owner: string, id: string) {
     return (
-      (await this.repository.findWorkspace(owner, id, transaction)) ??
+      (await this.repository.findWorkspace(owner, id)) ??
       fail(404, 'NOT_FOUND', 'Workspace not found.')
     );
   }
 
-  private async requireProject(
-    owner: string,
-    id: string,
-    transaction?: TransactionContext,
-  ) {
+  private async requireProject(owner: string, id: string) {
     return (
-      (await this.repository.findProject(owner, id, transaction)) ??
+      (await this.repository.findProject(owner, id)) ??
       fail(404, 'NOT_FOUND', 'Project not found.')
     );
   }

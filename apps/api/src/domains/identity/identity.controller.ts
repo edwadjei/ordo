@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import type { OtpService } from './otp.service.js';
 import type { HttpRoutes } from '../../platform/http/http.js';
-import { registration, userCredentials } from '@ordo/core';
 import { currentUser } from '../../platform/http/request-context.js';
 import {
   readSession,
@@ -34,16 +33,6 @@ export function registerIdentityController(
       .strict()
       .parse(request.body);
     const result = await otp.verify(input);
-    reply.setCookie(sessionCookie(result.token, secureCookies));
-    return { user: result.user };
-  });
-  routes.post('/v1/auth/register', async (request, reply) => {
-    const result = await service.register(registration.parse(request.body));
-    reply.status(201).setCookie(sessionCookie(result.token, secureCookies));
-    return { user: result.user };
-  });
-  routes.post('/v1/auth/login', async (request, reply) => {
-    const result = await service.login(userCredentials.parse(request.body));
     reply.setCookie(sessionCookie(result.token, secureCookies));
     return { user: result.user };
   });

@@ -12,15 +12,23 @@ import {
 import { errorEnvelope } from '../../platform/http/error-handler.js';
 import { fail } from '../../platform/http/api-failure.js';
 
-/** Reads the client address for the sign-in throttle; runtime-specific. */
+/** Reads the client address for the sign-in throttle. */
 export type ClientAddress = (context: Context) => string | undefined;
+
+/**
+ * On Cloudflare the edge sets `CF-Connecting-IP` (clients cannot supply their
+ * own); `wrangler dev` sets it locally. Without it every request shares one
+ * throttle bucket.
+ */
+export const cloudflareClientAddress: ClientAddress = (context) =>
+  context.req.header('cf-connecting-ip') || undefined;
 
 export interface HonoHostOptions {
   clientAddress?: ClientAddress;
 }
 
 export interface HostedApp {
-  /** The Hono app; serve `hono.fetch` from Node or a Worker. */
+  /** The Hono app; the Worker serves `hono.fetch`, tests call `hono.request`. */
   readonly hono: Hono;
   /** Runs the pipeline's close hooks (database connection cleanup). */
   close(): Promise<void>;
@@ -50,7 +58,7 @@ class HonoHttpRequest implements HttpRequest {
     this.method = context.req.method;
     this.path = url.pathname;
     this.query = queryValues(url.searchParams);
-    this.ip = clientAddress?.(context) ?? 'unknown';
+    this.ip = (clientAddress ?? cloudflareClientAddress)(context) ?? 'unknown';
   }
   get signal() {
     return this.context.req.raw.signal;

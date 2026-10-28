@@ -12,7 +12,6 @@ export function createTasksModule(
 ) {
   const service = new TasksService(
     new TasksRepository(database),
-    database,
     workspaces,
     new WebContentHasher(),
   );

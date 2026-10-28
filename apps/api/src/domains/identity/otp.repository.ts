@@ -1,61 +1,59 @@
+import { isoNow } from '../../platform/time/iso-now.js';
 import {
   DatabaseAdapter,
-  and,
   eq,
+  sql,
   tables,
-  type OtpChallengeRecord,
   type UserRecord,
 } from '../../adapters/database/database.adapter.js';
 const { otpChallenges, users, sessions } = tables;
+
+const CODE_TTL_MS = 5 * 60_000;
+const RESEND_SPACING_MS = 60_000;
+const WINDOW_MS = 15 * 60_000;
+const SESSION_TTL_MS = 7 * 86_400_000;
+/** Sends and attempts allowed per contact in each 15-minute window. */
+const LIMIT = 5;
+
 export class OtpRepository {
   constructor(private readonly database: DatabaseAdapter) {}
+
+  /**
+   * One upsert on the contact's row. It replaces the challenge only when the
+   * 60-second spacing has passed and the window allows another send (a window
+   * older than 15 minutes starts again). Resending never resets attempts
+   * inside a window. `false` (no row returned) means rate limited.
+   */
   async reserve(input: {
     contact: string;
     challengeId: string;
     codeHash: string;
     now: number;
   }) {
-    return this.database.use().transaction(async (tx) => {
-      const iso = (ms: number) => new Date(ms).toISOString();
-      await tx
-        .insert(otpChallenges)
-        .values({
-          contact: input.contact,
-          challengeId: input.challengeId,
-          codeHash: '',
-          expiresAt: iso(0),
-          nextSendAt: iso(0),
-          windowStartedAt: iso(input.now),
-        })
-        .onConflictDoNothing({ target: otpChallenges.contact });
-      const [row] = await tx
-        .select()
-        .from(otpChallenges)
-        .where(eq(otpChallenges.contact, input.contact))
-        .for('update');
-      const reset = input.now - Date.parse(row.windowStartedAt) >= 15 * 60000;
-      if (
-        Date.parse(row.nextSendAt) > input.now ||
-        (!reset && (row.requests >= 5 || row.attempts >= 5))
-      )
-        return false;
-      await tx
-        .update(otpChallenges)
-        .set({
-          challengeId: input.challengeId,
-          codeHash: input.codeHash,
-          expiresAt: iso(input.now + 5 * 60000),
-          nextSendAt: iso(input.now + 60000),
-          windowStartedAt: reset ? iso(input.now) : row.windowStartedAt,
-          requests: reset ? 1 : row.requests + 1,
-          attempts: reset ? 0 : row.attempts,
-          ready: false,
-          consumed: false,
-        })
-        .where(eq(otpChallenges.contact, input.contact));
-      return true;
-    });
+    const now = isoNow(input.now);
+    const windowStart = isoNow(input.now - WINDOW_MS);
+    const rows = await this.database.use().all<{ challengeId: string }>(sql`
+      INSERT INTO ${otpChallenges} (contact, challenge_id, code_hash, expires_at, next_send_at,
+        window_started_at, requests, attempts, ready, consumed, consumed_by)
+      VALUES (${input.contact}, ${input.challengeId}, ${input.codeHash},
+        ${isoNow(input.now + CODE_TTL_MS)}, ${isoNow(input.now + RESEND_SPACING_MS)},
+        ${now}, 1, 0, 0, 0, NULL)
+      ON CONFLICT (contact) DO UPDATE SET
+        challenge_id = excluded.challenge_id,
+        code_hash = excluded.code_hash,
+        expires_at = excluded.expires_at,
+        next_send_at = excluded.next_send_at,
+        window_started_at = CASE WHEN window_started_at <= ${windowStart}
+          THEN excluded.window_started_at ELSE window_started_at END,
+        requests = CASE WHEN window_started_at <= ${windowStart} THEN 1 ELSE requests + 1 END,
+        attempts = CASE WHEN window_started_at <= ${windowStart} THEN 0 ELSE attempts END,
+        ready = 0, consumed = 0, consumed_by = NULL
+      WHERE next_send_at <= ${now}
+        AND (window_started_at <= ${windowStart} OR (requests < ${LIMIT} AND attempts < ${LIMIT}))
+      RETURNING challenge_id AS challengeId`);
+    return rows.length === 1;
   }
+
   async markReady(challengeId: string) {
     await this.database
       .use()
@@ -63,90 +61,85 @@ export class OtpRepository {
       .set({ ready: true })
       .where(eq(otpChallenges.challengeId, challengeId));
   }
-  async verify(input: {
+
+  /**
+   * Step 1 of verification: one atomic attempt increment on a live, ready,
+   * unconsumed challenge with attempts left. Returns its code hash and
+   * contact, or `undefined` when the challenge cannot be used.
+   */
+  async countAttempt(challengeId: string, now: number) {
+    const [row] = await this.database.use().all<{
+      codeHash: string;
+      contact: string;
+    }>(sql`
+      UPDATE ${otpChallenges} SET attempts = attempts + 1
+       WHERE challenge_id = ${challengeId} AND consumed = 0 AND ready = 1
+         AND expires_at > ${isoNow(now)} AND attempts < ${LIMIT}
+      RETURNING code_hash AS codeHash, contact`);
+    return row;
+  }
+
+  /**
+   * Step 3: one batch. Its first statement is the compare-and-set that
+   * consumes the challenge with this request's random `claim`; every later
+   * statement runs only while that claim is recorded, so a second request
+   * with the same code claims nothing and writes nothing. Creates or links
+   * the account, deletes old sessions at the first email proof (converting a
+   * legacy account), marks the contact verified and inserts the session.
+   * Returns the signed-in user, or `undefined` when the claim was lost.
+   */
+  async consume(input: {
     challengeId: string;
+    contact: string;
+    claim: string;
     now: number;
-    displayName?: string;
     accountId: string;
-    passwordHash: string;
+    displayName?: string;
     sessionHash: string;
-    check: (row: OtpChallengeRecord) => Promise<boolean>;
-  }) {
-    return this.database.use().transaction(async (tx) => {
-      const [row] = await tx
+  }): Promise<UserRecord | undefined> {
+    const db = this.database.use();
+    const phone = input.contact.startsWith('+');
+    const now = isoNow(input.now);
+    const claimed = sql`EXISTS (SELECT 1 FROM ${otpChallenges} WHERE challenge_id = ${input.challengeId} AND consumed_by = ${input.claim})`;
+    const account = phone
+      ? sql`phone = ${input.contact}`
+      : sql`email = ${input.contact}`;
+    const displayName =
+      input.displayName ??
+      (phone ? 'Ordo member' : input.contact.split('@')[0].slice(0, 80));
+    const results = await db.batch([
+      db.run(sql`
+        UPDATE ${otpChallenges} SET consumed = 1, consumed_by = ${input.claim}, code_hash = ''
+         WHERE challenge_id = ${input.challengeId} AND consumed = 0`),
+      db.run(sql`
+        INSERT INTO ${users} (id, email, phone, display_name)
+        SELECT ${input.accountId}, ${phone ? `phone:${input.accountId}` : input.contact},
+               ${phone ? input.contact : null}, ${displayName}
+         WHERE ${claimed}
+        ON CONFLICT DO NOTHING`),
+      // The first proven email supersedes every earlier session, including
+      // any created by an email squatter or a legacy password sign-in.
+      ...(phone
+        ? []
+        : [
+            db.run(sql`
+              DELETE FROM ${sessions} WHERE ${claimed} AND user_id IN (
+                SELECT id FROM ${users} WHERE ${account} AND email_verified_at IS NULL)`),
+          ]),
+      db.run(sql`
+        UPDATE ${users} SET ${sql.raw(phone ? 'phone_verified_at' : 'email_verified_at')} = ${now},
+               updated_at = ${now}
+         WHERE ${account} AND ${claimed}`),
+      db.run(sql`
+        INSERT INTO ${sessions} (token_hash, user_id, expires_at)
+        SELECT ${input.sessionHash}, id, ${isoNow(input.now + SESSION_TTL_MS)}
+          FROM ${users} WHERE ${account} AND ${claimed}`),
+      db
         .select()
-        .from(otpChallenges)
-        .where(eq(otpChallenges.challengeId, input.challengeId))
-        .for('update');
-      if (
-        !row ||
-        !row.ready ||
-        row.consumed ||
-        Date.parse(row.expiresAt) <= input.now ||
-        row.attempts >= 5
-      )
-        return null;
-      await tx
-        .update(otpChallenges)
-        .set({ attempts: row.attempts + 1 })
-        .where(eq(otpChallenges.contact, row.contact));
-      if (!(await input.check(row))) return null;
-      const phone = row.contact.startsWith('+');
-      const match = phone
-        ? eq(users.phone, row.contact)
-        : eq(users.email, row.contact);
-      let [user] = await tx.select().from(users).where(match);
-      if (!user) {
-        const [inserted] = await tx
-          .insert(users)
-          .values({
-            id: input.accountId,
-            email: phone ? `phone:${input.accountId}` : row.contact,
-            phone: phone ? row.contact : null,
-            displayName:
-              input.displayName ??
-              (phone ? 'Ordo member' : row.contact.split('@')[0].slice(0, 80)),
-            passwordHash: input.passwordHash,
-          })
-          .onConflictDoNothing()
-          .returning();
-        user = inserted ?? (await tx.select().from(users).where(match))[0];
-      }
-      if (!user) throw new Error('Account creation could not complete');
-      // The first proven email supersedes all unverified password credentials
-      // and sessions, including any created by an earlier email squatter.
-      const firstEmailProof = !phone && !user.emailVerifiedAt;
-      const [verified] = await tx
-        .update(users)
-        .set(
-          phone
-            ? { phoneVerifiedAt: new Date(input.now).toISOString() }
-            : {
-                emailVerifiedAt: new Date(input.now).toISOString(),
-                ...(firstEmailProof
-                  ? { passwordHash: 'passwordless-only' }
-                  : {}),
-              },
-        )
-        .where(eq(users.id, user.id))
-        .returning();
-      if (firstEmailProof)
-        await tx.delete(sessions).where(eq(sessions.userId, verified.id));
-      await tx
-        .update(otpChallenges)
-        .set({ consumed: true, codeHash: '' })
-        .where(
-          and(
-            eq(otpChallenges.contact, row.contact),
-            eq(otpChallenges.challengeId, input.challengeId),
-          ),
-        );
-      await tx.insert(sessions).values({
-        tokenHash: input.sessionHash,
-        userId: verified.id,
-        expiresAt: new Date(input.now + 7 * 86400000).toISOString(),
-      });
-      return verified as UserRecord;
-    });
+        .from(users)
+        .where(sql`${account} AND ${claimed}`),
+    ]);
+    const signedIn = results.at(-1) as UserRecord[];
+    return signedIn[0];
   }
 }
