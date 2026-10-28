@@ -1,0 +1,22 @@
+# Copy to apps/api/.dev.vars (git-ignored) for `wrangler dev`. Names only:
+# never commit real values.
+#
+# ORDO_ENV=development enables the local-only behaviour: the console code
+# transport (codes print in the wrangler terminal; nothing is sent), a
+# temporary OTP key when OTP_HMAC_KEY is empty, non-Secure cookies, and the
+# local trusted origins. Any other value (or none) is treated as hosted.
+ORDO_ENV=development
+
+# Comma-separated exact origins allowed to send writes. Empty in development
+# means http://127.0.0.1:8788, http://localhost:8788 and the same on port 3358.
+TRUSTED_ORIGINS=
+
+# 64 hex characters each, for example from `openssl rand -hex 32`.
+OTP_HMAC_KEY=
+# Optional: without it, saving an account's provider API key is unavailable.
+ORDO_CREDENTIAL_KEY=
+
+# Optional: real code delivery. When both are set they are used instead of
+# the console transport, so leave them empty for local work.
+GATEKEEPER_API_KEY=
+GATEKEEPER_API_URL=
