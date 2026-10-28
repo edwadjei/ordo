@@ -49,6 +49,10 @@ New tasks are first written to an account-keyed localStorage queue with a stable
 
 The current-account pointer and a last-loaded account snapshot are cached for an already loaded client. Logout clears the pointer and visible snapshot; unsynced task captures remain stored under the original account and require signing in as that account again. A 401 or account mismatch clears the active view. Browser data is device-local and should not be used on a shared device without considering local browser access.
 
+## Read-your-writes bookmark (`X-Ordo-Bookmark`)
+
+The shared client (`packages/client`) is ready for the D1 Sessions API in Phase 2. When a response carries an `X-Ordo-Bookmark` header, the client keeps that latest value for the current account, in memory and in localStorage under `ordo.bookmark.v1:<account>` beside the task queue, and sends it as `X-Ordo-Bookmark` on that account's next request. A bookmark received before sign-in is held in memory only and carried over to the account that signs in. Sign-out clears that account's bookmark, even if the sign-out request fails; other accounts' bookmarks are untouched. Storage failures are ignored, because a missing bookmark only means a read may come from an older replica. **Today the API never sends the header**, so the client sends none and behaves exactly as before.
+
 **No service worker is installed.** An already open app can queue tasks while offline, but a cold offline reload is not guaranteed to load the application shell. Only task creation is queued; task edits, workspaces/projects, and notes require the API. Note text is retained in the open editor after a failure and warns on closing/unloading; it is not a durable offline note queue. A full multi-device sync protocol and conflict resolution UI remain later work.
 
 Settings selects Local Whisper on this Mac/server (default) or an account-owned OpenAI key. With a ready provider, Record captures microphone audio into memory; Stop transcribes it and discards the audio. Only the transcript can be explicitly saved as a note. There is no audio file picker, recording history, playback, or audio persistence. Without a ready selected provider, Record shows Coming soon and does not request microphone access. AI Capture and Upload Transcript are disabled with Coming soon labels. Project favorites and reassigning task destinations remain pending. Light, Dark, and System themes are supported.
@@ -64,7 +68,7 @@ npm run test --workspace @ordo/client
 npm run test --workspace @ordo/web
 ```
 
-The shared-client tests cover account isolation, idempotency preservation, storage failure, authenticated mutation preconditions, session-change propagation, and an autosave regression for edits made during a slow request. The web tests cover the pure view logic in `lib/views.ts`: the greeting, local-timezone clock, My Day sections and counts, seven-day grouping across month and year ends, Waiting On ordering, and name suggestions. Browser verification is recorded by the coordinator separately; compilation alone does not prove user journeys.
+The shared-client tests cover bookmark store-and-forward (header absent, latest value forwarded, reload, per-account separation, sign-in carry-over, sign-out clearing, unavailable storage), account isolation, idempotency preservation, storage failure, authenticated mutation preconditions, session-change propagation, and an autosave regression for edits made during a slow request. The web tests cover the pure view logic in `lib/views.ts`: the greeting, local-timezone clock, My Day sections and counts, seven-day grouping across month and year ends, Waiting On ordering, and name suggestions. Browser verification is recorded by the coordinator separately; compilation alone does not prove user journeys.
 
 ## Appearance
 
