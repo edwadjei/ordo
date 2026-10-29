@@ -3220,3 +3220,164 @@ fieldset:disabled select {
 .offline-note svg {
   vertical-align: -2px;
 }
+/* Task panel › Related. */
+.related {
+  margin: 26px 0 0;
+}
+.related h3 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.related-group h4 {
+  margin: 12px 0 4px;
+  font: 600 10px/1.4 var(--font);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.related ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.related-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  background: none;
+  text-align: left;
+  font-size: 12px;
+}
+.related-link:hover {
+  text-decoration: underline;
+}
+.related-link svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.related-link span {
+  display: flex;
+  flex-direction: column;
+}
+.related-link small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.linked-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.link-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.link-picker {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.link-results {
+  max-height: 220px;
+  overflow: auto;
+  margin: 6px 0 !important;
+}
+/* Archive and delete permanently. */
+.archive-control {
+  margin: 24px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.archive-control .secondary {
+  gap: 7px;
+}
+.danger-zone {
+  margin: 26px 0 0;
+  padding: 16px;
+  border: 1px solid light-dark(#efc9c2, #5a332d);
+  border-radius: 10px;
+  background: light-dark(#fdf6f4, #241a19);
+}
+.danger-zone h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--danger);
+}
+.danger-zone .muted {
+  margin: 0 0 12px;
+}
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-radius: 7px;
+  border: 1px solid light-dark(#e3b2a9, #7a443b);
+  background: var(--bg);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 500;
+}
+.danger-button.solid {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.delete-summary {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.dialog .danger-zone label {
+  display: block;
+  margin: 14px 0 6px;
+  line-height: 1.8;
+  color: var(--ink);
+  font-size: 12px;
+}
+.confirm-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--soft);
+}
+.archived-nav {
+  margin-top: 10px;
+}
+.archived-toggle small {
+  margin-left: auto;
+  color: var(--subtle);
+}
+.archived-nav ul {
+  list-style: none;
+  margin: 0 0 0 14px;
+  padding: 0;
+}
+.archived-nav .project-nav-item small {
+  margin-left: auto;
+  color: var(--subtle);
+  font-size: 9px;
+}
+.search-archived {
+  margin: 10px 0 0 !important;
+  font-size: 11px !important;
+}
+.search-results button.is-archived {
+  opacity: 0.75;
+}
+.archived-badge {
+  color: var(--warm);
+}

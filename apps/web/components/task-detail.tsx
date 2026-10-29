@@ -1,5 +1,5 @@
 'use client';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Check, Plus, Trash2 } from 'lucide-react';
 import type { HomeSnapshot, Task } from '@ordo/client';
 import type { TaskChanges } from '@ordo/client';
@@ -7,6 +7,8 @@ import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
 import { knownNames, statusLabels } from '../lib/views';
 import { taskOrigin, taskSourceNote } from '../lib/capture';
+import { RelatedSection } from './related-items';
+import { lostToDelete, saveErrorText } from '../lib/errors';
 const editable = [
   'title',
   'description',
@@ -30,8 +32,11 @@ export function TaskDetail({
   onSelect,
   readOnly = false,
   onOpenNote,
+  onOpenDrafts,
 }: {
   task: Task;
+  /** Opens a project's Drafts tab, for a related draft. */
+  onOpenDrafts?: (projectId: string | null, workspaceId: string) => void;
   /** Opens a task's source note (provenance). */
   onOpenNote?: (id: string) => void;
   /** Offline or showing the saved view: the task can be read, not changed. */
@@ -42,6 +47,8 @@ export function TaskDetail({
   onSelect: (id: string) => void;
 }) {
   const [baseline, setBaseline] = useState(task);
+  /** Set when a save found the task or its scope deleted elsewhere. */
+  const gone = useRef(false);
   const sourceId = taskSourceNote(task);
   const sourceNote = sourceId
     ? data.notes.find((note) => note.id === sourceId)
@@ -77,7 +84,10 @@ export function TaskDetail({
       await onChange();
       setSaved(true);
     } catch (error) {
-      setError((error as Error).message);
+      setError(saveErrorText(error, 'task'));
+      // Keep the panel (and the edits) open to read the message; the
+      // deleted item leaves the lists when the panel closes.
+      if (lostToDelete(error)) gone.current = true;
     } finally {
       setBusy(false);
     }
@@ -97,7 +107,7 @@ export function TaskDetail({
       setSubtask('');
       await onChange();
     } catch (error) {
-      setError((error as Error).message);
+      setError(saveErrorText(error, 'task'));
     } finally {
       setBusy(false);
     }
@@ -132,7 +142,9 @@ export function TaskDetail({
     );
   }
   const close = () => {
-    if (confirmLeave()) onClose();
+    if (!confirmLeave()) return;
+    onClose();
+    if (gone.current) void onChange().catch(() => {});
   };
   const workspace = data.workspaces.find(
       (item) => item.id === baseline.workspaceId,
@@ -418,6 +430,20 @@ export function TaskDetail({
           <button disabled={busy || readOnly || !subtask.trim()}>Add</button>
         </form>
       </section>
+      <RelatedSection
+        task={task}
+        data={data}
+        readOnly={readOnly}
+        onOpenNote={(id) => {
+          if (confirmLeave()) onOpenNote?.(id);
+        }}
+        onOpenTask={(id) => {
+          if (confirmLeave()) onSelect(id);
+        }}
+        onOpenDrafts={(project, workspace) => {
+          if (confirmLeave()) onOpenDrafts?.(project, workspace);
+        }}
+      />
       <div className="provenance">
         {taskOrigin(task) === 'capture' ? (
           <>

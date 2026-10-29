@@ -1,4 +1,5 @@
 import { requestId } from './request-id.ts';
+import type { DeletePreview, DeleteResult, RelatedItems } from './related.ts';
 import type {
   AiSettings,
   AiSettingsInput,
@@ -68,8 +69,15 @@ export type ProjectChanges = Partial<
 > & {
   /** Other names for AI routing: up to 10, each 1–60 characters. */
   aliases?: string[];
+  /** Hidden from everyday views and pickers, restorable; nothing inside is lost. */
+  archived?: boolean;
   expectedRevision: number;
 };
+export type WorkspaceChanges = Partial<Pick<Workspace, 'name' | 'color'>> & {
+  archived?: boolean;
+  expectedRevision: number;
+};
+export type Container = 'workspaces' | 'projects';
 export function createClient(
   base = '/api',
   transport: typeof fetch = fetch,
@@ -170,9 +178,14 @@ export function createClient(
       code: string;
       displayName?: string;
     }) => send<{ user: User }>('/auth/otp/verify', 'POST', data),
-    search: (query: string, signal?: AbortSignal) =>
+    /** Full-text search; archived workspaces and projects only when asked. */
+    search: (
+      query: string,
+      signal?: AbortSignal,
+      options: { includeArchived?: boolean } = {},
+    ) =>
       request<{ results: SearchResult[] }>(
-        `/search?q=${encodeURIComponent(query)}`,
+        `/search?q=${encodeURIComponent(query)}${options.includeArchived ? '&includeArchived=1' : ''}`,
         { signal },
       ),
     transcribeAudio: (
@@ -213,6 +226,26 @@ export function createClient(
     }) => send<Project>('/projects', 'POST', data),
     updateProject: (id: string, data: ProjectChanges) =>
       send<Project>(`/projects/${id}`, 'PATCH', data),
+    updateWorkspace: (id: string, data: WorkspaceChanges) =>
+      send<Workspace>(`/workspaces/${id}`, 'PATCH', data),
+    /** Counts of everything a permanent delete would remove. */
+    deletePreview: (kind: Container, id: string, signal?: AbortSignal) =>
+      request<DeletePreview>(`/${kind}/${id}/delete-preview`, { signal }),
+    /** Permanent and irreversible; the current name must be typed exactly. */
+    deletePermanently: (
+      kind: Container,
+      id: string,
+      data: { confirmName: string; expectedRevision: number },
+    ) => send<DeleteResult>(`/${kind}/${id}`, 'DELETE', data),
+    related: (taskId: string, includeArchived = false, signal?: AbortSignal) =>
+      request<RelatedItems>(
+        `/tasks/${taskId}/related${includeArchived ? '?includeArchived=1' : ''}`,
+        { signal },
+      ),
+    linkNote: (taskId: string, noteId: string) =>
+      send<unknown>(`/tasks/${taskId}/links`, 'POST', { noteId }),
+    unlinkNote: (taskId: string, noteId: string) =>
+      send<void>(`/tasks/${taskId}/links/${noteId}`, 'DELETE'),
     createTask: (
       data: Partial<TaskInput> & { title: string },
       key: string = requestId(),
@@ -301,6 +334,7 @@ export function createClient(
 }
 export type OrdoClient = ReturnType<typeof createClient>;
 export type * from './capture.ts';
+export type * from './related.ts';
 export {
   bookmarkHeader,
   createBookmarkStore,

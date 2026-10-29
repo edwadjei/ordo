@@ -26,6 +26,7 @@ import {
   LoaderCircle,
   Settings,
   Star,
+  Archive,
   UserRound,
 } from 'lucide-react';
 import type {
@@ -87,6 +88,13 @@ import {
 } from './conversations-drafts';
 import { AiSettingsSection } from './ai-settings';
 import { ProjectSettingsDialog } from './project-settings';
+import { WorkspaceSettingsDialog } from './workspace-settings';
+import {
+  archivedItems,
+  archivedScope,
+  isLastWorkspace,
+  withoutArchived,
+} from '../lib/organize';
 import { notProcessed } from '../lib/capture';
 import type { AiSettings } from '@ordo/client/capture';
 import { AudioSettingsDialog } from './audio-settings';
@@ -110,7 +118,13 @@ const viewNames: Record<View, string> = {
 const everydayViews: View[] = ['day', 'inbox', 'upcoming', 'waiting'];
 export function WorkspaceApp() {
   const work = useWorkspace(),
-    { snapshot: data } = work;
+    { snapshot: everything } = work;
+  // Everyday views leave archived workspaces and projects (and their items)
+  // out; the sidebar's Archived list uses everything.
+  const data = useMemo(
+    () => everything && withoutArchived(everything),
+    [everything],
+  );
   const [audioConfig, setAudioConfig] = useState<{
     ownerId: string;
     settings: AudioSettings;
@@ -175,13 +189,18 @@ export function WorkspaceApp() {
       | 'settings'
       | 'email'
       | 'upload'
-      | 'projectSettings'
+      | 'manage'
       | null
     >(null),
     [query, setQuery] = useState(''),
     [busy, setBusy] = useState(false),
     [taskBusy, setTaskBusy] = useState<string[]>([]),
     [favoriteBusy, setFavoriteBusy] = useState<string[]>([]),
+    [showArchived, setShowArchived] = useState(false),
+    [managed, setManaged] = useState<{
+      kind: 'workspaces' | 'projects';
+      id: string;
+    } | null>(null),
     [upcomingDate, setUpcomingDate] = useState('');
   const composerRef = useRef<HTMLInputElement>(null);
   const timezone = data?.user.timezone || defaultTimezone;
@@ -206,7 +225,7 @@ export function WorkspaceApp() {
   const readOnlyRef = useRef(work.readOnly);
   readOnlyRef.current = work.readOnly;
   const online: Record<string, string> = {
-    projectSettings: 'Project settings',
+    manage: 'Archiving and deleting',
     workspace: 'A new workspace',
     project: 'A new project',
     record: 'Recording',
@@ -294,6 +313,28 @@ export function WorkspaceApp() {
     } finally {
       setTaskBusy((ids) => ids.filter((id) => id !== task.id));
     }
+  }
+  /** Opens a workspace's or project's settings (archive, delete). */
+  function manageItem(kind: 'workspaces' | 'projects', id: string) {
+    if (needsConnection('Archiving and deleting')) return;
+    setMobileMenu(false);
+    setManaged({ kind, id });
+    setModal('manage');
+  }
+  async function afterArchive(nowArchived: boolean, id: string) {
+    await work.refresh().catch(() => {});
+    setModal(null);
+    // An archived workspace or project leaves the everyday views.
+    if (nowArchived && (workspaceId === id || projectId === id))
+      navigate('day');
+  }
+  async function afterDelete() {
+    setModal(null);
+    setManaged(null);
+    setSelectedTask(null);
+    setSelectedNote(null);
+    navigate('day');
+    await work.refresh().catch(() => {});
   }
   async function toggleFavorite(item: Project) {
     if (needsConnection('Changing favourites')) return;
@@ -488,6 +529,15 @@ export function WorkspaceApp() {
   const audioSettings =
     audioConfig?.ownerId === data.user.id ? audioConfig.settings : null;
   const audioReady = !!audioSettings?.configured;
+  const archived = archivedItems(everything!);
+  const managedProject =
+      managed?.kind === 'projects'
+        ? everything!.projects.find((item) => item.id === managed.id)
+        : undefined,
+    managedWorkspace =
+      managed?.kind === 'workspaces'
+        ? everything!.workspaces.find((item) => item.id === managed.id)
+        : undefined;
   const aiSettings =
     aiConfig?.ownerId === data.user.id ? aiConfig.settings : null;
   const aiReady = !!aiSettings?.configured;
@@ -647,6 +697,58 @@ export function WorkspaceApp() {
               )}
             </div>
           ))}
+          {archived.workspaces.length + archived.projects.length > 0 && (
+            <div className="archived-nav">
+              <button
+                className="nav-item archived-toggle"
+                aria-expanded={showArchived}
+                onClick={() => setShowArchived(!showArchived)}
+              >
+                <Archive size={14} aria-hidden="true" />
+                <span>Archived</span>
+                <small>
+                  {archived.workspaces.length + archived.projects.length}
+                </small>
+              </button>
+              {showArchived && (
+                <ul aria-label="Archived workspaces and projects">
+                  {archived.workspaces.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        className="project-nav-item"
+                        onClick={() => manageItem('workspaces', item.id)}
+                      >
+                        <span
+                          className="workspace-dot"
+                          style={{ background: item.color }}
+                        />
+                        {item.name}
+                        <small>workspace</small>
+                      </button>
+                    </li>
+                  ))}
+                  {archived.projects.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        className="project-nav-item"
+                        onClick={() => manageItem('projects', item.id)}
+                      >
+                        <span className="project-bullet" />
+                        {item.name}
+                        <small>
+                          {
+                            everything!.workspaces.find(
+                              (w) => w.id === item.workspaceId,
+                            )?.name
+                          }
+                        </small>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           {data.workspaces.length === 0 && (
             <p className="nav-empty">
               A space for every part of your life.
@@ -759,7 +861,24 @@ export function WorkspaceApp() {
                       className="favorite-toggle"
                       aria-label={`Project settings for ${project.name}`}
                       title="Description and other names"
-                      onClick={() => openModal('projectSettings')}
+                      onClick={() => manageItem('projects', project.id)}
+                    >
+                      <Settings
+                        size={13}
+                        strokeWidth={1.8}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    {scopeSelect}
+                  </span>
+                ) : view === 'workspace' && workspace ? (
+                  <span className="project-aside">
+                    <button
+                      type="button"
+                      className="favorite-toggle"
+                      aria-label={`Workspace settings for ${workspace.name}`}
+                      title="Archive or delete"
+                      onClick={() => manageItem('workspaces', workspace.id)}
                     >
                       <Settings
                         size={13}
@@ -1509,6 +1628,11 @@ export function WorkspaceApp() {
         <SearchDialog
           key={data.user.id}
           data={data}
+          everything={everything!}
+          archived={(kind, id) => {
+            setModal(null);
+            manageItem(kind, id);
+          }}
           query={query}
           setQuery={setQuery}
           onClose={() => setModal(null)}
@@ -1541,6 +1665,13 @@ export function WorkspaceApp() {
           onOpenNote={(id) => {
             setSelectedTask(null);
             setSelectedNote(id);
+          }}
+          onOpenDrafts={(project, workspace) => {
+            setSelectedTask(null);
+            if (project) {
+              navigate('project', workspace, project);
+              setTab('drafts');
+            }
           }}
         />
       )}
@@ -1577,14 +1708,32 @@ export function WorkspaceApp() {
           }}
         />
       )}
-      {modal === 'projectSettings' && project && (
+      {modal === 'manage' && managed?.kind === 'projects' && managedProject && (
         <ProjectSettingsDialog
-          key={project.id}
-          project={project}
+          key={managedProject.id}
+          project={managedProject}
           onClose={() => setModal(null)}
           onSaved={work.refresh}
+          onArchived={(nowArchived) =>
+            afterArchive(nowArchived, managedProject.id)
+          }
+          onDeleted={afterDelete}
         />
       )}
+      {modal === 'manage' &&
+        managed?.kind === 'workspaces' &&
+        managedWorkspace && (
+          <WorkspaceSettingsDialog
+            key={managedWorkspace.id}
+            workspace={managedWorkspace}
+            lastWorkspace={isLastWorkspace(everything!)}
+            onClose={() => setModal(null)}
+            onArchived={(nowArchived) =>
+              afterArchive(nowArchived, managedWorkspace.id)
+            }
+            onDeleted={afterDelete}
+          />
+        )}
     </div>
   );
 }
@@ -1800,14 +1949,20 @@ function CreateContainer({
 }
 function SearchDialog({
   data,
+  everything,
   query,
   setQuery,
   onClose,
   task,
   note,
   project,
+  archived,
 }: {
   data: HomeSnapshot;
+  /** Includes archived workspaces and projects, to name and mark them. */
+  everything: HomeSnapshot;
+  /** Opens an archived scope's settings, to restore it. */
+  archived: (kind: 'workspaces' | 'projects', id: string) => void;
   query: string;
   setQuery: (value: string) => void;
   onClose: () => void;
@@ -1818,6 +1973,7 @@ function SearchDialog({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [includeArchived, setIncludeArchived] = useState(false);
   useEffect(() => {
     const control = new AbortController();
     let active = true;
@@ -1830,7 +1986,7 @@ function SearchDialog({
     setLoading(true);
     const timer = window.setTimeout(() => {
       api
-        .search(query.trim(), control.signal)
+        .search(query.trim(), control.signal, { includeArchived })
         .then((value) => {
           if (active) setResults(value.results);
         })
@@ -1846,7 +2002,7 @@ function SearchDialog({
       clearTimeout(timer);
       control.abort();
     };
-  }, [query]);
+  }, [query, includeArchived]);
   return (
     <Dialog title="Find a little clarity." onClose={onClose}>
       <div className="search-input">
@@ -1860,29 +2016,53 @@ function SearchDialog({
           maxLength={200}
         />
       </div>
+      <label className="completed-toggle search-archived">
+        <input
+          type="checkbox"
+          checked={includeArchived}
+          onChange={(event) => setIncludeArchived(event.target.checked)}
+        />
+        Include archived
+      </label>
       <div className="search-results">
-        {results.map((item) => (
-          <button
-            key={`${item.type}:${item.id}`}
-            onClick={() => {
-              if (item.type === 'task') task(item.id);
-              else if (item.type === 'note') note(item.id);
-              else project(item.id);
-            }}
-          >
-            <span>
-              {item.title}
-              {item.excerpt && (
-                <small className="search-excerpt">{item.excerpt}</small>
-              )}
-              <small>
-                {data.workspaces.find((w) => w.id === item.workspaceId)?.name ||
-                  'Personal Inbox'}
-              </small>
-            </span>
-            <em>{item.type}</em>
-          </button>
-        ))}
+        {results.map((item) => {
+          const scope = archivedScope(item, everything);
+          return (
+            <button
+              key={`${item.type}:${item.id}`}
+              className={scope ? 'is-archived' : undefined}
+              aria-label={
+                scope
+                  ? `${item.title}, archived in ${scope.name}. Opens its settings to restore it.`
+                  : undefined
+              }
+              onClick={() => {
+                if (scope) archived(scope.kind, scope.id);
+                else if (item.type === 'task') task(item.id);
+                else if (item.type === 'note') note(item.id);
+                else project(item.id);
+              }}
+            >
+              <span>
+                {item.title}
+                {item.excerpt && (
+                  <small className="search-excerpt">{item.excerpt}</small>
+                )}
+                <small>
+                  {everything.workspaces.find((w) => w.id === item.workspaceId)
+                    ?.name || 'Personal Inbox'}
+                  {scope && (
+                    <span className="archived-badge">
+                      {' '}
+                      · Archived · restore to open
+                    </span>
+                  )}
+                </small>
+              </span>
+              <em>{item.type}</em>
+            </button>
+          );
+        })}
         {loading && (
           <p className="muted" role="status">
             Searching…
