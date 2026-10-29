@@ -10,7 +10,7 @@ export function registerAiSettingsController(
   routes.get('/v1/settings/ai', (request) => service.status(actorId(request)));
   routes.patch('/v1/settings/ai', (request) => {
     const changes = aiSettingsPatch.parse(request.body);
-    if (changes.openaiKey || changes.anthropicKey) {
+    if (changes.apiKey) {
       const origin = new URL(request.header('origin')!);
       if (
         origin.protocol !== 'https:' &&

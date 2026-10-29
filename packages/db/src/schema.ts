@@ -170,6 +170,7 @@ export const captureRuns = sqliteTable('capture_runs', {
   ...timestampFields(),
 });
 
+// The OpenAI key is the one in audio_settings, shared with transcription.
 export const aiSettings = sqliteTable('ai_settings', {
   ownerUserId: text('owner_user_id')
     .primaryKey()
@@ -178,7 +179,6 @@ export const aiSettings = sqliteTable('ai_settings', {
     .$type<TextProvider>()
     .notNull()
     .default('workers_ai'),
-  encryptedOpenaiKey: text('encrypted_openai_key'),
   encryptedAnthropicKey: text('encrypted_anthropic_key'),
   ...timestampFields(),
 });

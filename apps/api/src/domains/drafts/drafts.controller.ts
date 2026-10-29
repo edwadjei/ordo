@@ -1,5 +1,10 @@
 import type { HttpRoutes } from '../../platform/http/http.js';
-import { draftInput, draftPatch, revisionInput } from '@ordo/core';
+import {
+  draftInput,
+  draftListQuery,
+  draftPatch,
+  revisionInput,
+} from '@ordo/core';
 import { actorId, entityId } from '../../platform/http/request-context.js';
 import { created } from '../../platform/http/response.js';
 import type { DraftsService } from './drafts.service.js';
@@ -8,7 +13,9 @@ export function registerDraftsController(
   routes: HttpRoutes,
   service: DraftsService,
 ) {
-  routes.get('/v1/drafts', async (request) => service.list(actorId(request)));
+  routes.get('/v1/drafts', async (request) =>
+    service.list(actorId(request), draftListQuery.parse(request.query)),
+  );
   routes.get('/v1/drafts/:id', async (request) =>
     service.get(actorId(request), entityId(request)),
   );

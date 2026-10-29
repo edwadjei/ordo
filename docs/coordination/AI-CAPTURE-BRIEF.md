@@ -28,6 +28,17 @@
 | Save | `POST /v1/capture-runs/:id/save` with an `Idempotency-Key` and `{ workspaceId, projectId?, tasks: [...edited], drafts: [...edited] }` | One D1 `batch()`. Sets the run to `saved`. A second save of the same run is refused (409) |
 | AI provider choice | Extends audio settings or adds AI settings: `textProvider: "workers-ai" \| "openai" \| "anthropic"`; OpenAI and Anthropic need the account's own key, stored with the existing AES-GCM credential storage | Capabilities report `aiCapture: true` when at least one provider is usable |
 
+### Contract answers (coordinator, 29 October 2026)
+
+- **Per-item destination:** each task or draft in the save body may carry its own `workspaceId`/`projectId`, which overrides the batch destination. The API checks each one against the owner, and a project must belong to its workspace.
+- **Inbox marker:** notes in `/home` (and note lists) carry `latestCaptureStatus: null | "pending" | "failed" | "ready" | "saved"` from their newest run, so the web needs no per-note calls.
+- **Drafts listing:** `GET /v1/drafts?projectId=…&workspaceId=…` (both optional), newest first, excluding archived.
+- **AI settings:** a separate `GET/PATCH /v1/settings/ai` with `{ textProvider, apiKey?, removeApiKey?, keyProvider? }`, returning `{ textProvider, workersAiAvailable, hasOpenAiKey, hasAnthropicKey, configured }`. There is one stored OpenAI key per account, shared with transcription; it is not stored twice. The Anthropic key is new.
+
+- **API specialist's adjustments, accepted:** projects keep their existing `description` (≤5,000); only the first 500 characters go to the AI, and only `aliases` is new. Provider ids are `"workers_ai" | "openai" | "anthropic"`, matching audio settings. The default model is `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, about 180 neurons for a 1,000-word capture and about 700 for 10,000 words. A Workers AI note over about 64,000 characters gets 413 `CAPTURE_TOO_LONG` with no run (split it, or use an own key, which takes the full 100,000); there is no chunking. A follow-up is saved as a task, Waiting when it has a waiting-on name.
+- **Provenance is set by the server.** `POST /v1/tasks` may take `sourceNoteId`, but never `origin`: tasks made by a signed-in person are `manual`, the capture save route sets `capture`, and agent tokens will set `agent` later.
+- **One OpenAI key per account**, shared by transcription and AI capture, so it is never asked for twice.
+
 ## API specialist (`apps/api`, `packages/core`, `packages/db`)
 
 1. Migration `0005_ai_capture.sql`: the project, task and draft fields above, plus a `capture_runs` table. Mirror it in `schema.ts`. Do not edit applied migrations.

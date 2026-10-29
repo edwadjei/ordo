@@ -38,8 +38,12 @@ export class DraftsService {
     private readonly notes: NotesService,
   ) {}
 
-  async list(owner: string) {
-    return (await this.repository.list(owner)).map(publicDraft);
+  /** Active drafts, newest first, optionally of one workspace and/or project. */
+  async list(
+    owner: string,
+    filter: { workspaceId?: string; projectId?: string } = {},
+  ) {
+    return (await this.repository.list(owner, filter)).map(publicDraft);
   }
   async get(owner: string, id: string) {
     return publicDraft(await this.requireDraft(owner, id));

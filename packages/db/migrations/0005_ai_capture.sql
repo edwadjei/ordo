@@ -72,11 +72,12 @@ CREATE TABLE capture_runs (
 );
 CREATE INDEX capture_runs_note_idx ON capture_runs(owner_user_id, note_id, created_at);
 
--- The account's text-AI choice. Keys are AES-GCM encrypted like audio keys.
+-- The account's text-AI choice and its Anthropic key (AES-GCM encrypted like
+-- audio keys). The one OpenAI key stays in audio_settings, shared with
+-- transcription, so it is never stored twice.
 CREATE TABLE ai_settings (
   owner_user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   text_provider TEXT NOT NULL DEFAULT 'workers_ai' CHECK (text_provider IN ('workers_ai', 'openai', 'anthropic')),
-  encrypted_openai_key TEXT,
   encrypted_anthropic_key TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { captureRuns, notes, tasks } from '@ordo/db';
+import { captureRuns, drafts, notes, tasks } from '@ordo/db';
 import {
   TextModel,
   TextModelProviders,
@@ -102,8 +102,10 @@ type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 async function setup(t: { after(fn: () => Promise<void>): void }) {
   const fake = new FakeProviders();
+  const credentialKey = fromHex('2d'.repeat(32));
   const h = await apiHarness({
-    aiSettings: { providers: fake, credentialKey: fromHex('2d'.repeat(32)) },
+    aiSettings: { providers: fake, credentialKey },
+    audioSettings: { credentialKey },
   });
   t.after(() => h.app.close());
   const owner = await signIn(h);
@@ -359,7 +361,7 @@ test('a chosen provider without its key is pending; a saved key is used, never a
   assert.deepEqual(await ok('GET', '/v1/settings/ai'), {
     textProvider: 'workers_ai',
     workersAiAvailable: true,
-    hasOpenaiKey: false,
+    hasOpenAiKey: false,
     hasAnthropicKey: false,
     configured: true,
   });
@@ -369,9 +371,11 @@ test('a chosen provider without its key is pending; a saved key is used, never a
   assert.equal(missing.provider, 'anthropic');
   assert.equal(missing.errorCode, 'AI_KEY_MISSING');
   assert.equal((await ok('GET', '/v1/capabilities')).aiCapture, false);
+  // The key goes to the chosen provider when keyProvider is omitted.
   const key = 'sk-ant-fictional-test-key-0000';
-  const saved = await ok('PATCH', '/v1/settings/ai', { anthropicKey: key });
+  const saved = await ok('PATCH', '/v1/settings/ai', { apiKey: key });
   assert.equal(saved.hasAnthropicKey, true);
+  assert.equal(saved.hasOpenAiKey, false);
   assert.equal(saved.configured, true);
   assert.ok(!JSON.stringify(saved).includes(key));
   const run = (await process()).json();
@@ -383,24 +387,57 @@ test('a chosen provider without its key is pending; a saved key is used, never a
       await call(
         'PATCH',
         '/v1/settings/ai',
-        { openaiKey: 'sk-fictional-openai-key-0000' },
+        { apiKey: 'sk-fictional-openai-key-0000', keyProvider: 'openai' },
         { origin: 'http://example.test' },
       )
     ).statusCode,
     403,
     'an untrusted origin is refused before the HTTPS check',
   );
-  await ok('PATCH', '/v1/settings/ai', { removeAnthropicKey: true });
+  await ok('PATCH', '/v1/settings/ai', { removeApiKey: true });
   assert.equal((await ok('GET', '/v1/settings/ai')).hasAnthropicKey, false);
-  assert.equal(
-    (
-      await call('PATCH', '/v1/settings/ai', {
-        anthropicKey: key,
-        removeAnthropicKey: true,
-      })
-    ).statusCode,
-    400,
-  );
+  for (const payload of [
+    { apiKey: key, removeApiKey: true },
+    // Workers AI chosen and no keyProvider: which key is unclear.
+    { textProvider: 'workers_ai', apiKey: key },
+    { apiKey: key, keyProvider: 'workers_ai' },
+    { openaiKey: key },
+  ])
+    assert.equal(
+      (await call('PATCH', '/v1/settings/ai', payload)).statusCode,
+      400,
+      JSON.stringify(payload),
+    );
+});
+
+test('one OpenAI key per account, shared by transcription and AI capture', async (t) => {
+  const { fake, process, ok } = await setup(t);
+  const key = 'sk-fictional-openai-key-0000';
+  // Saved through audio settings, it serves AI capture too.
+  await ok('PATCH', '/v1/settings/audio', {
+    provider: 'workers_ai',
+    apiKey: key,
+  });
+  const settings = await ok('PATCH', '/v1/settings/ai', {
+    textProvider: 'openai',
+  });
+  assert.equal(settings.hasOpenAiKey, true);
+  assert.equal(settings.configured, true);
+  const run = (await process()).json();
+  assert.equal(run.provider, 'openai');
+  assert.deepEqual(fake.keys, [key]);
+  // Removed through AI settings, it is gone for transcription as well, and
+  // the audio provider choice is kept.
+  await ok('PATCH', '/v1/settings/ai', { removeApiKey: true });
+  const audio = await ok('GET', '/v1/settings/audio');
+  assert.equal(audio.hasApiKey, false);
+  assert.equal(audio.provider, 'workers_ai');
+  // Replaced through AI settings, transcription sees the new key.
+  const next = 'sk-fictional-openai-key-1111';
+  await ok('PATCH', '/v1/settings/ai', { apiKey: next, keyProvider: 'openai' });
+  assert.equal((await ok('GET', '/v1/settings/audio')).hasApiKey, true);
+  await process();
+  assert.deepEqual(fake.keys, [key, next]);
 });
 
 test('a capture too long for the model is refused before any run; an empty one too', async (t) => {
@@ -414,7 +451,7 @@ test('a capture too long for the model is refused before any run; an empty one t
   assert.equal(long.json().error.code, 'CAPTURE_TOO_LONG');
   await ok('PATCH', '/v1/settings/ai', {
     textProvider: 'openai',
-    openaiKey: 'sk-fictional-openai-key-0000',
+    apiKey: 'sk-fictional-openai-key-0000',
   });
   assert.equal((await process()).json().status, 'ready', 'own key: 100,000');
   await h.db.update(notes).set({ body: '  ' }).where(eq(notes.id, note.id));
@@ -692,12 +729,17 @@ test('drafts: create, list, edit, mark used and archive; never another accountâ€
 
 test('task provenance is set on create only; aliases round trip on projects', async (t) => {
   const { h, ok, call, damsyn, launch, note } = await setup(t);
-  const task = await ok('POST', '/v1/tasks', {
-    title: 'From a capture',
+  // A client may link a source note but never claim an origin.
+  const claimed = await call('POST', '/v1/tasks', {
+    title: 'Pretend capture',
     origin: 'capture',
+  });
+  assert.equal(claimed.statusCode, 400);
+  const task = await ok('POST', '/v1/tasks', {
+    title: 'Linked to a note',
     sourceNoteId: note.id,
   });
-  assert.equal(task.origin, 'capture');
+  assert.equal(task.origin, 'manual');
   assert.equal(task.sourceNoteId, note.id);
   const manual = await ok('POST', '/v1/tasks', { title: 'Typed' });
   assert.equal(manual.origin, 'manual');
@@ -754,4 +796,91 @@ test('task provenance is set on create only; aliases round trip on projects', as
     home.projects.find((p: { id: string }) => p.id === launch.id).aliases,
     ['Opening'],
   );
+});
+
+test('notes carry the status of their newest capture run in lists, reads and Home', async (t) => {
+  const { fake, process, ok, call, damsyn, note, h } = await setup(t);
+  const other = await ok('POST', '/v1/notes', { title: 'Never processed' });
+  const statuses = async () => {
+    const [list, home, one] = await Promise.all([
+      ok('GET', '/v1/notes'),
+      ok('GET', '/v1/home'),
+      ok('GET', `/v1/notes/${note.id}`),
+    ]);
+    const byId = (notes: { id: string; latestCaptureStatus: unknown }[]) =>
+      Object.fromEntries(notes.map((n) => [n.id, n.latestCaptureStatus]));
+    assert.deepEqual(byId(list), byId(home.notes));
+    assert.equal(one.latestCaptureStatus, byId(list)[note.id]);
+    return byId(list);
+  };
+  assert.deepEqual(await statuses(), { [note.id]: null, [other.id]: null });
+  fake.available = false;
+  await process();
+  assert.equal((await statuses())[note.id], 'pending');
+  fake.available = true;
+  fake.reply = () => 'broken';
+  await process();
+  assert.equal((await statuses())[note.id], 'failed');
+  fake.reply = () => validReply();
+  const ready = (await process()).json();
+  assert.equal((await statuses())[note.id], 'ready');
+  await call(
+    'POST',
+    `/v1/capture-runs/${ready.id}/save`,
+    { workspaceId: damsyn.id, tasks: [ready.suggestions.tasks[0]] },
+    { 'idempotency-key': randomUUID() },
+  );
+  const after = await statuses();
+  assert.equal(after[note.id], 'saved');
+  assert.equal(after[other.id], null);
+  // One query: the lookup is a correlated subquery on the run index.
+  const plan = await h.d1
+    .prepare(
+      'EXPLAIN QUERY PLAN SELECT status FROM capture_runs WHERE owner_user_id = ? AND note_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
+    )
+    .bind('o', 'n')
+    .all<{ detail: string }>();
+  assert.ok(
+    plan.results.some((row) => row.detail.includes('capture_runs_note_idx')),
+    JSON.stringify(plan.results),
+  );
+});
+
+test('drafts list newest first, filtered by workspace and project', async (t) => {
+  const { ok, call, h, damsyn, mtn, launch } = await setup(t);
+  let second = 0;
+  const make = async (
+    workspaceId: string,
+    projectId: string | null,
+    body: string,
+  ) => {
+    const draft = await ok('POST', '/v1/drafts', {
+      workspaceId,
+      projectId,
+      kind: 'message',
+      body,
+    });
+    // Distinct creation times, so "newest first" does not hinge on ids.
+    await h.db
+      .update(drafts)
+      .set({ createdAt: `2026-10-29T10:00:0${second++}.000Z` })
+      .where(eq(drafts.id, draft.id));
+    return draft;
+  };
+  const a = await make(damsyn.id, launch.id, 'a');
+  const b = await make(damsyn.id, null, 'b');
+  const c = await make(mtn.id, null, 'c');
+  const ids = async (query = '') =>
+    (await ok('GET', `/v1/drafts${query}`)).map((d: { id: string }) => d.id);
+  assert.deepEqual(await ids(), [c.id, b.id, a.id]);
+  assert.deepEqual(await ids(`?workspaceId=${damsyn.id}`), [b.id, a.id]);
+  assert.deepEqual(await ids(`?projectId=${launch.id}`), [a.id]);
+  assert.deepEqual(
+    await ids(`?workspaceId=${mtn.id}&projectId=${launch.id}`),
+    [],
+  );
+  await ok('DELETE', `/v1/drafts/${b.id}`, { expectedRevision: 1 });
+  assert.deepEqual(await ids(`?workspaceId=${damsyn.id}`), [a.id]);
+  for (const query of ['?workspaceId=nope', '?other=1'])
+    assert.equal((await call('GET', `/v1/drafts${query}`)).statusCode, 400);
 });

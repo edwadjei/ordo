@@ -1,7 +1,7 @@
 import {
   DatabaseAdapter,
   and,
-  asc,
+  desc,
   eq,
   isNull,
   sql,
@@ -14,13 +14,22 @@ const { drafts } = tables;
 export class DraftsRepository {
   constructor(private readonly database: DatabaseAdapter) {}
 
-  list(owner: string) {
+  list(owner: string, filter: { workspaceId?: string; projectId?: string }) {
     return this.database
       .use()
       .select()
       .from(drafts)
-      .where(and(eq(drafts.ownerUserId, owner), isNull(drafts.deletedAt)))
-      .orderBy(asc(drafts.createdAt), asc(drafts.id));
+      .where(
+        and(
+          eq(drafts.ownerUserId, owner),
+          isNull(drafts.deletedAt),
+          filter.workspaceId
+            ? eq(drafts.workspaceId, filter.workspaceId)
+            : undefined,
+          filter.projectId ? eq(drafts.projectId, filter.projectId) : undefined,
+        ),
+      )
+      .orderBy(desc(drafts.createdAt), desc(drafts.id));
   }
 
   async find(owner: string, id: string) {

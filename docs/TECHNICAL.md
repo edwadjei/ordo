@@ -137,7 +137,7 @@ The D1 schema keeps today's tables and columns, translated to SQLite types:
 | `audio_settings` | owner_user_id (primary key), provider, encrypted_api_key, created_at, updated_at | Ciphertext only |
 | `drafts` | id, owner_user_id, workspace_id, project_id, source_note_id, kind, recipient, subject, body, used_at, deleted_at, revision, created_at, updated_at | Email/message drafts; never sent by Ordo |
 | `capture_runs` | id, owner_user_id, note_id, note_revision, workspace_id, project_id, status, provider, model, suggestions, error_code, input_tokens, output_tokens, neurons, save_key, save_fingerprint, save_claim, saved_result, saved_at, created_at, updated_at | One "Process with AI" request; validated suggestions only, never note text or raw model output |
-| `ai_settings` | owner_user_id (primary key), text_provider, encrypted_openai_key, encrypted_anthropic_key, created_at, updated_at | Ciphertext only |
+| `ai_settings` | owner_user_id (primary key), text_provider, encrypted_anthropic_key, created_at, updated_at | Ciphertext only; the one OpenAI key stays in `audio_settings`, shared with transcription |
 | `tasks_fts`, `notes_fts`, `projects_fts` | FTS5 virtual tables | Kept current by insert/update/delete triggers |
 
 Later feature streams add **conversations**, **people**, **ai_jobs**, **entity_links**, **api_tokens**, and **audit_events** with the same ownership rules. Attachments are not part of Ordo: audio and files are never stored.

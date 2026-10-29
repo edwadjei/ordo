@@ -2,7 +2,11 @@
 
 ## One choice per account
 
-`GET /v1/settings/ai` returns `{ textProvider, workersAiAvailable, hasOpenaiKey, hasAnthropicKey, configured }`. `textProvider` is `workers_ai` (the default), `openai` or `anthropic`. `PATCH` takes any of `textProvider`, `openaiKey`, `anthropicKey`, `removeOpenaiKey`, `removeAnthropicKey`. A key is accepted only over HTTPS or from localhost, is encrypted with AES-GCM under `ORDO_CREDENTIAL_KEY` (the same storage as the audio key), and is never returned. These keys are separate from the audio settings' OpenAI key.
+`GET /v1/settings/ai` returns `{ textProvider, workersAiAvailable, hasOpenAiKey, hasAnthropicKey, configured }`. `textProvider` is `workers_ai` (the default), `openai` or `anthropic`. `PATCH` takes any of `textProvider`, `apiKey`, `removeApiKey` and `keyProvider` (`openai` or `anthropic`). A key change applies to `keyProvider`, or to the chosen `textProvider` when it is omitted; with Workers AI chosen and no `keyProvider` it is `400`. A key is accepted only over HTTPS or from localhost, is encrypted with AES-GCM under `ORDO_CREDENTIAL_KEY`, and is never returned.
+
+## One OpenAI key per account
+
+The OpenAI key is the one in [audio settings](../audio-settings/audio-settings.md), shared by transcription and AI capture, so Edward never enters it twice: saving or removing it here changes it for transcription too, and the audio provider choice is kept. Only the Anthropic key is stored in `ai_settings`.
 
 ## Never a silent fallback
 

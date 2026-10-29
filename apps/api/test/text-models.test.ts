@@ -8,7 +8,15 @@ import {
 } from '../src/adapters/text-ai/workers-ai-text-model.js';
 import { OpenAiTextModel } from '../src/adapters/text-ai/openai-text-model.js';
 import { AnthropicTextModel } from '../src/adapters/text-ai/anthropic-text-model.js';
-import { captureOutputSchema } from '../src/domains/capture/capture.prompt.js';
+import {
+  captureOutputSchema,
+  capturePrompt,
+} from '../src/domains/capture/capture.prompt.js';
+import {
+  DevelopmentTextModelProviders,
+  developmentReply,
+} from '../src/adapters/text-ai/development-text-model.js';
+import { readWorkerConfig } from '../src/platform/config/worker-config.js';
 
 // Request shapes and error mapping for each text adapter, against fake
 // transports: no real Workers AI, OpenAI or Anthropic call is made.
@@ -212,4 +220,69 @@ test('Anthropic: structured outputs, low effort and default fallbacks; refusals 
     assert.equal(error.code, 'AI_BUSY');
     return true;
   });
+});
+
+test('development fake model: deterministic suggestions from the note, no network', async () => {
+  const prompt = capturePrompt({
+    note: {
+      title: 'Sync',
+      source: 'transcript',
+      body: 'Send the go-live checklist. Book the venue. Waiting on pricing from Kofi.',
+    },
+    workspace: { id: 'w', name: 'DAMSYN' },
+    projects: [
+      { id: 'a', name: 'Vendor portal', description: '', aliases: [] },
+      { id: 'b', name: 'Launch', description: '', aliases: ['Go-live'] },
+    ],
+    chosenProjectId: null,
+    today: { date: '2026-10-29', weekday: 'Thursday', timezone: 'UTC' },
+  });
+  const model = new DevelopmentTextModelProviders().workersAi();
+  const first = await model.generate({ ...request, prompt });
+  assert.deepEqual(
+    (await model.generate({ ...request, prompt })).output,
+    first.output,
+  );
+  const reply = first.output as ReturnType<typeof developmentReply>;
+  assert.deepEqual(
+    reply.tasks.map((task) => [task.title, task.dueDate, task.waitingOn]),
+    [
+      ['Send the go-live checklist.', '2026-10-30', null],
+      ['Book the venue.', null, null],
+      ['Follow up: Waiting on pricing from Kofi.', null, 'Kofi'],
+    ],
+  );
+  assert.equal(reply.tasks[2].isFollowUp, true);
+  assert.equal(reply.drafts[0].to, 'Kofi');
+  assert.deepEqual(reply.destination, {
+    projectRef: 'p2',
+    confidence: 'high',
+    reason: 'The capture names this project.',
+  });
+  const unnamed = developmentReply(prompt.replace('go-live', 'final'));
+  assert.equal(unnamed.destination.confidence, 'low');
+  assert.equal(unnamed.destination.projectRef, null);
+});
+
+test('the development fake model is refused outside development', () => {
+  assert.equal(
+    readWorkerConfig({ ORDO_ENV: 'development', ORDO_FAKE_TEXT_AI: 'on' })
+      .fakeTextAi,
+    true,
+  );
+  assert.equal(readWorkerConfig({ ORDO_ENV: 'development' }).fakeTextAi, false);
+  assert.throws(
+    () =>
+      readWorkerConfig({
+        OTP_HMAC_KEY: '0f'.repeat(32),
+        TRUSTED_ORIGINS: 'https://ordo.example.test',
+        ORDO_FAKE_TEXT_AI: 'on',
+      }),
+    /local development only/,
+  );
+  assert.throws(
+    () =>
+      readWorkerConfig({ ORDO_ENV: 'development', ORDO_FAKE_TEXT_AI: 'yes' }),
+    /ORDO_FAKE_TEXT_AI/,
+  );
 });

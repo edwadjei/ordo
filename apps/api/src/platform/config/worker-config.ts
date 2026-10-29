@@ -10,6 +10,7 @@ export interface WorkerVariables {
   OTP_HMAC_KEY?: string;
   ORDO_CREDENTIAL_KEY?: string;
   ORDO_WORKERS_AI?: string;
+  ORDO_FAKE_TEXT_AI?: string;
   GATEKEEPER_API_KEY?: string;
   GATEKEEPER_API_URL?: string;
   GATEKEEPER_SENDER_ID?: string;
@@ -31,6 +32,12 @@ export interface WorkerConfig {
    * Cloudflare and needs a login). `ORDO_WORKERS_AI=on` or `off` overrides.
    */
   workersAi: boolean;
+  /**
+   * Development only: a deterministic fake text model for AI capture, so the
+   * capture journey runs under `wrangler dev` without real AI calls.
+   * `ORDO_FAKE_TEXT_AI=on` outside development is a configuration error.
+   */
+  fakeTextAi: boolean;
   gatekeeper: {
     apiKey?: string;
     apiUrl?: string;
@@ -60,6 +67,11 @@ export function readWorkerConfig(environment: WorkerVariables): WorkerConfig {
   const workersAiSetting = environment.ORDO_WORKERS_AI?.trim().toLowerCase();
   if (workersAiSetting && !['on', 'off'].includes(workersAiSetting))
     throw new Error('ORDO_WORKERS_AI must be on or off.');
+  const fakeTextAiSetting = environment.ORDO_FAKE_TEXT_AI?.trim().toLowerCase();
+  if (fakeTextAiSetting && !['on', 'off'].includes(fakeTextAiSetting))
+    throw new Error('ORDO_FAKE_TEXT_AI must be on or off.');
+  if (fakeTextAiSetting === 'on' && !development)
+    throw new Error('ORDO_FAKE_TEXT_AI is for local development only.');
   const trustedOrigins = environment.TRUSTED_ORIGINS?.split(',')
     .map((value) => value.trim())
     .filter(Boolean);
@@ -72,6 +84,7 @@ export function readWorkerConfig(environment: WorkerVariables): WorkerConfig {
     otpHmacKey,
     credentialKey,
     workersAi: workersAiSetting ? workersAiSetting === 'on' : !development,
+    fakeTextAi: fakeTextAiSetting === 'on',
     gatekeeper: {
       apiKey: environment.GATEKEEPER_API_KEY?.trim() || undefined,
       apiUrl: environment.GATEKEEPER_API_URL?.trim() || undefined,
