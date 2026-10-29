@@ -4,9 +4,9 @@
 
 **Current milestone:** H1, the Cloudflare Phase 1 Hono port, after the hosting documentation PR. Native mobile follows hosted staging so the apps target a real API.
 
-**Application status:** Working locally. `main` is at `aa9d62b` (PRs #1–#3 merged; #3 on Edward's word on 22 October 2026; rollback point `e0dc0cc`). Nothing is deployed and no hosted environment exists.
+**Application status:** Working locally. `main` is at `e96df57` (latest merges: #11 D1 and the Worker, #12 Workers AI transcription, #13 sign-in code delivery on the Worker, each on Edward's word). Nothing is deployed and no hosted environment exists.
 
-**Implementation status:** the local build runs the Hono API with Web Crypto adapters in Node on embedded PostgreSQL (PGlite), and the web app builds as a static export. The [Cloudflare architecture](TECHNICAL.md) is delivered through H1–H3 below.
+**Implementation status:** Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database (check-on-save writes, code-only sign-in, FTS5 search), serving the static web export; Workers AI Whisper transcribes by default and has been verified on Edward's Cloudflare account. Nothing is deployed; hosted staging is Phase 3.
 
 ## Milestones
 
@@ -75,7 +75,7 @@ Application baseline verification: fresh `npm ci`, `npm run format:check`, all w
 
 ## Release record
 
-No hosted releases, deployments, or hosted backups exist. Database migrations have run locally only. Merges to `main`: PR #3 everyday views and task times/people → `aa9d62b` on 22 October 2026, rollback point `e0dc0cc` (which carries PRs #1–#2). Add a release entry only after an approved integration/deploy, with revision, checks, D1 restore point if relevant, rollback point, and post-deploy evidence.
+No hosted releases, deployments, or hosted backups exist. Migrations have run on local D1 only. Recent merges to `main`, each on Edward's word: #9 Phase 1 → `180742d` (rollback `2bac518`); #11 D1 and the Worker → `97b0469` (rollback `0838aad`); #12 Workers AI transcription → `ff4a567` (rollback `97b0469`); #13 sign-in delivery fix → `e96df57` (rollback `ff4a567`). Add a release entry only after an approved integration/deploy, with revision, checks, D1 restore point if relevant, rollback point, and post-deploy evidence.
 
 ## Remaining web acceptance work
 

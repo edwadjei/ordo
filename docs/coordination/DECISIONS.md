@@ -41,7 +41,7 @@
 | ID | Choice | Recommendation / next action | State |
 |---|---|---|---|
 | P01 | Build sequence | Responsive web → native iOS (urgent) → macOS; AI/MCP feature scope is planned separately and does not block starting iOS | Platform priority confirmed in C09; detailed feature milestones proposed |
-| P02 | Framework/ORM | Next.js static export + Hono + Zod + Drizzle `sqlite-core` on D1; Expo for iOS/Android; Tauri 2 for Mac | Decided (C25). Implementation status: the local build still uses Fastify and embedded PostgreSQL; the Hono port is Phase 1 and D1 is Phase 2 |
+| P02 | Framework/ORM | Next.js static export + Hono + Zod + Drizzle `sqlite-core` on D1; Expo for iOS/Android; Tauri 2 for Mac | Decided (C25). Implemented locally (Phases 1–2); hosting is Phase 3 |
 | P03 | Runtime and package manager | Node 22.23.2 and npm workspaces for development and tests; the Cloudflare Workers runtime for hosted Ordo; Web Crypto only in Worker code | Decided (C25) |
 | P04 | Authentication | Code-only six-digit email/phone OTP through Gatekeeper (C18); codes hashed with HMAC-SHA256 and a Worker secret; no password login in hosted Ordo; legacy local password accounts convert at first code sign-in. Native token sign-in designed alongside the Hono port. Contact linking and optional PIN remain separate | Code-only hosted sign-in decided (C25). Email/phone OTP implemented locally; contact linking, optional PIN, and native tokens pending |
 | P05 | Personal Inbox ownership | Define owner-bound unscoped records and explicit movement into workspace context | Open; schema blocker |

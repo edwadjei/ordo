@@ -6,7 +6,7 @@
 
 **Method:** coordinated-development. The coordinator writes briefs and checks PRs; specialists build in PRs; Edward approves.
 
-**Implementation status:** the local build runs the Hono API in Node on embedded PostgreSQL (PGlite), with the Next.js dev server proxying `/api` and the web build producing a static export. Phase 1 is delivered; the remaining choices below are Phase 2 and 3 targets.
+**Implementation status:** Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database (check-on-save writes, code-only sign-in, FTS5 search), serving the static web export; Workers AI Whisper transcribes by default and has been verified on Edward's Cloudflare account. Nothing is deployed; hosted staging is Phase 3.
 
 ## Working choices
 
