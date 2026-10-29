@@ -41,8 +41,8 @@ The limit and the name check are also written into the insert itself, so two cre
 
 `agent_activity` records what kind of thing happened to which id, never any content: `{ id, tokenId, action, entityType, entityId, createdAt }`.
 
-- REST actions are named after the route, such as `task.create`, `task.update`, `task.archive`, `note.create`, `task.read`, `capture.save`, `workspace.create`, `project.create` and `project.update`. A create logs the id of what it created (or returned).
-- MCP actions are `mcp.<tool>`.
+- REST actions are named after the route, such as `task.create`, `task.update`, `task.archive`, `note.create`, `task.read`, `capture.save`, `workspace.create`, `project.create` and `project.update`. A create logs the id of what it created. A workspace or project create that returned an existing one (`existing: true`) created nothing and logs nothing; only the token's use is recorded.
+- MCP actions are `mcp.<tool>`, except that `create_workspace` and `create_project` returning an existing one log `workspace.found` or `project.found` with its id.
 
 `GET /v1/settings/agent-activity?tokenId=&before=<createdAt>` lists them newest first, 100 a page. Entries older than 90 days are removed when a token's `lastUsedAt` is written.
 

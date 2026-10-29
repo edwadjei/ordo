@@ -164,13 +164,16 @@ export class AgentAccessService extends AgentAuthenticator {
 
   /**
    * After a REST request made with a token: logs the route's action and the
-   * item it touched (the id of what was created, else the URL's id). MCP
-   * requests log per tool instead.
+   * item it touched (the id of what was created, else the URL's id). A
+   * create that returned an existing workspace or project (`existing: true`)
+   * created nothing, so only the token's use is recorded. MCP requests log
+   * per tool instead.
    */
   readonly afterHook = async (request: HttpRequest, result: unknown) => {
     const agent = request.agent;
     if (!agent || agent.action === 'mcp') return;
     const created = (result as { id?: unknown } | null)?.id;
+    const found = (result as { existing?: unknown } | null)?.existing === true;
     // A project created under `/v1/workspaces/:id/projects` is the project.
     const entityId =
       agent.action.endsWith('.create') && typeof created === 'string'
@@ -179,7 +182,7 @@ export class AgentAccessService extends AgentAuthenticator {
     await this.log(
       request.actor!.id,
       agent.tokenId,
-      agent.action,
+      found ? null : agent.action,
       agent.entityType,
       entityId,
       agent.touch,

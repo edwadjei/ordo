@@ -35,6 +35,8 @@ export interface ToolContext {
 /** What a tool did, for the activity log. */
 export interface ToolOutcome {
   result: unknown;
+  /** The activity action, when not `mcp.<tool>`. */
+  action?: string;
   entityType: string | null;
   entityId: string | null;
 }
@@ -294,6 +296,8 @@ export const tools: Tool[] = [
           origin: workspace.origin,
           existing,
         },
+        // Returning an existing one is not a create.
+        ...(existing ? { action: 'workspace.found' } : {}),
         entityType: 'workspace',
         entityId: workspace.id,
       };
@@ -325,6 +329,7 @@ export const tools: Tool[] = [
       );
       return {
         result: { ...compactProject(project), existing },
+        ...(existing ? { action: 'project.found' } : {}),
         entityType: 'project',
         entityId: project.id,
       };

@@ -910,6 +910,15 @@ test('a write token creates workspaces and projects over REST, marked agent, wit
     ),
   );
   assert.ok(entries.some((e: string[]) => e[0] === 'project.update'));
+  // Returning an existing one created nothing, so nothing is logged for it:
+  // one create each, though each was asked for twice.
+  const count = (action: string, id: string) =>
+    entries.filter((e: string[]) => e[0] === action && e[2] === id).length;
+  assert.equal(count('workspace.create', workspace.id), 1);
+  assert.equal(count('project.create', project.id), 1);
+  // Three project creates, one workspace create, one update; refused
+  // requests are not logged.
+  assert.equal(entries.length, 5, JSON.stringify(entries));
 });
 
 test('retry keys and limits for workspace and project creates', async (t) => {
@@ -1159,13 +1168,23 @@ test('MCP: create_workspace, create_project and update_project', async (t) => {
     [null, false, record.id],
   );
 
-  const actions = (
+  // A create that returned an existing one is logged as found, not created.
+  const entries = (
     await ok('GET', `/v1/settings/agent-activity?tokenId=${record.id}`)
-  ).map((entry: { action: string }) => entry.action);
-  for (const action of [
-    'mcp.create_workspace',
-    'mcp.create_project',
-    'mcp.update_project',
-  ])
-    assert.ok(actions.includes(action), action);
+  )
+    .reverse()
+    .map((entry: { action: string; entityId: string | null }) => [
+      entry.action,
+      entry.entityId,
+    ]);
+  const ws = workspace.id;
+  const pr = project.structuredContent.id;
+  assert.deepEqual(entries, [
+    ['mcp.create_workspace', ws],
+    ['workspace.found', ws], // the retried key
+    ['workspace.found', ws], // the same name
+    ['mcp.create_project', pr],
+    ['project.found', pr],
+    ['mcp.update_project', pr],
+  ]);
 });
