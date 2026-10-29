@@ -2,7 +2,7 @@
 
 **Direction:** Adapt the organization and concepts of Edward's local `damsyn-ecommerce-api` to Ordo. Keep Ordo's personal-workspace model and current HTTP contract. The API is a Hono app in one Cloudflare Worker on D1 ([technical architecture](TECHNICAL.md)).
 
-**Implementation status:** the code today hosts these boundaries on Hono in Node with embedded PostgreSQL and Web Crypto adapters. Phase 2 moves persistence to D1 with check-on-save writes ([platform spec](specs/02-cloudflare-platform.md)).
+**Implementation status:** these boundaries run in the Cloudflare Worker (Hono, Web Crypto adapters, D1 with check-on-save writes) under `wrangler dev` locally. Nothing is deployed; hosted staging is Phase 3 ([platform spec](specs/02-cloudflare-platform.md)).
 
 ## Four boundaries
 

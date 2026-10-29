@@ -2,7 +2,7 @@
 
 **Status:** Decided by Edward on 27 October 2026 ("aligned"; "I don't want to pay $5"). Documentation first, then Phase 1.
 
-**Implementation status:** Phase 1 is delivered: the API runs on Hono with Web Crypto adapters in Node on embedded PostgreSQL, and the web app builds as a static export. Nothing is deployed. Phase 2 (D1 and the Worker) is the next engineering work; Phase 3 (hosted staging) follows with Edward's approval at each deploy.
+**Implementation status:** Phases 1 and 2 are delivered: Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database (check-on-save writes, code-only sign-in, FTS5 search), serving the static web export; Workers AI Whisper transcribes by default and has been verified on Edward's Cloudflare account. Nothing is deployed; hosted staging is Phase 3. Phase 3 follows with Edward's approval at each deploy.
 
 **References:** [Technical architecture](../TECHNICAL.md), [API architecture](../API-ARCHITECTURE.md), [everyday core spec](01-everyday-core.md), [decision register](../coordination/DECISIONS.md), [Phase 1 brief](../coordination/CLOUDFLARE-PHASE-1-BRIEF.md).
 

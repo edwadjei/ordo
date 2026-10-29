@@ -4,7 +4,7 @@
 
 **Architectural principle:** **Fast deterministic core; AI is asynchronous, optional, and replaceable.**
 
-**Implementation status:** this document describes Ordo's architecture. The local build runs the Hono API with Web Crypto adapters in Node on embedded PostgreSQL (PGlite), and the web app runs on the Next.js dev server with a dev proxy (its build is a static export, not yet hosted). Phase 1 (Hono port) is done; D1 is Phase 2 of the [Cloudflare platform spec](specs/02-cloudflare-platform.md); Phase 3 is hosted staging. Nothing is deployed. Where a section is not yet true of the running code, the [delivery ledger](PLAN.md) and the [local development guide](LOCAL-DEVELOPMENT.md) say so.
+**Implementation status:** Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database (check-on-save writes, code-only sign-in, FTS5 search), serving the static web export; Workers AI Whisper transcribes by default and has been verified on Edward's Cloudflare account. Nothing is deployed; hosted staging is Phase 3. Where a section is not yet true of the running code, the [delivery ledger](PLAN.md) says so.
 
 ## 1. Architecture at a glance
 
@@ -164,7 +164,7 @@ D1 has no row locks or interactive transactions, and Ordo does not use Durable O
 | A code works exactly once | Compare-and-set on `consumed = 0` (see section 8) |
 | Demo fixtures load once | The batch starts with a conditional `demo_loaded` claim and every fixture insert depends on that claim |
 
-This gives the same user-visible guarantees as the locked transaction used today without holding anything open across requests. **Implementation status:** today's API serializes each owner's writes with a PostgreSQL transaction and a lock on the user row; check-on-save replaces that in Phase 2.
+This gives the same user-visible guarantees as the locked transaction used today without holding anything open across requests.
 
 ## 7. Search
 
@@ -174,7 +174,7 @@ Each searchable table has an FTS5 companion kept in sync by triggers, so the API
 - `notes_fts`: title, body.
 - `projects_fts`: name, description.
 
-`GET /v1/search?q=…` runs a parameterized `MATCH` with `bm25()` ranking, filters by owner and active rows, and returns at most 30 results with plain-text excerpts. Query text is quoted into plain search terms; it is never interpreted as SQL or raw FTS syntax. Token search with stemming is intentional; this is not fuzzy or semantic search. **Implementation status:** search runs on PostgreSQL full-text indexes today; FTS5 is Phase 2.
+`GET /v1/search?q=…` runs a parameterized `MATCH` with `bm25()` ranking, filters by owner and active rows, and returns at most 30 results with plain-text excerpts. Query text is quoted into plain search terms; it is never interpreted as SQL or raw FTS syntax. Token search with stemming is intentional; this is not fuzzy or semantic search.
 
 ## 8. Authentication and sessions
 
@@ -193,7 +193,7 @@ Hosted Ordo is **code-only**: email or Ghana phone, then a six-digit code delive
 | Abuse control | Per-IP limits on sign-in routes stored in `auth_throttle`, keyed by `CF-Connecting-IP`, as one upsert per request. Sign-out is never throttled |
 | Account guard | Optional `X-Ordo-Account` header; mismatch → `409 SESSION_CHANGED` |
 
-**Implementation status:** the local build hashes codes with salted scrypt, keeps the legacy password routes, and limits sign-in per API process in memory. HMAC hashing arrives in Phase 1; the single-statement limits, the compare-and-set batch, D1 throttling, and removal of password sign-in arrive in Phase 2.
+
 
 ## 9. Secrets and cryptography
 
@@ -202,7 +202,7 @@ Hosted Ordo is **code-only**: email or Ghana phone, then a six-digit code delive
 - Account-owned provider keys (for transcription or AI) are encrypted with AES-256-GCM, a fresh 96-bit nonce, and the owner ID as additional authenticated data. Only ciphertext is stored. Another account cannot use the ciphertext because decryption authenticates owner identity.
 - The Worker uses no scrypt, bcrypt, or Argon2: they do not fit 10 ms CPU and are not needed for a code-only sign-in.
 
-**Implementation status:** the local build uses Web Crypto adapters (HMAC-SHA256 for sign-in codes, SHA-256 for sessions and fingerprints, AES-GCM for provider keys). Node `crypto` remains only to verify legacy scrypt passwords. Locally, `ORDO_CREDENTIAL_KEY` and `OTP_HMAC_KEY` fall back to owner-only key files under `.data/secrets/`; the Worker reads both only from its secrets.
+
 
 ## 10. API design — REST v1
 
@@ -235,7 +235,7 @@ Browsers call `/api/...` on the Worker's origin, which maps to the API's `/v1/..
 
 ## 11. Read consistency and sync
 
-D1 read replicas can lag briefly behind a write. Ordo uses the **D1 Sessions API**: each request opens a session from the bookmark the client last saw, and the response returns the new bookmark. `packages/client` stores and forwards that value in the `X-Ordo-Bookmark` header, so web and mobile always read their own saves. Sessions work whether or not read replication is switched on for the database. **Implementation status:** the client plumbing is stubbed in Phase 1; the API emits bookmarks from Phase 2. Server-assigned `revision` and `updatedAt`, plus a later change cursor, enable incremental sync.
+D1 read replicas can lag briefly behind a write. Ordo uses the **D1 Sessions API**: each request opens a session from the bookmark the client last saw, and the response returns the new bookmark. `packages/client` stores and forwards that value in the `X-Ordo-Bookmark` header, so web and mobile always read their own saves. Sessions work whether or not read replication is switched on for the database.
 
 **MVP approach: offline-capable capture, online source of truth.**
 
@@ -328,7 +328,7 @@ Instrument cold start, interaction latency, error rate, sync failures, and AI jo
 
 ### Web
 
-Built with Next.js `output: 'export'` and served as Worker static assets. The API lives under `/api` on the same origin, so no CORS configuration is needed. During local development the Next dev server proxies `/api` to the API process. **Implementation status:** `npm run build` produces the static export in `apps/web/out` and the browser client uses only same-origin `/api`; the Worker that serves it is Phase 2, so locally `npm run serve:export --workspace @ordo/web` stands in for it.
+Built with Next.js `output: 'export'` and served as Worker static assets. The API lives under `/api` on the same origin, so no CORS configuration is needed. During local development the Next dev server proxies `/api` to the API process. **Implementation status:** `npm run build` writes the export to `apps/web/out`, which `wrangler dev` serves locally; `npm run dev` runs Next dev on 3358 proxying `/api` to the Worker on 8788.
 
 ### iOS / Android (Expo)
 
