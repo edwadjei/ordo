@@ -18,13 +18,18 @@ const snapshot = {
     timezone: 'Africa/Accra',
   },
   workspaces: [
-    { id: 'mtn', name: 'MTN', archived: false },
-    { id: 'old', name: 'Old job', archived: true },
+    { id: 'mtn', name: 'MTN', archivedAt: null },
+    { id: 'old', name: 'Old job', archivedAt: '2026-10-30T09:00:00Z' },
   ],
   projects: [
-    { id: 'sim', workspaceId: 'mtn', name: 'SIM', archived: false },
-    { id: 'tv', workspaceId: 'mtn', name: 'One TV', archived: true },
-    { id: 'legacy', workspaceId: 'old', name: 'Legacy', archived: false },
+    { id: 'sim', workspaceId: 'mtn', name: 'SIM', archivedAt: null },
+    {
+      id: 'tv',
+      workspaceId: 'mtn',
+      name: 'One TV',
+      archivedAt: '2026-10-30T09:00:00Z',
+    },
+    { id: 'legacy', workspaceId: 'old', name: 'Legacy', archivedAt: null },
   ],
   tasks: [
     { id: 't-sim', workspaceId: 'mtn', projectId: 'sim' },
