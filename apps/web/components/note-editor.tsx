@@ -18,8 +18,11 @@ export function NoteEditor({
   note,
   onClose,
   onSaved,
+  readOnly = false,
 }: {
   note: Note;
+  /** Offline or showing the saved view: the note can be read, not edited. */
+  readOnly?: boolean;
   onClose: () => void;
   onSaved: () => Promise<unknown>;
 }) {
@@ -143,43 +146,50 @@ export function NoteEditor({
     state === 'unsaved' || state === 'error' || state === 'offline';
   return (
     <Dialog title="A place for your thoughts" drawer onClose={close}>
-      <div className={`note-save-state is-${state}`} role="status">
-        {state === 'saved' ? (
-          <>
-            <Check size={12} aria-hidden="true" />
-            {savedAt
-              ? `Saved ${savedAt.toDateString() === new Date().toDateString() ? 'at' : 'on'} ${savedAtLabel(savedAt)}`
-              : 'Saved'}
-          </>
-        ) : state === 'saving' ? (
-          <>
-            <LoaderCircle size={12} className="spin" aria-hidden="true" />
-            Saving…
-          </>
-        ) : state === 'offline' ? (
-          <>
-            <CloudOff size={12} aria-hidden="true" />
-            {typeof navigator !== 'undefined' && !navigator.onLine
-              ? 'Offline — not saved yet. It will save when you’re back online.'
-              : 'Couldn’t reach Ordo — not saved yet. Your text is still here.'}
-          </>
-        ) : state === 'error' ? (
-          <>
-            <AlertCircle size={12} aria-hidden="true" />
-            Not saved — your text is still here
-          </>
-        ) : (
-          <>
-            <span className="note-save-dot" aria-hidden="true" />
-            Unsaved changes
-          </>
-        )}
-      </div>
+      {readOnly && state === 'saved' ? (
+        <p className="offline-note" role="status">
+          You’re viewing a saved copy. Editing notes needs a connection.
+        </p>
+      ) : (
+        <div className={`note-save-state is-${state}`} role="status">
+          {state === 'saved' ? (
+            <>
+              <Check size={12} aria-hidden="true" />
+              {savedAt
+                ? `Saved ${savedAt.toDateString() === new Date().toDateString() ? 'at' : 'on'} ${savedAtLabel(savedAt)}`
+                : 'Saved'}
+            </>
+          ) : state === 'saving' ? (
+            <>
+              <LoaderCircle size={12} className="spin" aria-hidden="true" />
+              Saving…
+            </>
+          ) : state === 'offline' ? (
+            <>
+              <CloudOff size={12} aria-hidden="true" />
+              {typeof navigator !== 'undefined' && !navigator.onLine
+                ? 'Offline — not saved yet. It will save when you’re back online.'
+                : 'Couldn’t reach Ordo — not saved yet. Your text is still here.'}
+            </>
+          ) : state === 'error' ? (
+            <>
+              <AlertCircle size={12} aria-hidden="true" />
+              Not saved — your text is still here
+            </>
+          ) : (
+            <>
+              <span className="note-save-dot" aria-hidden="true" />
+              Unsaved changes
+            </>
+          )}
+        </div>
+      )}
       <label>
         Title
         <input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
+          readOnly={readOnly && state === 'saved'}
           maxLength={200}
         />
       </label>
@@ -191,6 +201,7 @@ export function NoteEditor({
           className="note-body"
           value={body}
           onChange={(event) => setBody(event.target.value)}
+          readOnly={readOnly && state === 'saved'}
           placeholder="Write freely. You can organize it later."
         />
       </label>

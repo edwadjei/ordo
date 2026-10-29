@@ -2447,3 +2447,156 @@ fieldset:disabled select {
     gap: 3px 10px;
   }
 }
+/* Project detail: local actions, tabs and the Overview tab. */
+.project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -14px 0 26px;
+}
+.project-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 12px;
+  color: light-dark(#4f5b63, #d3dbe3);
+}
+.project-actions button:hover {
+  border-color: light-dark(#c8cfd4, #52606d);
+  background: var(--soft);
+}
+.project-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-width: 0;
+}
+.project-tabs::-webkit-scrollbar {
+  display: none;
+}
+.project-tabs button {
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+.project-tabs button.selected {
+  border-bottom-color: var(--brand-orange);
+}
+.overview-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 26px;
+}
+.overview-stats > div {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.overview-stats dt {
+  font-size: 11px;
+  color: var(--muted);
+}
+.overview-stats dd {
+  margin: 2px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+.overview-stats > .is-warm {
+  border-color: light-dark(#f0d9cd, #4a3a32);
+  background: var(--warm-soft);
+}
+.overview-stats > .is-warm dd {
+  color: var(--warm);
+}
+.overview-waiting,
+.overview-notes {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.overview-waiting li,
+.overview-notes button {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  text-align: left;
+}
+.overview-waiting svg,
+.overview-notes svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--muted);
+}
+.overview-waiting span,
+.overview-notes span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.overview-waiting strong,
+.overview-notes strong {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.overview-waiting small,
+.overview-notes small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.overview-notes button:hover strong {
+  text-decoration: underline;
+}
+@media (max-width: 760px) {
+  .project-actions {
+    margin-top: -8px;
+  }
+  .overview-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* Task panel: workspace and project selectors for moving a task. */
+.move-fields {
+  margin: 0 0 4px;
+}
+.move-fields legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+/* Offline: the saved view is read-only apart from quick task capture. */
+.offline-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  margin: 0 0 22px;
+  border-radius: 10px;
+  border: 1px solid light-dark(#f0d9cd, #4a3a32);
+  background: var(--warm-soft);
+  color: light-dark(#5b4a40, #ecd9cf);
+  font-size: 12px;
+}
+.offline-banner svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--warm);
+}
+.offline-banner span {
+  flex: 1;
+}
+.offline-note {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--warm);
+}

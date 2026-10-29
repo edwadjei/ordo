@@ -358,3 +358,51 @@ export function savedAtLabel(saved: Date, now = new Date(), locale?: string) {
     ? saved.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
     : saved.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 }
+
+export interface ProjectOverview {
+  open: EverydayTask[];
+  /** The first open tasks to show on the Overview tab. */
+  next: EverydayTask[];
+  overdue: EverydayTask[];
+  waiting: EverydayTask[];
+  notes: HomeSnapshot['notes'];
+  recentNotes: HomeSnapshot['notes'];
+}
+/**
+ * A project's Overview tab: overdue tasks (its blockers), the next open tasks,
+ * Waiting On with who, and the most recently updated notes. Overdue and
+ * waiting tasks are not repeated in the open list.
+ */
+export function projectOverview(
+  data: HomeSnapshot,
+  projectId: string,
+  now: Clock,
+  limits = { next: 5, notes: 3 },
+): ProjectOverview {
+  const tasks = data.tasks.filter(
+    (task) => task.projectId === projectId && open(task),
+  );
+  const overdue = tasks.filter((task) =>
+    moments(task).some((m) => m.date < now.date),
+  );
+  const waiting = waitingTasks(tasks);
+  const shown = new Set([...overdue, ...waiting].map((task) => task.id));
+  const rest = visibleTasks(
+    { ...data, tasks },
+    'project',
+    null,
+    projectId,
+    false,
+  ).filter((task) => !shown.has(task.id));
+  const notes = data.notes
+    .filter((note) => note.projectId === projectId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return {
+    open: tasks,
+    next: rest.slice(0, limits.next),
+    overdue,
+    waiting,
+    notes,
+    recentNotes: notes.slice(0, limits.notes),
+  };
+}

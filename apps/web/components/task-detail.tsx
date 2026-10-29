@@ -17,6 +17,8 @@ const editable = [
   'followUpTime',
   'responsiblePerson',
   'waitingOn',
+  'workspaceId',
+  'projectId',
 ] as const;
 const nameOrNull = (value: string | null) => value?.trim() || null;
 export function TaskDetail({
@@ -25,8 +27,11 @@ export function TaskDetail({
   onClose,
   onChange,
   onSelect,
+  readOnly = false,
 }: {
   task: Task;
+  /** Offline or showing the saved view: the task can be read, not changed. */
+  readOnly?: boolean;
   data: HomeSnapshot;
   onClose: () => void;
   onChange: () => Promise<unknown>;
@@ -122,16 +127,21 @@ export function TaskDetail({
     if (confirmLeave()) onClose();
   };
   const workspace = data.workspaces.find(
-      (item) => item.id === task.workspaceId,
+      (item) => item.id === baseline.workspaceId,
     ),
-    project = data.projects.find((item) => item.id === task.projectId);
+    project = data.projects.find((item) => item.id === baseline.projectId);
   return (
     <Dialog title="Task details" drawer onClose={close}>
       <p className="detail-context">
         {workspace?.name || 'Personal Inbox'} {project && ` / ${project.name}`}
       </p>
+      {readOnly && (
+        <p className="offline-note" role="status">
+          You’re viewing a saved copy. Editing this task needs a connection.
+        </p>
+      )}
       <form onSubmit={save}>
-        <fieldset disabled={busy}>
+        <fieldset disabled={busy || readOnly}>
           <label>
             Task
             <input
@@ -151,6 +161,69 @@ export function TaskDetail({
               placeholder="A little context, if you need it…"
             />
           </label>
+          {task.parentId ? (
+            <p className="field-hint">
+              Subtasks live with their parent. Move the parent task to move this
+              one.
+            </p>
+          ) : (
+            <fieldset className="move-fields">
+              <legend>Where it lives</legend>
+              <div className="field-grid">
+                <label>
+                  Workspace
+                  <select
+                    value={draft.workspaceId || ''}
+                    onChange={(event) => {
+                      const value = event.target.value || null;
+                      setDraft((prev) => ({
+                        ...prev,
+                        workspaceId: value,
+                        projectId:
+                          value === prev.workspaceId ? prev.projectId : null,
+                      }));
+                      setSaved(false);
+                    }}
+                  >
+                    <option value="">Personal Inbox</option>
+                    {data.workspaces.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Project
+                  <select
+                    value={draft.projectId || ''}
+                    disabled={!draft.workspaceId}
+                    onChange={(event) =>
+                      field('projectId', event.target.value || null)
+                    }
+                  >
+                    <option value="">Workspace Inbox</option>
+                    {data.projects
+                      .filter((item) => item.workspaceId === draft.workspaceId)
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </div>
+              {children.length > 0 &&
+                (draft.workspaceId !== baseline.workspaceId ||
+                  draft.projectId !== baseline.projectId) && (
+                  <p className="field-hint">
+                    Its {children.length}{' '}
+                    {children.length === 1 ? 'subtask moves' : 'subtasks move'}{' '}
+                    with it.
+                  </p>
+                )}
+            </fieldset>
+          )}
           <div className="field-grid">
             <label>
               Status
@@ -327,14 +400,14 @@ export function TaskDetail({
         <form onSubmit={addChild} className="inline-add">
           <Plus size={15} />
           <input
-            disabled={busy}
+            disabled={busy || readOnly}
             value={subtask}
             onChange={(event) => setSubtask(event.target.value)}
             placeholder="Add a subtask and press Enter"
             aria-label="Subtask title"
             maxLength={200}
           />
-          <button disabled={busy || !subtask.trim()}>Add</button>
+          <button disabled={busy || readOnly || !subtask.trim()}>Add</button>
         </form>
       </section>
       <div className="provenance">
@@ -342,7 +415,11 @@ export function TaskDetail({
         <br />
         Completing a parent does not complete its subtasks.
       </div>
-      <button className="danger-link" disabled={busy} onClick={archive}>
+      <button
+        className="danger-link"
+        disabled={busy || readOnly}
+        onClick={archive}
+      >
         <Trash2 size={14} /> Archive task
       </button>
     </Dialog>

@@ -67,7 +67,17 @@ import { TaskDetail } from './task-detail';
 import { NoteEditor } from './note-editor';
 import { Recorder } from './recorder';
 import { defaultProvider, unavailableReason } from '../lib/transcription';
+import { registerServiceWorker } from '../lib/service-worker';
 import { AudioSettingsDialog } from './audio-settings';
+import {
+  ComingSoonTab,
+  ProjectActions,
+  ProjectOverview,
+  ProjectTabs,
+  panelId,
+  tabId,
+  type ProjectTab,
+} from './project-view';
 const viewNames: Record<View, string> = {
   day: 'My Day',
   inbox: 'Inbox',
@@ -108,12 +118,22 @@ export function WorkspaceApp() {
     [scopeId, setScopeId] = useState<string | null>(null),
     [mobileMenu, setMobileMenu] = useState(false),
     [projectFilter, setProjectFilter] = useState(''),
-    [tab, setTab] = useState<'tasks' | 'notes'>('tasks'),
+    // Everyday and workspace views use Tasks and Notes; projects add Overview,
+    // Conversations and Drafts.
+    [tab, setTab] = useState<ProjectTab>('tasks'),
     [showDone, setShowDone] = useState(false),
     [selectedTask, setSelectedTask] = useState<string | null>(null),
     [selectedNote, setSelectedNote] = useState<string | null>(null),
     [modal, setModal] = useState<
-      'task' | 'workspace' | 'project' | 'search' | 'record' | 'settings' | null
+      | 'task'
+      | 'workspace'
+      | 'project'
+      | 'search'
+      | 'record'
+      | 'settings'
+      | 'email'
+      | 'upload'
+      | null
     >(null),
     [query, setQuery] = useState(''),
     [busy, setBusy] = useState(false),
@@ -126,12 +146,42 @@ export function WorkspaceApp() {
     const key = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
-        setModal((current) => (current === 'search' ? null : 'search'));
+        setModal((current) =>
+          current === 'search'
+            ? null
+            : readOnlyRef.current
+              ? current
+              : 'search',
+        );
       }
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, []);
+  useEffect(() => registerServiceWorker(), []);
+  const readOnlyRef = useRef(work.readOnly);
+  readOnlyRef.current = work.readOnly;
+  const online: Record<string, string> = {
+    workspace: 'A new workspace',
+    project: 'A new project',
+    record: 'Recording',
+    upload: 'Uploading a transcript',
+    email: 'Saving an email',
+    settings: 'Settings',
+    search: 'Search',
+  };
+  function openModal(next: NonNullable<typeof modal>) {
+    if (online[next] && needsConnection(online[next])) return;
+    setModal(next);
+  }
+  /** Shows why an action can't run offline; true when it must stop. */
+  function needsConnection(what: string) {
+    if (!work.readOnly) return false;
+    work.setMessage(
+      `${what} needs a connection. Quick task capture still works offline.`,
+    );
+    return true;
+  }
   const isEveryday = everydayViews.includes(view);
   const activeWorkspace = isEveryday ? scopeId : workspaceId;
   function navigate(
@@ -144,7 +194,7 @@ export function WorkspaceApp() {
     setProjectId(project);
     setMobileMenu(false);
     setProjectFilter('');
-    setTab('tasks');
+    setTab(next === 'project' ? 'overview' : 'tasks');
     window.scrollTo({ top: 0 });
   }
   function setScope(id: string | null) {
@@ -173,6 +223,7 @@ export function WorkspaceApp() {
     target?.focus({ preventScroll: true });
   }
   async function mutate(action: () => Promise<unknown>) {
+    if (needsConnection('This')) return;
     setBusy(true);
     work.setMessage('');
     try {
@@ -185,6 +236,7 @@ export function WorkspaceApp() {
     }
   }
   async function complete(task: Task) {
+    if (needsConnection('Completing a task')) return;
     setTaskBusy((ids) => [...ids, task.id]);
     try {
       await api.updateTask(task.id, {
@@ -199,6 +251,7 @@ export function WorkspaceApp() {
     }
   }
   async function quickNote() {
+    if (needsConnection('A new note')) return;
     setBusy(true);
     try {
       const note = await api.createNote({
@@ -443,7 +496,7 @@ export function WorkspaceApp() {
           <button
             className="icon-button"
             aria-label="Create workspace"
-            onClick={() => setModal('workspace')}
+            onClick={() => openModal('workspace')}
           >
             <Plus size={14} />
           </button>
@@ -497,7 +550,7 @@ export function WorkspaceApp() {
                     ))}
                   <button
                     className="project-nav-item add-project"
-                    onClick={() => setModal('project')}
+                    onClick={() => openModal('project')}
                   >
                     <Plus size={12} />
                     New project
@@ -509,7 +562,7 @@ export function WorkspaceApp() {
           {data.workspaces.length === 0 && (
             <p className="nav-empty">
               A space for every part of your life.
-              <button onClick={() => setModal('workspace')}>
+              <button onClick={() => openModal('workspace')}>
                 Create your first workspace <Plus size={11} />
               </button>
             </p>
@@ -520,7 +573,7 @@ export function WorkspaceApp() {
             className="nav-item settings-nav"
             onClick={() => {
               setMobileMenu(false);
-              setModal('settings');
+              openModal('settings');
             }}
           >
             <Settings size={16} />
@@ -574,7 +627,7 @@ export function WorkspaceApp() {
               className="search-trigger"
               onClick={() => {
                 setQuery('');
-                setModal('search');
+                openModal('search');
               }}
             >
               <Search size={15} />
@@ -611,6 +664,28 @@ export function WorkspaceApp() {
             />
           )}
           {view === 'day' && <CountChips counts={counts} onOpen={openCount} />}
+          {work.readOnly && (
+            <div className="offline-banner" role="status">
+              <CloudOff size={15} aria-hidden="true" />
+              <span>
+                <strong>
+                  {work.online ? 'Can’t reach Ordo.' : 'You’re offline.'}
+                </strong>{' '}
+                Showing what this device last loaded. New tasks are kept here
+                and sync when you reconnect; editing and notes need a
+                connection.
+              </span>
+              {work.online && (
+                <button
+                  className="text-button"
+                  onClick={() => void work.sync()}
+                  disabled={work.syncing}
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
           {work.message && (
             <div className="notice" role="status">
               <span>{work.message}</span>
@@ -635,7 +710,7 @@ export function WorkspaceApp() {
                 </span>
                 <button
                   className="text-button"
-                  onClick={() => setModal('settings')}
+                  onClick={() => openModal('settings')}
                 >
                   Set up voice
                 </button>
@@ -661,7 +736,7 @@ export function WorkspaceApp() {
                       : 'Coming soon',
                   unavailable: !audioSettings,
                   icon: Mic,
-                  action: () => setModal('record'),
+                  action: () => openModal('record'),
                 },
                 {
                   title: 'Quick Note',
@@ -707,7 +782,47 @@ export function WorkspaceApp() {
           )}
           <div className="workspace-layout">
             <section className="primary-column">
-              {hasNotesTab ? (
+              {view === 'project' && project ? (
+                <>
+                  <ProjectActions
+                    busy={busy}
+                    onTask={focusComposer}
+                    onNote={() => void quickNote()}
+                    onRecord={() => openModal('record')}
+                    onUpload={() => openModal('upload')}
+                    recordHint={
+                      audioReady
+                        ? undefined
+                        : audioSettings
+                          ? 'Set up in Settings'
+                          : 'Coming soon'
+                    }
+                  />
+                  <div className="section-heading">
+                    <ProjectTabs
+                      tab={tab}
+                      onChange={setTab}
+                      counts={{
+                        tasks: tasks.filter((task) => task.status !== 'done')
+                          .length,
+                        notes: notes.length,
+                      }}
+                    />
+                    {tab === 'tasks' && (
+                      <label className="completed-toggle">
+                        <input
+                          type="checkbox"
+                          checked={showDone}
+                          onChange={(event) =>
+                            setShowDone(event.target.checked)
+                          }
+                        />
+                        Show done
+                      </label>
+                    )}
+                  </div>
+                </>
+              ) : hasNotesTab ? (
                 <div className="section-heading">
                   <div className="section-tabs" role="tablist">
                     <button
@@ -739,241 +854,266 @@ export function WorkspaceApp() {
                   )}
                 </div>
               ) : null}
-              {tab === 'tasks' || !hasNotesTab ? (
-                <>
-                  <InlineComposer
-                    key={`${view}:${projectId || activeWorkspace || ''}`}
-                    inputRef={composerRef}
-                    placeholder={composer.placeholder}
-                    hint={composer.hint}
-                    onAdd={addFromComposer}
-                  >
-                    {view === 'upcoming' && (
-                      <label className="composer-day">
-                        <span className="sr-only">Due on</span>
-                        <select
-                          value={upcomingDate}
-                          onChange={(event) =>
-                            setUpcomingDate(event.target.value)
-                          }
+              <div
+                className="tab-panel"
+                {...(view === 'project'
+                  ? {
+                      role: 'tabpanel',
+                      id: panelId,
+                      'aria-labelledby': tabId(tab),
+                    }
+                  : {})}
+              >
+                {view === 'project' && project && tab === 'overview' ? (
+                  <ProjectOverview
+                    data={data}
+                    projectId={project.id}
+                    now={now}
+                    row={row}
+                    onNote={setSelectedNote}
+                    onTab={setTab}
+                  />
+                ) : view === 'project' &&
+                  (tab === 'conversations' || tab === 'drafts') ? (
+                  <ComingSoonTab kind={tab} />
+                ) : tab === 'tasks' || !hasNotesTab ? (
+                  <>
+                    <InlineComposer
+                      key={`${view}:${projectId || activeWorkspace || ''}`}
+                      inputRef={composerRef}
+                      placeholder={composer.placeholder}
+                      hint={composer.hint}
+                      onAdd={addFromComposer}
+                    >
+                      {view === 'upcoming' && (
+                        <label className="composer-day">
+                          <span className="sr-only">Due on</span>
+                          <select
+                            value={upcomingDate}
+                            onChange={(event) =>
+                              setUpcomingDate(event.target.value)
+                            }
+                          >
+                            {groups.map((group) => (
+                              <option key={group.date} value={group.date}>
+                                {group.label}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown size={11} />
+                        </label>
+                      )}
+                    </InlineComposer>
+                    {pending.map((item) => (
+                      <div className="task-row pending" key={item.key}>
+                        <Clock3 size={15} />
+                        <div className="task-main">
+                          <span className="task-title">{item.input.title}</span>
+                          <small className={item.error ? 'error-text' : ''}>
+                            {item.error || 'Saved on this device · Needs sync'}
+                          </small>
+                        </div>
+                        <button
+                          className="text-button"
+                          onClick={() => void work.sync()}
                         >
-                          {groups.map((group) => (
-                            <option key={group.date} value={group.date}>
-                              {group.label}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown size={11} />
-                      </label>
-                    )}
-                  </InlineComposer>
-                  {pending.map((item) => (
-                    <div className="task-row pending" key={item.key}>
-                      <Clock3 size={15} />
-                      <div className="task-main">
-                        <span className="task-title">{item.input.title}</span>
-                        <small className={item.error ? 'error-text' : ''}>
-                          {item.error || 'Saved on this device · Needs sync'}
-                        </small>
+                          Retry
+                        </button>
                       </div>
-                      <button
-                        className="text-button"
-                        onClick={() => void work.sync()}
-                      >
-                        Retry
-                      </button>
-                    </div>
-                  ))}
-                  {view === 'day' ? (
-                    <>
-                      {sections.dueNow.length > 0 && (
+                    ))}
+                    {view === 'day' ? (
+                      <>
+                        {sections.dueNow.length > 0 && (
+                          <Section
+                            id="day-now"
+                            title="Due now"
+                            count={sections.dueNow.length}
+                            tone="now"
+                          >
+                            {sections.dueNow.map(row)}
+                          </Section>
+                        )}
+                        {sections.overdue.length > 0 && (
+                          <Section
+                            id="day-overdue"
+                            title="Overdue"
+                            count={sections.overdue.length}
+                            tone="warm"
+                          >
+                            {sections.overdue.map(row)}
+                          </Section>
+                        )}
                         <Section
-                          id="day-now"
-                          title="Due now"
-                          count={sections.dueNow.length}
-                          tone="now"
+                          id="day-today"
+                          title="Today"
+                          count={sections.today.length}
                         >
-                          {sections.dueNow.map(row)}
+                          {sections.today.length ? (
+                            sections.today.map(row)
+                          ) : sections.dueNow.length ||
+                            sections.overdue.length ? (
+                            <p className="section-empty">
+                              Nothing else is due today.
+                            </p>
+                          ) : (
+                            <Empty
+                              icon={Sun}
+                              title="A little breathing room."
+                              text="Nothing is due today. Add the one thing you want to move forward and it will land here."
+                            />
+                          )}
                         </Section>
-                      )}
-                      {sections.overdue.length > 0 && (
-                        <Section
-                          id="day-overdue"
-                          title="Overdue"
-                          count={sections.overdue.length}
-                          tone="warm"
-                        >
-                          {sections.overdue.map(row)}
-                        </Section>
-                      )}
-                      <Section
-                        id="day-today"
-                        title="Today"
-                        count={sections.today.length}
-                      >
-                        {sections.today.length ? (
-                          sections.today.map(row)
-                        ) : sections.dueNow.length ||
-                          sections.overdue.length ? (
-                          <p className="section-empty">
-                            Nothing else is due today.
-                          </p>
-                        ) : (
+                        <WaitingPreview
+                          tasks={waitingList.slice(0, 3)}
+                          total={waitingList.length}
+                          now={now}
+                          onOpen={setSelectedTask}
+                          onSeeAll={() => navigate('waiting')}
+                        />
+                        {undated.length > 0 && (
+                          <Section
+                            title="Without a date"
+                            count={undated.length}
+                            action={
+                              <span className="muted small">
+                                Ready when you are
+                              </span>
+                            }
+                          >
+                            {undated.slice(0, 8).map(row)}
+                          </Section>
+                        )}
+                      </>
+                    ) : view === 'upcoming' ? (
+                      <div className="day-groups">
+                        {upcomingTotal === 0 && (
                           <Empty
-                            icon={Sun}
-                            title="A little breathing room."
-                            text="Nothing is due today. Add the one thing you want to move forward and it will land here."
+                            icon={CalendarDays}
+                            title="A clear week ahead."
+                            text="Nothing is due or waiting for follow-up in the next seven days. Plan something above and pick its day."
                           />
                         )}
-                      </Section>
-                      <WaitingPreview
-                        tasks={waitingList.slice(0, 3)}
-                        total={waitingList.length}
-                        now={now}
-                        onOpen={setSelectedTask}
-                        onSeeAll={() => navigate('waiting')}
-                      />
-                      {undated.length > 0 && (
-                        <Section
-                          title="Without a date"
-                          count={undated.length}
-                          action={
-                            <span className="muted small">
-                              Ready when you are
-                            </span>
-                          }
-                        >
-                          {undated.slice(0, 8).map(row)}
-                        </Section>
-                      )}
-                    </>
-                  ) : view === 'upcoming' ? (
-                    <div className="day-groups">
-                      {upcomingTotal === 0 && (
+                        {groups.map((group) => (
+                          <section
+                            className={`day-group ${group.items.length ? '' : 'is-empty'}`}
+                            key={group.date}
+                            aria-label={group.label}
+                          >
+                            <h2 className="day-group-title">
+                              <span>{group.label}</span>
+                              {group.label === 'Tomorrow' && (
+                                <small>{shortDate(group.date)}</small>
+                              )}
+                              {group.items.length > 0 && (
+                                <span className="count">
+                                  {group.items.length}
+                                </span>
+                              )}
+                            </h2>
+                            {group.items.length ? (
+                              group.items.map((moment) => (
+                                <TaskRow
+                                  key={`${moment.task.id}:${moment.kind}`}
+                                  task={moment.task}
+                                  data={data}
+                                  now={now}
+                                  moment={moment}
+                                  variant="flat"
+                                  busy={taskBusy.includes(moment.task.id)}
+                                  onComplete={() => void complete(moment.task)}
+                                  onOpen={() => setSelectedTask(moment.task.id)}
+                                />
+                              ))
+                            ) : (
+                              <button
+                                className="day-group-add"
+                                onClick={() => {
+                                  setUpcomingDate(group.date);
+                                  focusComposer();
+                                }}
+                              >
+                                <Plus size={12} /> Nothing yet · Plan something
+                              </button>
+                            )}
+                          </section>
+                        ))}
+                      </div>
+                    ) : view === 'waiting' ? (
+                      waitingList.length ? (
+                        waitingList.map((task) => (
+                          <TaskRow
+                            key={task.id}
+                            task={task}
+                            data={data}
+                            now={now}
+                            variant="waiting"
+                            busy={taskBusy.includes(task.id)}
+                            onComplete={() => void complete(task)}
+                            onOpen={() => setSelectedTask(task.id)}
+                          />
+                        ))
+                      ) : (
                         <Empty
-                          icon={CalendarDays}
-                          title="A clear week ahead."
-                          text="Nothing is due or waiting for follow-up in the next seven days. Plan something above and pick its day."
+                          icon={Clock3}
+                          title="No loose ends."
+                          text="When you hand something off, add it here. Open it to note who you are waiting on and when to follow up."
                         />
-                      )}
-                      {groups.map((group) => (
-                        <section
-                          className={`day-group ${group.items.length ? '' : 'is-empty'}`}
-                          key={group.date}
-                          aria-label={group.label}
+                      )
+                    ) : tasks.length ? (
+                      tasks.map(row)
+                    ) : view === 'inbox' ? (
+                      <Empty
+                        icon={Inbox}
+                        title="Inbox clear."
+                        text="Anything you capture without a project lands here, ready to sort when you have a minute."
+                      />
+                    ) : (
+                      <Empty
+                        icon={Folder}
+                        title="A fresh start."
+                        text="Capture a next step above, or keep a thought as a note."
+                      />
+                    )}
+                  </>
+                ) : (
+                  <div className="notes-grid">
+                    {notes.length ? (
+                      notes.map((note) => (
+                        <button
+                          className="note-card"
+                          key={note.id}
+                          onClick={() => setSelectedNote(note.id)}
                         >
-                          <h2 className="day-group-title">
-                            <span>{group.label}</span>
-                            {group.label === 'Tomorrow' && (
-                              <small>{shortDate(group.date)}</small>
+                          <FileText size={17} />
+                          <h3>{note.title}</h3>
+                          <p>
+                            {note.body || 'A little space for your thoughts…'}
+                          </p>
+                          <small>
+                            {new Date(note.updatedAt).toLocaleDateString(
+                              'en-GB',
                             )}
-                            {group.items.length > 0 && (
-                              <span className="count">
-                                {group.items.length}
-                              </span>
-                            )}
-                          </h2>
-                          {group.items.length ? (
-                            group.items.map((moment) => (
-                              <TaskRow
-                                key={`${moment.task.id}:${moment.kind}`}
-                                task={moment.task}
-                                data={data}
-                                now={now}
-                                moment={moment}
-                                variant="flat"
-                                busy={taskBusy.includes(moment.task.id)}
-                                onComplete={() => void complete(moment.task)}
-                                onOpen={() => setSelectedTask(moment.task.id)}
-                              />
-                            ))
-                          ) : (
-                            <button
-                              className="day-group-add"
-                              onClick={() => {
-                                setUpcomingDate(group.date);
-                                focusComposer();
-                              }}
-                            >
-                              <Plus size={12} /> Nothing yet · Plan something
-                            </button>
-                          )}
-                        </section>
-                      ))}
-                    </div>
-                  ) : view === 'waiting' ? (
-                    waitingList.length ? (
-                      waitingList.map((task) => (
-                        <TaskRow
-                          key={task.id}
-                          task={task}
-                          data={data}
-                          now={now}
-                          variant="waiting"
-                          busy={taskBusy.includes(task.id)}
-                          onComplete={() => void complete(task)}
-                          onOpen={() => setSelectedTask(task.id)}
-                        />
+                          </small>
+                        </button>
                       ))
                     ) : (
                       <Empty
-                        icon={Clock3}
-                        title="No loose ends."
-                        text="When you hand something off, add it here. Open it to note who you are waiting on and when to follow up."
+                        icon={NotebookPen}
+                        title="Leave yourself a thought."
+                        text="Notes stay in the context you choose, ready when you need them."
                       />
-                    )
-                  ) : tasks.length ? (
-                    tasks.map(row)
-                  ) : view === 'inbox' ? (
-                    <Empty
-                      icon={Inbox}
-                      title="Inbox clear."
-                      text="Anything you capture without a project lands here, ready to sort when you have a minute."
-                    />
-                  ) : (
-                    <Empty
-                      icon={Folder}
-                      title="A fresh start."
-                      text="Capture a next step above, or keep a thought as a note."
-                    />
-                  )}
-                </>
-              ) : (
-                <div className="notes-grid">
-                  {notes.length ? (
-                    notes.map((note) => (
-                      <button
-                        className="note-card"
-                        key={note.id}
-                        onClick={() => setSelectedNote(note.id)}
-                      >
-                        <FileText size={17} />
-                        <h3>{note.title}</h3>
-                        <p>
-                          {note.body || 'A little space for your thoughts…'}
-                        </p>
-                        <small>
-                          {new Date(note.updatedAt).toLocaleDateString('en-GB')}
-                        </small>
-                      </button>
-                    ))
-                  ) : (
-                    <Empty
-                      icon={NotebookPen}
-                      title="Leave yourself a thought."
-                      text="Notes stay in the context you choose, ready when you need them."
-                    />
-                  )}
-                  <button
-                    className="new-note"
-                    onClick={() => void quickNote()}
-                    disabled={busy}
-                  >
-                    <Plus size={17} />
-                    New note
-                  </button>
-                </div>
-              )}
+                    )}
+                    <button
+                      className="new-note"
+                      onClick={() => void quickNote()}
+                      disabled={busy}
+                    >
+                      <Plus size={17} />
+                      New note
+                    </button>
+                  </div>
+                )}
+              </div>
               {!data.workspaces.length && (
                 <div className="onboarding">
                   <h3>Make it your own.</h3>
@@ -984,7 +1124,7 @@ export function WorkspaceApp() {
                   <div>
                     <button
                       className="primary"
-                      onClick={() => setModal('workspace')}
+                      onClick={() => openModal('workspace')}
                     >
                       Create a workspace <Plus size={14} />
                     </button>
@@ -1157,8 +1297,10 @@ export function WorkspaceApp() {
           transcription={audioReady}
           unavailableReason={unavailableReason(audioSettings)}
           provider={audioSettings?.provider || defaultProvider}
+          workspaceId={activeWorkspace}
+          projectId={projectId}
           onClose={() => setModal(null)}
-          onSettings={() => setModal('settings')}
+          onSettings={() => openModal('settings')}
           onNote={async (id) => {
             await work.refresh();
             setModal(null);
@@ -1195,6 +1337,7 @@ export function WorkspaceApp() {
           key={activeTask.id}
           task={activeTask}
           data={data}
+          readOnly={work.readOnly}
           onClose={() => setSelectedTask(null)}
           onChange={work.refresh}
           onSelect={setSelectedTask}
@@ -1204,6 +1347,7 @@ export function WorkspaceApp() {
         <NoteEditor
           key={activeNote.id}
           note={activeNote}
+          readOnly={work.readOnly}
           onClose={() => setSelectedNote(null)}
           onSaved={work.refresh}
         />
