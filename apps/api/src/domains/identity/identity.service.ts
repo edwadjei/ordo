@@ -10,7 +10,7 @@ export function publicUser(user: UserRecord): User {
   return {
     id: user.id,
     email: user.email.startsWith('phone:') ? '' : user.email,
-    displayName: user.displayName,
+    displayName: user.displayName ?? '',
     timezone: user.timezone,
   };
 }

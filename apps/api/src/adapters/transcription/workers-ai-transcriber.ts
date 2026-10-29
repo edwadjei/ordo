@@ -17,10 +17,10 @@ export interface WorkersAiBinding {
 
 /** Shown when the account's daily Workers AI allowance is used up. */
 export const allowanceUsedMessage =
-  "Today's free transcription is used up; it resets at midnight UTC, or add an OpenAI key in Settings.";
+  "Today's built-in transcription limit is used up; it resets at midnight UTC, or add an OpenAI key in Settings.";
 
 export const workersAiUnavailableMessage =
-  "Cloudflare transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here.";
+  "Built-in transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here.";
 
 /**
  * Workers AI Whisper (`@cf/openai/whisper-large-v3-turbo`) through the `AI`
@@ -96,7 +96,7 @@ export function workersAiFailure(error: unknown): Error {
     return new ApiFailure(
       429,
       'TRANSCRIPTION_BUSY',
-      'Cloudflare transcription is busy. Please retry shortly.',
+      'Built-in transcription is busy. Please retry shortly.',
     );
   // `wrangler dev --local`: the binding exists but cannot reach Cloudflare.
   if (/needs to be run remotely/i.test(message))

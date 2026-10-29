@@ -9,7 +9,7 @@ export interface AudioSettingsInput {
   removeApiKey?: boolean;
 }
 const workersAiUnavailableMessage =
-  "Cloudflare transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here.";
+  "Built-in transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here.";
 export class AudioSettingsService {
   private testing = new Set<string>();
   constructor(
@@ -130,7 +130,7 @@ export class AudioSettingsService {
         return {
           ok,
           message: ok
-            ? 'Cloudflare transcription is ready on this server.'
+            ? 'Built-in transcription is ready on this server.'
             : workersAiUnavailableMessage,
         };
       }

@@ -14,6 +14,22 @@ const personName = z
   .trim()
   .max(80)
   .transform((v) => (v === '' ? null : v));
+/**
+ * True when a submitted name is really a phone number (seven or more digits
+ * once spaces, `+`, `-`, `.` and brackets are removed) or an email address.
+ * Migration 0003 clears stored names with the same rule.
+ */
+export function looksLikeContact(value: string) {
+  const text = value.trim();
+  return (
+    /\S@\S+\.\S/.test(text) || /^\d{7,}$/.test(text.replace(/[\s+().-]/g, ''))
+  );
+}
+/** A display name worth storing, or null: blank and contact-like names are dropped. */
+export function cleanDisplayName(value: string | null | undefined) {
+  const text = value?.trim().slice(0, 80) ?? '';
+  return text === '' || looksLikeContact(text) ? null : text;
+}
 export const workspaceInput = z
   .object({
     name,
@@ -115,6 +131,7 @@ export type NoteInput = z.infer<typeof noteInput>;
 export interface User {
   id: string;
   email: string;
+  /** Empty when the account has no name; never a phone number or email address. */
   displayName: string;
   timezone: string;
 }

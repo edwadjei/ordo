@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ordo/core": "*",
     "drizzle-orm": "0.45.4"
   },
   "devDependencies": {

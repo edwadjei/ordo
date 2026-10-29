@@ -29,7 +29,7 @@ const fakeKey = 'sk-fictional-test-key-never-real';
 // Fictional 32-byte master key standing in for the ORDO_CREDENTIAL_KEY secret.
 const credentialKey = fromHex('1e'.repeat(32));
 const allowanceMessage =
-  "Today's free transcription is used up; it resets at midnight UTC, or add an OpenAI key in Settings.";
+  "Today's built-in transcription limit is used up; it resets at midnight UTC, or add an OpenAI key in Settings.";
 class TestSessions extends SessionAuthenticator {
   async resolveSession(token: string) {
     return ['a'.repeat(64), 'b'.repeat(64)].includes(token)
@@ -256,7 +256,7 @@ test('per-account audio defaults to Workers AI, encrypts an OpenAI key and never
   });
   assert.deepEqual(ready.json(), {
     ok: true,
-    message: 'Cloudflare transcription is ready on this server.',
+    message: 'Built-in transcription is ready on this server.',
   });
 });
 test('local_whisper is no longer an accepted provider', async (t) => {
@@ -304,7 +304,7 @@ test('without the AI binding Workers AI is unavailable and never falls back to a
   assert.equal(missing.json().error.code, 'WORKERS_AI_UNAVAILABLE');
   assert.equal(
     missing.json().error.message,
-    "Cloudflare transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here.",
+    "Built-in transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here.",
   );
   const probe = await h.app.inject({
     method: 'POST',
@@ -541,13 +541,13 @@ test('Workers AI through the API: success, request buffer cleared, allowance and
       'AiError: 3040: Capacity temporarily exceeded, please try again.',
       429,
       'TRANSCRIPTION_BUSY',
-      'Cloudflare transcription is busy. Please retry shortly.',
+      'Built-in transcription is busy. Please retry shortly.',
     ],
     [
       'Binding AI needs to be run remotely',
       503,
       'WORKERS_AI_UNAVAILABLE',
-      "Cloudflare transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here.",
+      "Built-in transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here.",
     ],
     [
       '3006: Request is too large',
