@@ -989,6 +989,9 @@ svg {
   font-size: 12px;
   min-height: 41px;
 }
+.auth-form input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
 .dialog textarea {
   resize: vertical;
   line-height: 1.8;

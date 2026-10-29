@@ -21,7 +21,7 @@ Open http://127.0.0.1:3358. The root `npm run dev` applies local D1 migrations, 
 
 The browser client always calls `/api/...` relative to the page's own origin (`createClient('/api')`). There is no absolute API URL in browser code and no `NEXT_PUBLIC_` API variable. To check the export as hosted Ordo will serve it, run `npm run build --workspace @ordo/web`, start `npm run dev`, and open `http://127.0.0.1:8788`. `next start` does not apply to a static export.
 
-Sign in or create an account with an email address or Ghana phone number and a six-digit code. Locally, with no Gatekeeper values, the code is printed in the `wrangler dev` terminal. There is no password sign-in. Start empty or explicitly load the fictional examples. Fixtures are added only to the signed-in account.
+Sign in or create an account with an email address or Ghana phone number and a six-digit code. Locally, with no Gatekeeper values, the code is printed in the `wrangler dev` terminal. The code field keeps only digits, so a pasted `658 659`, `658-659` or a code with a stray space or line break still works, and Enter submits from the code or name field. A short code shows a plain error under the field instead of a browser tooltip. The form does not auto-submit at six digits, so a new account can still add its optional name. There is no password sign-in. Start empty or explicitly load the fictional examples. Fixtures are added only to the signed-in account.
 
 ## Working flows
 
@@ -61,7 +61,7 @@ npm run test --workspace @ordo/client
 npm run test --workspace @ordo/web
 ```
 
-The shared-client tests cover bookmark store-and-forward (header absent, latest value forwarded, an older bookmark arriving late, reload, per-account separation, sign-in carry-over, sign-out clearing, unavailable storage), account isolation, idempotency preservation, storage failure, authenticated mutation preconditions, session-change propagation, and an autosave regression for edits made during a slow request. The web tests cover the pure view logic in `lib/views.ts`: the greeting, local-timezone clock, My Day sections and counts, seven-day grouping across month and year ends, Waiting On ordering, and name suggestions. Browser verification is recorded separately (Phase 2 screenshots on `wrangler dev` are in `design/evidence/cf-phase-2/`); compilation alone does not prove user journeys.
+The shared-client tests cover bookmark store-and-forward (header absent, latest value forwarded, an older bookmark arriving late, reload, per-account separation, sign-in carry-over, sign-out clearing, unavailable storage), account isolation, idempotency preservation, storage failure, authenticated mutation preconditions, session-change propagation, and an autosave regression for edits made during a slow request. The web tests cover the pure view logic in `lib/views.ts`: the greeting, local-timezone clock, My Day sections and counts, seven-day grouping across month and year ends, Waiting On ordering, and name suggestions, and `lib/sign-in-code.ts`: sign-in code normalising (spaces, dashes, line breaks, non-breaking and zero-width characters, full-width and Arabic-Indic digits) and the short-code message. Browser verification is recorded separately (Phase 2 screenshots on `wrangler dev` are in `design/evidence/cf-phase-2/`); compilation alone does not prove user journeys.
 
 ## Appearance
 
