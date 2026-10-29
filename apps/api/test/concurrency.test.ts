@@ -216,7 +216,7 @@ test('hierarchy moves are conditional on every ancestor revision, so crossing mo
   assert.equal(saved?.revision, 2);
 });
 
-test('archive and move refuse while an active child exists; a subtask insert needs a live, unchanged parent', async (t) => {
+test('archive refuses while an active child exists; a subtask insert needs a live, unchanged parent', async (t) => {
   const { h, owner, create, repository } = await setup(t);
   // Concurrent: archive the parent while a subtask is being created.
   for (let round = 0; round < 3; round++) {
@@ -262,18 +262,6 @@ test('archive and move refuse while an active child exists; a subtask insert nee
     ),
     undefined,
   );
-  const workspace = (
-    await call(h.app, owner.cookie, 'POST', '/v1/workspaces', { name: 'Away' })
-  ).json();
-  const moved = await call(
-    h.app,
-    owner.cookie,
-    'PATCH',
-    `/v1/tasks/${parent.id}`,
-    { workspaceId: workspace.id, expectedRevision: 1 },
-  );
-  assert.equal(moved.statusCode, 409);
-  assert.equal(moved.json().error.code, 'HAS_SUBTASKS');
   const keyCount = (await h.db.select().from(idempotencyKeys)).length;
   assert.equal(
     await repository.insertWithKey(

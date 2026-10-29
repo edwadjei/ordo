@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import { profilePatch } from '@ordo/core';
 import type { OtpService } from './otp.service.js';
 import type { HttpRoutes } from '../../platform/http/http.js';
-import { currentUser } from '../../platform/http/request-context.js';
+import { actorId, currentUser } from '../../platform/http/request-context.js';
 import {
   readSession,
   sessionCookie,
@@ -38,6 +39,12 @@ export function registerIdentityController(
   });
   routes.get('/v1/auth/me', async (request) => ({
     user: currentUser(request),
+  }));
+  routes.patch('/v1/auth/me', async (request) => ({
+    user: await service.updateDisplayName(
+      actorId(request),
+      profilePatch.parse(request.body).displayName,
+    ),
   }));
   routes.post('/v1/auth/logout', async (request, reply) => {
     await service.logout(readSession(request)!);

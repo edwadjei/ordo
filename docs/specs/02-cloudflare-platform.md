@@ -12,11 +12,11 @@ Host Ordo for $0/month on the Cloudflare Workers Free plan with Cloudflare D1 as
 
 ## Phases
 
-| Phase | Scope | Runs on | Size |
-|---|---|---|---|
-| 1 — Hono port | Web Crypto adapters; framework-neutral HTTP layer; Hono app with a test shim replacing `app.inject`; secret cipher and transcription capability flags; Fastify removed; web static export with same-origin `/api`; bookmark header plumbing stubbed | Node locally, on the existing embedded database, so every test keeps passing | About five PRs ([brief](../coordination/CLOUDFLARE-PHASE-1-BRIEF.md)) |
-| 2 — D1 | SQLite schema and `wrangler d1` migrations; FTS5 search; check-on-save; sign-in rewrites; Worker entry and `wrangler dev`; local data import; test harness on local D1; local-dev docs | `wrangler dev` with a local D1 database | Briefed after Phase 1 merges |
-| 3 — Hosted staging | Worker and D1 on Edward's Cloudflare account; D1 restore point as backup; recorded rollback point; signed-in verification | Cloudflare Workers Free plan | Each deploy approved by Edward |
+| Phase              | Scope                                                                                                                                                                                                                                               | Runs on                                                                      | Size                                                                  |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 1 — Hono port      | Web Crypto adapters; framework-neutral HTTP layer; Hono app with a test shim replacing `app.inject`; secret cipher and transcription capability flags; Fastify removed; web static export with same-origin `/api`; bookmark header plumbing stubbed | Node locally, on the existing embedded database, so every test keeps passing | About five PRs ([brief](../coordination/CLOUDFLARE-PHASE-1-BRIEF.md)) |
+| 2 — D1             | SQLite schema and `wrangler d1` migrations; FTS5 search; check-on-save; sign-in rewrites; Worker entry and `wrangler dev`; local data import; test harness on local D1; local-dev docs                                                              | `wrangler dev` with a local D1 database                                      | Briefed after Phase 1 merges                                          |
+| 3 — Hosted staging | Worker and D1 on Edward's Cloudflare account; D1 restore point as backup; recorded rollback point; signed-in verification                                                                                                                           | Cloudflare Workers Free plan                                                 | Each deploy approved by Edward                                        |
 
 Specialists run on Opus 5.5 at medium effort under coordinated-development: a backend specialist (`apps/api`, `packages/core`, `packages/db`) and a web specialist (`apps/web`, `packages/client`). The coordinator owns docs, root tooling, and integration evidence. Edward approves every merge and deploy.
 
@@ -24,21 +24,21 @@ Specialists run on Opus 5.5 at medium effort under coordinated-development: a ba
 
 One Cloudflare Worker does three jobs:
 
-| Job | How | Cost |
-|---|---|---|
-| Serve the web app | Next.js `output: 'export'` files uploaded as Worker static assets | Free; asset requests do not count toward the request limit |
-| Serve the API | Hono app mounted under `/api`, same origin as the web app | Counts toward 100,000 requests/day |
-| Talk to the database | D1 binding (SQLite) through Drizzle `sqlite-core` | Counts toward D1 row read/write limits |
+| Job                  | How                                                               | Cost                                                       |
+| -------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------- |
+| Serve the web app    | Next.js `output: 'export'` files uploaded as Worker static assets | Free; asset requests do not count toward the request limit |
+| Serve the API        | Hono app mounted under `/api`, same origin as the web app         | Counts toward 100,000 requests/day                         |
+| Talk to the database | D1 binding (SQLite) through Drizzle `sqlite-core`                 | Counts toward D1 row read/write limits                     |
 
 No CORS is needed because the browser only ever talks to its own origin. The session cookie stays first-party. `/api/...` maps to the API's `/v1/...` routes, exactly as the local dev proxy does today, so no client path changes. Upgrade path: Workers Paid ($5/month) if a limit is hit; a plan switch, not a rewrite.
 
 ### Costs
 
-| Item | Cost |
-|---|---|
-| Workers Free plan and D1 free tier | $0/month |
-| Domain name (optional) | About $10/year; `*.workers.dev` costs nothing |
-| Transcription and AI | Billed by each user's own provider account (account-owned keys) |
+| Item                               | Cost                                                            |
+| ---------------------------------- | --------------------------------------------------------------- |
+| Workers Free plan and D1 free tier | $0/month                                                        |
+| Domain name (optional)             | About $10/year; `*.workers.dev` costs nothing                   |
+| Transcription and AI               | Billed by each user's own provider account (account-owned keys) |
 
 ### Request flow
 
@@ -60,16 +60,16 @@ Browser / app
 
 Numbers are from Cloudflare's published Free-plan limits. Over a limit, requests fail until 00:00 UTC; nothing is billed.
 
-| Resource | Limit | Ordo target |
-|---|---|---|
-| Worker requests | 100,000 / day | A personal workspace uses a few thousand API calls a day at most |
-| CPU per request | 10 ms | Reads: < 3 ms. Writes: < 5 ms. OTP verify (HMAC + batch): < 5 ms. Search: < 5 ms |
-| Memory | 128 MB | Body limit 150,000 bytes; transcription uploads capped at 20 MiB and streamed to the provider |
-| Subrequests | 50 / request | At most ~6 D1 statements plus one provider call per request |
-| Cron triggers | 5 | Reserved for later AI/cleanup jobs |
-| D1 rows read | 5,000,000 / day | Every query filters by owner and uses an index; Home snapshot reads only active rows |
-| D1 rows written | 100,000 / day | One user action = a handful of rows (entity + FTS trigger rows + idempotency/revision) |
-| D1 storage | 5 GB | Text only; no audio or files |
+| Resource        | Limit           | Ordo target                                                                                   |
+| --------------- | --------------- | --------------------------------------------------------------------------------------------- |
+| Worker requests | 100,000 / day   | A personal workspace uses a few thousand API calls a day at most                              |
+| CPU per request | 10 ms           | Reads: < 3 ms. Writes: < 5 ms. OTP verify (HMAC + batch): < 5 ms. Search: < 5 ms              |
+| Memory          | 128 MB          | Body limit 150,000 bytes; transcription uploads capped at 20 MiB and streamed to the provider |
+| Subrequests     | 50 / request    | At most ~6 D1 statements plus one provider call per request                                   |
+| Cron triggers   | 5               | Reserved for later AI/cleanup jobs                                                            |
+| D1 rows read    | 5,000,000 / day | Every query filters by owner and uses an index; Home snapshot reads only active rows          |
+| D1 rows written | 100,000 / day   | One user action = a handful of rows (entity + FTS trigger rows + idempotency/revision)        |
+| D1 storage      | 5 GB            | Text only; no audio or files                                                                  |
 
 Design rule: **every request must stay well under 10 ms CPU.** I/O wait does not count, so D1 and provider calls are fine; heavy hashing and large in-memory transforms are not.
 
@@ -92,14 +92,14 @@ Design rule: **every request must stay well under 10 ms CPU.** I/O wait does not
 
 No locks, interactive transactions, or Durable Objects.
 
-| Case | Rule |
-|---|---|
-| Update or archive | `UPDATE … WHERE id = ? AND owner_user_id = ? AND revision = ?`. Zero rows → `409 REVISION_CONFLICT`, message "changed elsewhere", no write |
-| Create with retry | Idempotency key is a unique constraint `(owner_user_id, key)`. Insert the task and the key row in one `batch()`. Same key, same fingerprint → return original (200). Different fingerprint → `409 IDEMPOTENCY_CONFLICT` |
-| Hierarchy change | Read ancestry (bounded to 500 IDs) and check cycle, scope, and archived parent. The `UPDATE` is conditional on the task's revision and on the revisions of every ancestor read, so a concurrent move anywhere in that chain makes one of the two saves fail with `409 REVISION_CONFLICT` |
-| Move/archive with children | The `UPDATE` includes `NOT EXISTS (active child)`. A subtask insert is `INSERT … SELECT … WHERE` the parent is still active and in the same destination. A refused statement returns `409 HAS_SUBTASKS` or `404`/`409` as today |
-| Demo fixtures | The batch starts with `UPDATE users SET demo_loaded = 1 WHERE id = ? AND demo_loaded = 0`; each fixture insert is conditional on that claim, so a repeated request inserts nothing |
-| Multi-row writes | One D1 `batch()` per operation (implicit transaction) |
+| Case                       | Rule                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Update or archive          | `UPDATE … WHERE id = ? AND owner_user_id = ? AND revision = ?`. Zero rows → `409 REVISION_CONFLICT`, message "changed elsewhere", no write                                                                                                                                                                                                                            |
+| Create with retry          | Idempotency key is a unique constraint `(owner_user_id, key)`. Insert the task and the key row in one `batch()`. Same key, same fingerprint → return original (200). Different fingerprint → `409 IDEMPOTENCY_CONFLICT`                                                                                                                                               |
+| Hierarchy change           | Read ancestry (bounded to 500 IDs) and check cycle, scope, and archived parent. The `UPDATE` is conditional on the task's revision and on the revisions of every ancestor read, so a concurrent move anywhere in that chain makes one of the two saves fail with `409 REVISION_CONFLICT`                                                                              |
+| Move/archive with children | A move is one batch: the task's guarded `UPDATE`, then a recursive `UPDATE` giving every descendant the task's new destination. Archive's `UPDATE` includes `NOT EXISTS (active child)`. A subtask insert is `INSERT … SELECT … WHERE` the parent is still active and in the same destination. A refused statement returns `409 HAS_SUBTASKS` or `404`/`409` as today |
+| Demo fixtures              | The batch starts with `UPDATE users SET demo_loaded = 1 WHERE id = ? AND demo_loaded = 0`; each fixture insert is conditional on that claim, so a repeated request inserts nothing                                                                                                                                                                                    |
+| Multi-row writes           | One D1 `batch()` per operation (implicit transaction)                                                                                                                                                                                                                                                                                                                 |
 
 ### Sign-in: code-only
 
@@ -157,11 +157,11 @@ Phase 2 provides a one-time import so Edward's local content moves to D1:
 
 ## Testing strategy
 
-| Phase | Where tests run | What they prove |
-|---|---|---|
-| Phase 1 | Node, against the Hono app through a test shim replacing `app.inject`, on the existing embedded database | Every current API test passes unchanged in behaviour; Web Crypto adapters match the old outputs for sessions and content hashes |
-| Phase 2 | Node, against a local D1 database (Miniflare / `wrangler dev` test environment) | Same suites plus concurrency scenarios: two writers on one record, a code used twice, a retried create, a batch that must roll back |
-| Phase 3 | Signed-in browser checks on staging | Real sign-in, saves, search, and reload against the hosted Worker; CPU time per request from Cloudflare observability |
+| Phase   | Where tests run                                                                                          | What they prove                                                                                                                     |
+| ------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Phase 1 | Node, against the Hono app through a test shim replacing `app.inject`, on the existing embedded database | Every current API test passes unchanged in behaviour; Web Crypto adapters match the old outputs for sessions and content hashes     |
+| Phase 2 | Node, against a local D1 database (Miniflare / `wrangler dev` test environment)                          | Same suites plus concurrency scenarios: two writers on one record, a code used twice, a retried create, a batch that must roll back |
+| Phase 3 | Signed-in browser checks on staging                                                                      | Real sign-in, saves, search, and reload against the hosted Worker; CPU time per request from Cloudflare observability               |
 
 ## Acceptance scenarios
 
@@ -191,14 +191,14 @@ The step-by-step procedure, with the approvals each step needs, is the [hosting 
 
 ## Risks
 
-| Risk | Mitigation |
-|---|---|
-| A request exceeds 10 ms CPU (large Home snapshot, big note) | Measure in `wrangler dev`; paginate or trim the snapshot; keep payload caps |
-| D1 replica lag shows a stale list after a save | Sessions API bookmark on every request from `packages/client` |
-| Check-on-save misses a race the old row lock caught | Concurrency tests in Phase 2; every write is conditional on revision or a unique constraint |
-| Free-plan daily limit reached | Requests fail until 00:00 UTC, never billed; switch to Workers Paid if it recurs |
-| Gatekeeper or OpenAI outage | Clear error states; captures remain saveable without AI; audio is never stored, so nothing is lost silently |
-| Secret loss (`ORDO_CREDENTIAL_KEY`) | Users re-enter provider keys; document the secret as backed up outside D1 |
+| Risk                                                        | Mitigation                                                                                                  |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| A request exceeds 10 ms CPU (large Home snapshot, big note) | Measure in `wrangler dev`; paginate or trim the snapshot; keep payload caps                                 |
+| D1 replica lag shows a stale list after a save              | Sessions API bookmark on every request from `packages/client`                                               |
+| Check-on-save misses a race the old row lock caught         | Concurrency tests in Phase 2; every write is conditional on revision or a unique constraint                 |
+| Free-plan daily limit reached                               | Requests fail until 00:00 UTC, never billed; switch to Workers Paid if it recurs                            |
+| Gatekeeper or OpenAI outage                                 | Clear error states; captures remain saveable without AI; audio is never stored, so nothing is lost silently |
+| Secret loss (`ORDO_CREDENTIAL_KEY`)                         | Users re-enter provider keys; document the secret as backed up outside D1                                   |
 
 ## Open questions for Edward
 

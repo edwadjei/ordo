@@ -2,7 +2,13 @@
 
 ## Durable personal text
 
-NotesService owns scoped plain-text notes, not AI summaries or transcripts. A note always belongs to an authenticated owner, and it may stay unassigned in that owner's personal Inbox. Workspace/project destinations are checked through WorkspacesService before the write; workspaces and projects are never deleted and a project never changes workspace, so that check stays true, and composite foreign keys enforce the same ownership in the database.
+NotesService owns scoped text notes, not AI summaries. A note always belongs to an authenticated owner, and it may stay unassigned in that owner's personal Inbox. Workspace/project destinations are checked through WorkspacesService before the write; workspaces and projects are never deleted and a project never changes workspace, so that check stays true, and composite foreign keys enforce the same ownership in the database.
+
+## Body and source
+
+`body` is Markdown text, at most 100,000 characters; existing plain-text notes are already valid Markdown. The API stores and returns it exactly as sent and never renders or sanitizes it, so clients must render it without raw HTML. Search indexes the raw text.
+
+`source` records where a note came from: `manual` (typed; the default and the value given to every note that existed before migration 0004), `recording` (the recorder's transcript), `email` (pasted email text) or `transcript` (an uploaded transcript file's text). It is set on create only: `PATCH` with `source` is refused as `400 INVALID_INPUT`, like any unknown field. The source is a label; it stores no audio, file or email metadata.
 
 ## Preserve editing intent
 
@@ -12,7 +18,7 @@ The service decides revision behavior; `notes.repository.ts` executes owner-scop
 
 ## Scope boundaries
 
-Plain-text bodies are data and do not authorize AI processing, tool calls, or access to other workspaces. Rich editing, attachments, source-linked AI summaries, incremental sync, and multidevice offline note merge are not implemented by this foundation.
+Note bodies are data and do not authorize AI processing, tool calls, or access to other workspaces. Attachments, source-linked AI summaries, incremental sync, and multidevice offline note merge are not implemented by this foundation.
 
 ## On Cloudflare
 

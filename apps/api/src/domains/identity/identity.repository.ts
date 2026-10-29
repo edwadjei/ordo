@@ -12,6 +12,16 @@ const { users, sessions, authThrottle } = tables;
 export class IdentityRepository {
   constructor(private readonly database: DatabaseAdapter) {}
 
+  async updateDisplayName(id: string, displayName: string | null, now: string) {
+    const [row] = await this.database
+      .use()
+      .update(users)
+      .set({ displayName, updatedAt: now })
+      .where(eq(users.id, id))
+      .returning();
+    return row;
+  }
+
   async revokeSession(tokenHash: string) {
     await this.database
       .use()

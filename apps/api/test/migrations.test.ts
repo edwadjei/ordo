@@ -258,3 +258,87 @@ test('0003 clears invented and contact-like names and keeps every account, sessi
   ]);
   assert.equal(await count('sessions'), 1);
 });
+
+test('0004 adds project favourites and note sources with defaults, keeping every row', async (t) => {
+  const proxy = await getPlatformProxy<{ DB: D1Database }>({
+    configPath: wranglerConfig,
+    persist: false,
+    remoteBindings: false,
+    envFiles: [],
+  });
+  t.after(() => proxy.dispose());
+  const d1 = proxy.env.DB;
+  const migrations = await migrationStatements();
+  assert.equal(migrations[3].name, '0004_favourites_and_note_sources.sql');
+  const apply = (index: number) =>
+    d1.batch(migrations[index].statements.map((sql) => d1.prepare(sql)));
+  for (const index of [0, 1, 2]) await apply(index);
+  const owner = crypto.randomUUID();
+  const workspace = crypto.randomUUID();
+  const project = crypto.randomUUID();
+  const note = crypto.randomUUID();
+  await d1.batch([
+    d1
+      .prepare(
+        "INSERT INTO users (id, email) VALUES (?, 'fiction@example.test')",
+      )
+      .bind(owner),
+    d1
+      .prepare(
+        "INSERT INTO workspaces (id, owner_user_id, name, color) VALUES (?, ?, 'Fiction', '#577664')",
+      )
+      .bind(workspace, owner),
+    d1
+      .prepare(
+        "INSERT INTO projects (id, owner_user_id, workspace_id, name, revision) VALUES (?, ?, ?, 'Fictional project', 3)",
+      )
+      .bind(project, owner, workspace),
+    d1
+      .prepare(
+        "INSERT INTO notes (id, owner_user_id, title, body, revision) VALUES (?, ?, 'Fictional note', 'Plain text body', 2)",
+      )
+      .bind(note, owner),
+  ]);
+  await apply(3);
+  assert.deepEqual(
+    await d1
+      .prepare('SELECT name, favorite, revision FROM projects WHERE id = ?')
+      .bind(project)
+      .first(),
+    { name: 'Fictional project', favorite: 0, revision: 3 },
+  );
+  assert.deepEqual(
+    await d1
+      .prepare('SELECT title, body, source, revision FROM notes WHERE id = ?')
+      .bind(note)
+      .first(),
+    {
+      title: 'Fictional note',
+      body: 'Plain text body',
+      source: 'manual',
+      revision: 2,
+    },
+  );
+  await assert.rejects(() =>
+    d1
+      .prepare('UPDATE projects SET favorite = 2 WHERE id = ?')
+      .bind(project)
+      .run(),
+  );
+  await assert.rejects(() =>
+    d1.prepare("UPDATE notes SET source = 'fax' WHERE id = ?").bind(note).run(),
+  );
+  await d1
+    .prepare("UPDATE notes SET source = 'transcript' WHERE id = ?")
+    .bind(note)
+    .run();
+  // Full-text search still finds the note after the column was added.
+  assert.equal(
+    await d1
+      .prepare(
+        "SELECT COUNT(*) AS n FROM notes_fts WHERE notes_fts MATCH 'plain'",
+      )
+      .first('n'),
+    1,
+  );
+});

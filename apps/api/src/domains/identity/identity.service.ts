@@ -1,5 +1,6 @@
 import { isoNow } from '../../platform/time/iso-now.js';
-import type { User } from '@ordo/core';
+import { looksLikeContact, type User } from '@ordo/core';
+import { fail } from '../../platform/http/api-failure.js';
 import { SessionTokens } from '../../capabilities/session-tokens.contract.js';
 import { SessionAuthenticator } from '../../capabilities/session-authenticator.contract.js';
 import { SignInThrottle } from '../../capabilities/sign-in-throttle.contract.js';
@@ -21,6 +22,22 @@ export class IdentityService extends SessionAuthenticator {
     private readonly tokens: SessionTokens,
   ) {
     super();
+  }
+
+  /**
+   * Sets or clears the signed-in account's name. Empty or null clears it; a
+   * phone number or email address is refused rather than stored as a name.
+   */
+  async updateDisplayName(owner: string, displayName: string | null) {
+    const name = displayName || null;
+    if (name && looksLikeContact(name))
+      fail(
+        400,
+        'INVALID_INPUT',
+        'Use your name, not a phone number or email address.',
+      );
+    const user = await this.repository.updateDisplayName(owner, name, isoNow());
+    return publicUser(user ?? fail(404, 'NOT_FOUND', 'Account not found.'));
   }
 
   async logout(token: string) {
