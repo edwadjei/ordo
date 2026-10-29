@@ -25,6 +25,10 @@ test('the warm-up runs every main request path through', async () => {
     409, // POST /v1/capture-runs/:id/save
     200, // GET /v1/drafts
     200, // GET /v1/tasks/:id/related
+    200, // GET /v1/home with an access token
+    200, // MCP tools/list
+    200, // MCP tools/call list_tasks
+    200, // MCP tools/call create_task
   ]);
 });
 
