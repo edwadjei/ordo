@@ -884,3 +884,41 @@ test('drafts list newest first, filtered by workspace and project', async (t) =>
   for (const query of ['?workspaceId=nope', '?other=1'])
     assert.equal((await call('GET', `/v1/drafts${query}`)).statusCode, 400);
 });
+
+test('the largest save the review screen allows fits; only the save route takes it', async (t) => {
+  const { process, call, damsyn } = await setup(t);
+  const run = (await process()).json();
+  // 10 drafts of 20,000 three-byte characters: about 600,000 bytes.
+  const draft = {
+    kind: 'email',
+    to: null,
+    subject: null,
+    body: '€'.repeat(20000),
+  };
+  const task = { ...run.suggestions.tasks[0], title: '€'.repeat(200) };
+  const body = {
+    workspaceId: damsyn.id,
+    tasks: Array(50).fill(task),
+    drafts: Array(10).fill(draft),
+  };
+  assert.ok(Buffer.byteLength(JSON.stringify(body)) > 600_000);
+  const saved = await call('POST', `/v1/capture-runs/${run.id}/save`, body, {
+    'idempotency-key': randomUUID(),
+  });
+  assert.equal(saved.statusCode, 201, saved.body.slice(0, 200));
+  assert.equal(saved.json().drafts.length, 10);
+  assert.equal(saved.json().tasks.length, 50);
+  const tooLarge = await call(
+    'POST',
+    `/v1/capture-runs/${run.id}/save`,
+    { ...body, padding: 'x'.repeat(100_000) },
+    { 'idempotency-key': randomUUID() },
+  );
+  assert.equal(tooLarge.statusCode, 413);
+  // Other routes keep the 150,000-byte limit.
+  const note = await call('POST', '/v1/notes', {
+    title: 'Big',
+    body: '€'.repeat(60000),
+  });
+  assert.equal(note.statusCode, 413);
+});

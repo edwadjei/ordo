@@ -60,6 +60,8 @@ export interface RawBodyOptions {
 
 export interface RouteOptions {
   rawBody?: RawBodyOptions;
+  /** Largest JSON body in bytes for this route; default `JSON_BODY_LIMIT`. */
+  jsonLimit?: number;
 }
 
 export interface RouteDefinition {
