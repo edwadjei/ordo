@@ -46,8 +46,8 @@ export function warmUp(compose = composeApp): Promise<number[]> {
         otpHmacKey: new Uint8Array(32),
         aiSettings: { providers: new DevelopmentTextModelProviders() },
       });
-      for (const [method, path, body] of requests)
-        statuses.push(await dispatch(pipeline, method, path, body));
+      for (const [method, path, body, token] of requests)
+        statuses.push(await dispatch(pipeline, method, path, body, token));
     } catch {
       // Warming is best-effort.
     }
@@ -63,12 +63,15 @@ async function dispatch(
   method: string,
   url: string,
   body?: object,
+  token?: boolean,
 ) {
   const [path, search = ''] = url.split('?');
   const headers: Record<string, string> = {
     origin,
-    cookie: `ordo_session=${'0'.repeat(64)}`,
     'idempotency-key': 'warm-up',
+    ...(token
+      ? { authorization: `Bearer ${warmUpToken}` }
+      : { cookie: `ordo_session=${'0'.repeat(64)}` }),
   };
   let status = 200;
   const reply: HttpReply = {
@@ -93,12 +96,15 @@ async function dispatch(
       ip: '192.0.2.1',
       signal: new AbortController().signal,
       actor: null,
+      agent: null,
       header: (name) => headers[name.toLowerCase()],
       cookie: (name) => cookieValue(headers.cookie, name),
     };
     for (const guard of pipeline.guards) await guard(request, reply);
     if (!route) return 404;
-    JSON.stringify(await route.handler(request, reply));
+    const result = await route.handler(request, reply);
+    for (const hook of pipeline.afterHooks) await hook(request, result);
+    JSON.stringify(result);
     return status;
   } catch (error) {
     const envelope = errorEnvelope(error);
@@ -139,7 +145,15 @@ class WarmUpDelivery extends OtpDelivery {
 const origin = 'https://warm-up.invalid';
 const id = '00000000-0000-4000-8000-000000000001';
 const task = { title: 'Warm-up', workspaceId: id, projectId: id };
-const requests: [string, string, object?][] = [
+/** An access token whose secret matches `secret_hash` below (zero key). */
+const warmUpToken = `ordo_pat_${'00000000-0000-4000-8000-000000000001'}_${'w'.repeat(43)}`;
+const mcp = (name: string, args: object) => ({
+  jsonrpc: '2.0',
+  id: 1,
+  method: 'tools/call',
+  params: { name, arguments: args },
+});
+const requests: [string, string, object?, boolean?][] = [
   ['GET', '/v1/auth/me'],
   ['GET', '/v1/home'],
   ['GET', '/v1/capabilities'],
@@ -158,6 +172,16 @@ const requests: [string, string, object?][] = [
   ],
   ['GET', '/v1/drafts'],
   ['GET', `/v1/tasks/${id}/related`],
+  // An assistant with an access token: REST and MCP.
+  ['GET', '/v1/home', undefined, true],
+  ['POST', '/v1/mcp', { jsonrpc: '2.0', id: 1, method: 'tools/list' }, true],
+  ['POST', '/v1/mcp', mcp('list_tasks', { projectId: id }), true],
+  [
+    'POST',
+    '/v1/mcp',
+    mcp('create_task', { title: 'Warm-up', workspaceId: id }),
+    true,
+  ],
 ];
 
 /**
@@ -248,7 +272,15 @@ function sampleValue(name: string): unknown {
   if (column === 'id' || column.endsWith('_id'))
     return column === 'parent_id' ? null : id;
   if (column === 'revision' || column === 'note_revision') return 1;
-  if (['deleted_at', 'completed_at', 'used_at', 'saved_at'].includes(column))
+  if (
+    [
+      'deleted_at',
+      'completed_at',
+      'used_at',
+      'saved_at',
+      'revoked_at',
+    ].includes(column)
+  )
     return null;
   if (column === 'expires_at') return '2999-01-01T00:00:00.000Z';
   if (column.endsWith('_at')) return '2026-01-01T00:00:00.000Z';
@@ -280,6 +312,10 @@ function sampleValue(name: string): unknown {
     ready: 1,
     consumed: 0,
     contact: 'warm-up@example.invalid',
+    scopes: 'read write',
+    // HMAC-SHA256 of `agent-token:<id>:<secret>` under the all-zero key.
+    secret_hash:
+      'hmac-sha256:40bf4573f072ac966f7144b3b29e63ffdac6062e827c1173e84a9e47b1a17895',
   };
   return column in values ? values[column] : null;
 }

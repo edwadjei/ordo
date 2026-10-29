@@ -5,6 +5,7 @@ import {
   JSON_BODY_LIMIT,
   cookieValue,
   queryValues,
+  type AgentContext,
   type HttpPipeline,
   type HttpReply,
   type HttpRequest,
@@ -44,6 +45,7 @@ class BodyError extends Error {
 
 class HonoHttpRequest implements HttpRequest {
   actor: User | null = null;
+  agent: AgentContext | null = null;
   body: unknown = undefined;
   readonly method: string;
   readonly path: string;
@@ -194,7 +196,9 @@ export function createHonoHost(
       for (const guard of pipeline.guards) await guard(request, reply);
       if (!route) fail(404, 'NOT_FOUND', 'This route does not exist.');
       request.body = await parseBody(context.req.raw, route);
-      return reply.json(await route.handler(request, reply));
+      const result = await route.handler(request, reply);
+      for (const hook of pipeline.afterHooks) await hook(request, result);
+      return reply.json(result);
     } catch (error) {
       const { status, body } = errorEnvelope(error);
       return reply.status(status).json(body);

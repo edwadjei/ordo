@@ -80,6 +80,8 @@ import { defaultProvider, unavailableReason } from '../lib/transcription';
 import { registerServiceWorker } from '../lib/service-worker';
 import { ImportDialog } from './import-dialog';
 import { NameSettings } from './name-settings';
+import { AssistantsDialog } from './assistants';
+import { AgentNames, ByAgent } from './agent-names';
 import { CaptureFlow } from './capture-flow';
 import {
   ConversationsList,
@@ -97,6 +99,7 @@ import {
 } from '../lib/organize';
 import { notProcessed } from '../lib/capture';
 import type { AiSettings } from '@ordo/client/capture';
+import type { AgentTokenRecord } from '@ordo/client';
 import { AudioSettingsDialog } from './audio-settings';
 import {
   FavoriteToggle,
@@ -163,6 +166,20 @@ export function WorkspaceApp() {
         .catch(() => {});
     return () => control.abort();
   }, [data?.user.id]);
+  // Key names, for "By agent · <key>" on what assistants created.
+  const [agentTokens, setAgentTokens] = useState<AgentTokenRecord[]>([]);
+  useEffect(() => {
+    const control = new AbortController();
+    setAgentTokens([]);
+    if (data?.user.id)
+      api
+        .agentTokens(control.signal)
+        .then((list) => {
+          if (!control.signal.aborted) setAgentTokens(list);
+        })
+        .catch(() => {});
+    return () => control.abort();
+  }, [data?.user.id]);
   // The capture being processed with AI, and whether an import should go
   // straight to processing once saved (the AI Capture tile).
   const [captureNote, setCaptureNote] = useState<string | null>(null),
@@ -190,6 +207,7 @@ export function WorkspaceApp() {
       | 'email'
       | 'upload'
       | 'manage'
+      | 'assistants'
       | null
     >(null),
     [query, setQuery] = useState(''),
@@ -226,6 +244,7 @@ export function WorkspaceApp() {
   readOnlyRef.current = work.readOnly;
   const online: Record<string, string> = {
     manage: 'Archiving and deleting',
+    assistants: 'Connected assistants',
     workspace: 'A new workspace',
     project: 'A new project',
     record: 'Recording',
@@ -569,488 +588,527 @@ export function WorkspaceApp() {
     timeZone: 'UTC',
   }).format(new Date(`${now.date}T12:00:00Z`));
   return (
-    <div className="app-shell">
-      <a href="#main-content" className="skip-link">
-        Skip to content
-      </a>
-      {mobileMenu && (
-        <button
-          className="sidebar-overlay"
-          aria-label="Close navigation"
-          onClick={() => setMobileMenu(false)}
-        />
-      )}
-      <aside
-        className={`sidebar ${mobileMenu ? 'is-open' : ''}`}
-        aria-label="Main navigation"
-      >
-        <div className="sidebar-brand">
-          <div className="brand">
-            ordo<span>.</span>
-          </div>
+    <AgentNames.Provider value={agentTokens}>
+      <div className="app-shell">
+        <a href="#main-content" className="skip-link">
+          Skip to content
+        </a>
+        {mobileMenu && (
           <button
-            className="icon-button mobile-only"
+            className="sidebar-overlay"
             aria-label="Close navigation"
             onClick={() => setMobileMenu(false)}
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <nav className="main-nav">
-          {(
-            [
-              { key: 'day', icon: Sun },
-              { key: 'inbox', icon: Inbox },
-              { key: 'upcoming', icon: CalendarDays },
-              { key: 'waiting', icon: Clock3 },
-            ] as const
-          ).map((item) => (
-            <button
-              key={item.key}
-              className={`nav-item ${view === item.key ? 'active' : ''}`}
-              onClick={() => navigate(item.key)}
-            >
-              <item.icon size={17} strokeWidth={1.7} />
-              <span>{viewNames[item.key]}</span>
-              {item.key === 'waiting' && waitingAll > 0 && (
-                <small>{waitingAll}</small>
-              )}
-            </button>
-          ))}
-        </nav>
-        <div className="nav-section-label">
-          <span>Workspaces</span>
-          <button
-            className="icon-button"
-            aria-label="Create workspace"
-            onClick={() => openModal('workspace')}
-          >
-            <Plus size={14} />
-          </button>
-        </div>
-        <div className="workspace-nav">
-          {data.workspaces.map((item) => (
-            <div key={item.id}>
-              <button
-                className={`nav-item ${workspaceId === item.id ? 'workspace-active' : ''}`}
-                onClick={() => navigate('workspace', item.id)}
-              >
-                <span
-                  className="workspace-dot"
-                  style={{ background: item.color }}
-                />
-                <span>{item.name}</span>
-                {workspaceId === item.id ? (
-                  <ChevronDown size={13} />
-                ) : (
-                  <ChevronRight size={13} />
-                )}
-              </button>
-              {workspaceId === item.id && (
-                <div className="project-nav">
-                  <label className="project-search">
-                    <Search size={12} />
-                    <input
-                      placeholder="Find a project…"
-                      aria-label="Filter projects"
-                      value={projectFilter}
-                      onChange={(event) => setProjectFilter(event.target.value)}
-                    />
-                  </label>
-                  {favoritesFirst(
-                    data.projects.filter(
-                      (p) =>
-                        p.workspaceId === item.id &&
-                        p.name
-                          .toLowerCase()
-                          .includes(projectFilter.toLowerCase()),
-                    ),
-                  ).map((p) => (
-                    <div
-                      key={p.id}
-                      className={`project-nav-row ${projectId === p.id ? 'active' : ''}`}
-                    >
-                      <button
-                        className={`project-nav-item ${projectId === p.id ? 'active' : ''}`}
-                        aria-current={projectId === p.id ? 'page' : undefined}
-                        onClick={() => navigate('project', item.id, p.id)}
-                      >
-                        <span className="project-bullet" />
-                        {p.name}
-                      </button>
-                      <FavoriteToggle
-                        name={p.name}
-                        favorite={!!p.favorite}
-                        busy={favoriteBusy.includes(p.id)}
-                        onToggle={() => void toggleFavorite(p)}
-                      />
-                    </div>
-                  ))}
-                  <button
-                    className="project-nav-item add-project"
-                    onClick={() => openModal('project')}
-                  >
-                    <Plus size={12} />
-                    New project
-                  </button>
-                </div>
-              )}
+          />
+        )}
+        <aside
+          className={`sidebar ${mobileMenu ? 'is-open' : ''}`}
+          aria-label="Main navigation"
+        >
+          <div className="sidebar-brand">
+            <div className="brand">
+              ordo<span>.</span>
             </div>
-          ))}
-          {archived.workspaces.length + archived.projects.length > 0 && (
-            <div className="archived-nav">
-              <button
-                className="nav-item archived-toggle"
-                aria-expanded={showArchived}
-                onClick={() => setShowArchived(!showArchived)}
-              >
-                <Archive size={14} aria-hidden="true" />
-                <span>Archived</span>
-                <small>
-                  {archived.workspaces.length + archived.projects.length}
-                </small>
-              </button>
-              {showArchived && (
-                <ul aria-label="Archived workspaces and projects">
-                  {archived.workspaces.map((item) => (
-                    <li key={item.id}>
-                      <button
-                        className="project-nav-item"
-                        onClick={() => manageItem('workspaces', item.id)}
-                      >
-                        <span
-                          className="workspace-dot"
-                          style={{ background: item.color }}
-                        />
-                        {item.name}
-                        <small>workspace</small>
-                      </button>
-                    </li>
-                  ))}
-                  {archived.projects.map((item) => (
-                    <li key={item.id}>
-                      <button
-                        className="project-nav-item"
-                        onClick={() => manageItem('projects', item.id)}
-                      >
-                        <span className="project-bullet" />
-                        {item.name}
-                        <small>
-                          {
-                            everything!.workspaces.find(
-                              (w) => w.id === item.workspaceId,
-                            )?.name
-                          }
-                        </small>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-          {data.workspaces.length === 0 && (
-            <p className="nav-empty">
-              A space for every part of your life.
-              <button onClick={() => openModal('workspace')}>
-                Create your first workspace <Plus size={11} />
-              </button>
-            </p>
-          )}
-        </div>
-        <div className="sidebar-bottom">
-          <button
-            className="nav-item settings-nav"
-            onClick={() => {
-              setMobileMenu(false);
-              openModal('settings');
-            }}
-          >
-            <Settings size={16} />
-            <span>Settings</span>
-          </button>
-          <div className="profile">
-            <span className="avatar" aria-hidden="true">
-              {initials(data.user.displayName) || (
-                <UserRound size={15} strokeWidth={1.7} />
-              )}
-            </span>
-            <div>
-              <strong>{profileName(data.user.displayName)}</strong>
-              <small>Personal workspace</small>
-            </div>
-            <button
-              className="icon-button"
-              title="Sign out"
-              aria-label="Sign out"
-              onClick={() =>
-                void work
-                  .signOut()
-                  .catch((error) => work.setMessage(error.message))
-              }
-            >
-              <LogOut size={15} />
-            </button>
-          </div>
-        </div>
-      </aside>
-      <div className="main-shell">
-        <header className="topbar">
-          <div className="breadcrumb">
             <button
               className="icon-button mobile-only"
-              aria-label="Open navigation"
-              onClick={() => setMobileMenu(true)}
+              aria-label="Close navigation"
+              onClick={() => setMobileMenu(false)}
             >
-              <Menu size={20} />
+              <X size={18} />
             </button>
-            <span className="desktop-only">Your workspace</span>
-            <span className="crumb-separator desktop-only">/</span>
-            <strong>{title}</strong>
           </div>
-          <div className="top-actions">
-            <ThemeSelector />
+          <nav className="main-nav">
+            {(
+              [
+                { key: 'day', icon: Sun },
+                { key: 'inbox', icon: Inbox },
+                { key: 'upcoming', icon: CalendarDays },
+                { key: 'waiting', icon: Clock3 },
+              ] as const
+            ).map((item) => (
+              <button
+                key={item.key}
+                className={`nav-item ${view === item.key ? 'active' : ''}`}
+                onClick={() => navigate(item.key)}
+              >
+                <item.icon size={17} strokeWidth={1.7} />
+                <span>{viewNames[item.key]}</span>
+                {item.key === 'waiting' && waitingAll > 0 && (
+                  <small>{waitingAll}</small>
+                )}
+              </button>
+            ))}
+          </nav>
+          <div className="nav-section-label">
+            <span>Workspaces</span>
             <button
-              className="search-trigger"
+              className="icon-button"
+              aria-label="Create workspace"
+              onClick={() => openModal('workspace')}
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+          <div className="workspace-nav">
+            {data.workspaces.map((item) => (
+              <div key={item.id}>
+                <button
+                  className={`nav-item ${workspaceId === item.id ? 'workspace-active' : ''}`}
+                  onClick={() => navigate('workspace', item.id)}
+                >
+                  <span
+                    className="workspace-dot"
+                    style={{ background: item.color }}
+                  />
+                  <span>{item.name}</span>
+                  {workspaceId === item.id ? (
+                    <ChevronDown size={13} />
+                  ) : (
+                    <ChevronRight size={13} />
+                  )}
+                </button>
+                {workspaceId === item.id && (
+                  <div className="project-nav">
+                    <label className="project-search">
+                      <Search size={12} />
+                      <input
+                        placeholder="Find a project…"
+                        aria-label="Filter projects"
+                        value={projectFilter}
+                        onChange={(event) =>
+                          setProjectFilter(event.target.value)
+                        }
+                      />
+                    </label>
+                    {favoritesFirst(
+                      data.projects.filter(
+                        (p) =>
+                          p.workspaceId === item.id &&
+                          p.name
+                            .toLowerCase()
+                            .includes(projectFilter.toLowerCase()),
+                      ),
+                    ).map((p) => (
+                      <div
+                        key={p.id}
+                        className={`project-nav-row ${projectId === p.id ? 'active' : ''}`}
+                      >
+                        <button
+                          className={`project-nav-item ${projectId === p.id ? 'active' : ''}`}
+                          aria-current={projectId === p.id ? 'page' : undefined}
+                          onClick={() => navigate('project', item.id, p.id)}
+                        >
+                          <span className="project-bullet" />
+                          {p.name}
+                        </button>
+                        <FavoriteToggle
+                          name={p.name}
+                          favorite={!!p.favorite}
+                          busy={favoriteBusy.includes(p.id)}
+                          onToggle={() => void toggleFavorite(p)}
+                        />
+                      </div>
+                    ))}
+                    <button
+                      className="project-nav-item add-project"
+                      onClick={() => openModal('project')}
+                    >
+                      <Plus size={12} />
+                      New project
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {archived.workspaces.length + archived.projects.length > 0 && (
+              <div className="archived-nav">
+                <button
+                  className="nav-item archived-toggle"
+                  aria-expanded={showArchived}
+                  onClick={() => setShowArchived(!showArchived)}
+                >
+                  <Archive size={14} aria-hidden="true" />
+                  <span>Archived</span>
+                  <small>
+                    {archived.workspaces.length + archived.projects.length}
+                  </small>
+                </button>
+                {showArchived && (
+                  <ul aria-label="Archived workspaces and projects">
+                    {archived.workspaces.map((item) => (
+                      <li key={item.id}>
+                        <button
+                          className="project-nav-item"
+                          onClick={() => manageItem('workspaces', item.id)}
+                        >
+                          <span
+                            className="workspace-dot"
+                            style={{ background: item.color }}
+                          />
+                          {item.name}
+                          <small>workspace</small>
+                        </button>
+                      </li>
+                    ))}
+                    {archived.projects.map((item) => (
+                      <li key={item.id}>
+                        <button
+                          className="project-nav-item"
+                          onClick={() => manageItem('projects', item.id)}
+                        >
+                          <span className="project-bullet" />
+                          {item.name}
+                          <small>
+                            {
+                              everything!.workspaces.find(
+                                (w) => w.id === item.workspaceId,
+                              )?.name
+                            }
+                          </small>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            {data.workspaces.length === 0 && (
+              <p className="nav-empty">
+                A space for every part of your life.
+                <button onClick={() => openModal('workspace')}>
+                  Create your first workspace <Plus size={11} />
+                </button>
+              </p>
+            )}
+          </div>
+          <div className="sidebar-bottom">
+            <button
+              className="nav-item settings-nav"
               onClick={() => {
-                setQuery('');
-                openModal('search');
+                setMobileMenu(false);
+                openModal('settings');
               }}
             >
-              <Search size={15} />
-              <span>Search anything</span>
-              <kbd>⌘ K</kbd>
+              <Settings size={16} />
+              <span>Settings</span>
             </button>
-            <button
-              className="quick-capture"
-              aria-label="Quick Capture"
-              onClick={() => setModal('task')}
-            >
-              <Plus size={15} />
-              <span>Quick Capture</span>
-            </button>
-          </div>
-        </header>
-        <main id="main-content" className="content">
-          {view === 'day' ? (
-            <DayHeader
-              date={date}
-              title={greeting(now.hour, data.user.displayName)}
-              summary={daySummary(counts, sections.dueNow.length)}
-              aside={scopeSelect}
-            />
-          ) : (
-            <ViewHeader
-              icon={header.icon}
-              context={header.context}
-              title={title}
-              count={header.count}
-              countLabel={header.countLabel}
-              purpose={header.purpose}
-              aside={
-                view === 'project' && project ? (
-                  <span className="project-aside">
-                    <FavoriteToggle
-                      name={project.name}
-                      favorite={!!project.favorite}
-                      busy={favoriteBusy.includes(project.id)}
-                      onToggle={() => void toggleFavorite(project)}
-                    />
-                    <button
-                      type="button"
-                      className="favorite-toggle"
-                      aria-label={`Project settings for ${project.name}`}
-                      title="Description and other names"
-                      onClick={() => manageItem('projects', project.id)}
-                    >
-                      <Settings
-                        size={13}
-                        strokeWidth={1.8}
-                        aria-hidden="true"
-                      />
-                    </button>
-                    {scopeSelect}
-                  </span>
-                ) : view === 'workspace' && workspace ? (
-                  <span className="project-aside">
-                    <button
-                      type="button"
-                      className="favorite-toggle"
-                      aria-label={`Workspace settings for ${workspace.name}`}
-                      title="Archive or delete"
-                      onClick={() => manageItem('workspaces', workspace.id)}
-                    >
-                      <Settings
-                        size={13}
-                        strokeWidth={1.8}
-                        aria-hidden="true"
-                      />
-                    </button>
-                    {scopeSelect}
-                  </span>
-                ) : (
-                  scopeSelect
-                )
-              }
-            />
-          )}
-          {view === 'day' && <CountChips counts={counts} onOpen={openCount} />}
-          {work.readOnly && (
-            <div className="offline-banner" role="status">
-              <CloudOff size={15} aria-hidden="true" />
-              <span>
-                <strong>
-                  {work.online ? 'Can’t reach Ordo.' : 'You’re offline.'}
-                </strong>{' '}
-                Showing what this device last loaded. New tasks are kept here
-                and sync when you reconnect; editing and notes need a
-                connection.
+            <div className="profile">
+              <span className="avatar" aria-hidden="true">
+                {initials(data.user.displayName) || (
+                  <UserRound size={15} strokeWidth={1.7} />
+                )}
               </span>
-              {work.online && (
-                <button
-                  className="text-button"
-                  onClick={() => void work.sync()}
-                  disabled={work.syncing}
-                >
-                  Retry
-                </button>
-              )}
-            </div>
-          )}
-          {work.message && (
-            <div className="notice" role="status">
-              <span>{work.message}</span>
+              <div>
+                <strong>{profileName(data.user.displayName)}</strong>
+                <small>Personal workspace</small>
+              </div>
               <button
-                aria-label="Dismiss message"
                 className="icon-button"
-                onClick={() => work.setMessage('')}
+                title="Sign out"
+                aria-label="Sign out"
+                onClick={() =>
+                  void work
+                    .signOut()
+                    .catch((error) => work.setMessage(error.message))
+                }
               >
-                <X size={15} />
+                <LogOut size={15} />
               </button>
             </div>
-          )}
-          {view === 'day' &&
-            audioSettings &&
-            !audioReady &&
-            !data.workspaces.length &&
-            !data.tasks.length &&
-            !data.notes.length && (
-              <div className="voice-onboarding">
+          </div>
+        </aside>
+        <div className="main-shell">
+          <header className="topbar">
+            <div className="breadcrumb">
+              <button
+                className="icon-button mobile-only"
+                aria-label="Open navigation"
+                onClick={() => setMobileMenu(true)}
+              >
+                <Menu size={20} />
+              </button>
+              <span className="desktop-only">Your workspace</span>
+              <span className="crumb-separator desktop-only">/</span>
+              <strong>{title}</strong>
+            </div>
+            <div className="top-actions">
+              <ThemeSelector />
+              <button
+                className="search-trigger"
+                onClick={() => {
+                  setQuery('');
+                  openModal('search');
+                }}
+              >
+                <Search size={15} />
+                <span>Search anything</span>
+                <kbd>⌘ K</kbd>
+              </button>
+              <button
+                className="quick-capture"
+                aria-label="Quick Capture"
+                onClick={() => setModal('task')}
+              >
+                <Plus size={15} />
+                <span>Quick Capture</span>
+              </button>
+            </div>
+          </header>
+          <main id="main-content" className="content">
+            {view === 'day' ? (
+              <DayHeader
+                date={date}
+                title={greeting(now.hour, data.user.displayName)}
+                summary={daySummary(counts, sections.dueNow.length)}
+                aside={scopeSelect}
+              />
+            ) : (
+              <ViewHeader
+                icon={header.icon}
+                context={header.context}
+                title={title}
+                count={header.count}
+                countLabel={header.countLabel}
+                purpose={header.purpose}
+                aside={
+                  view === 'project' && project ? (
+                    <span className="project-aside">
+                      <FavoriteToggle
+                        name={project.name}
+                        favorite={!!project.favorite}
+                        busy={favoriteBusy.includes(project.id)}
+                        onToggle={() => void toggleFavorite(project)}
+                      />
+                      <button
+                        type="button"
+                        className="favorite-toggle"
+                        aria-label={`Project settings for ${project.name}`}
+                        title="Description and other names"
+                        onClick={() => manageItem('projects', project.id)}
+                      >
+                        <Settings
+                          size={13}
+                          strokeWidth={1.8}
+                          aria-hidden="true"
+                        />
+                      </button>
+                      {scopeSelect}
+                    </span>
+                  ) : view === 'workspace' && workspace ? (
+                    <span className="project-aside">
+                      <button
+                        type="button"
+                        className="favorite-toggle"
+                        aria-label={`Workspace settings for ${workspace.name}`}
+                        title="Archive or delete"
+                        onClick={() => manageItem('workspaces', workspace.id)}
+                      >
+                        <Settings
+                          size={13}
+                          strokeWidth={1.8}
+                          aria-hidden="true"
+                        />
+                      </button>
+                      {scopeSelect}
+                    </span>
+                  ) : (
+                    scopeSelect
+                  )
+                }
+              />
+            )}
+            {view === 'day' && (
+              <CountChips counts={counts} onOpen={openCount} />
+            )}
+            {work.readOnly && (
+              <div className="offline-banner" role="status">
+                <CloudOff size={15} aria-hidden="true" />
                 <span>
-                  Want to capture a thought by voice? Turn it on in Settings.
+                  <strong>
+                    {work.online ? 'Can’t reach Ordo.' : 'You’re offline.'}
+                  </strong>{' '}
+                  Showing what this device last loaded. New tasks are kept here
+                  and sync when you reconnect; editing and notes need a
+                  connection.
                 </span>
+                {work.online && (
+                  <button
+                    className="text-button"
+                    onClick={() => void work.sync()}
+                    disabled={work.syncing}
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
+            )}
+            {work.message && (
+              <div className="notice" role="status">
+                <span>{work.message}</span>
                 <button
-                  className="text-button"
-                  onClick={() => openModal('settings')}
+                  aria-label="Dismiss message"
+                  className="icon-button"
+                  onClick={() => work.setMessage('')}
                 >
-                  Set up voice
+                  <X size={15} />
                 </button>
               </div>
             )}
-          {view === 'day' && (
-            <div className="quick-actions">
-              {[
-                {
-                  title: 'Add Task',
-                  hint: 'One thing at a time',
-                  icon: Plus,
-                  action: focusComposer,
-                },
-                {
-                  title: 'Record',
-                  // Settings not loaded yet (or failed): nothing to offer.
-                  // Loaded but not ready: the recorder explains what to set up.
-                  hint: audioReady
-                    ? 'A thought, out loud'
-                    : audioSettings
-                      ? 'Set up in Settings'
-                      : 'Coming soon',
-                  unavailable: !audioSettings,
-                  icon: Mic,
-                  action: () => openModal('record'),
-                },
-                {
-                  title: 'Quick Note',
-                  hint: 'Get it out of your head',
-                  icon: NotebookPen,
-                  action: quickNote,
-                },
-                {
-                  title: 'Upload Transcript',
-                  hint: 'Or paste an email',
-                  icon: Upload,
-                  action: () => openModal('upload'),
-                },
-                {
-                  title: 'AI Capture',
-                  // No vendor or price wording here: Settings explains providers.
-                  hint: aiReady
-                    ? 'Turn a capture into tasks'
-                    : aiSettings
-                      ? 'Set up in Settings'
-                      : 'Coming soon',
-                  unavailable: !aiSettings,
-                  icon: Sparkles,
-                  action: () => {
-                    if (!aiReady) {
-                      openModal('settings');
-                      return;
-                    }
-                    setProcessAfterImport(true);
-                    openModal('upload');
+            {view === 'day' &&
+              audioSettings &&
+              !audioReady &&
+              !data.workspaces.length &&
+              !data.tasks.length &&
+              !data.notes.length && (
+                <div className="voice-onboarding">
+                  <span>
+                    Want to capture a thought by voice? Turn it on in Settings.
+                  </span>
+                  <button
+                    className="text-button"
+                    onClick={() => openModal('settings')}
+                  >
+                    Set up voice
+                  </button>
+                </div>
+              )}
+            {view === 'day' && (
+              <div className="quick-actions">
+                {[
+                  {
+                    title: 'Add Task',
+                    hint: 'One thing at a time',
+                    icon: Plus,
+                    action: focusComposer,
                   },
-                },
-              ].map((action) => (
-                <button
-                  className="action-card"
-                  key={action.title}
-                  onClick={action.action}
-                  disabled={
-                    action.unavailable ||
-                    (busy && action.title === 'Quick Note')
-                  }
-                  aria-label={
-                    action.unavailable
-                      ? `${action.title} — Coming soon`
-                      : undefined
-                  }
-                >
-                  <action.icon size={23} strokeWidth={1.4} />
-                  <strong>{action.title}</strong>
-                  <small>{action.hint}</small>
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="workspace-layout">
-            <section className="primary-column">
-              {view === 'project' && project ? (
-                <>
-                  <ProjectActions
-                    busy={busy}
-                    onTask={focusComposer}
-                    onNote={() => void quickNote()}
-                    onRecord={() => openModal('record')}
-                    onUpload={() => openModal('upload')}
-                    recordHint={
-                      audioReady
-                        ? undefined
-                        : audioSettings
-                          ? 'Set up in Settings'
-                          : 'Coming soon'
+                  {
+                    title: 'Record',
+                    // Settings not loaded yet (or failed): nothing to offer.
+                    // Loaded but not ready: the recorder explains what to set up.
+                    hint: audioReady
+                      ? 'A thought, out loud'
+                      : audioSettings
+                        ? 'Set up in Settings'
+                        : 'Coming soon',
+                    unavailable: !audioSettings,
+                    icon: Mic,
+                    action: () => openModal('record'),
+                  },
+                  {
+                    title: 'Quick Note',
+                    hint: 'Get it out of your head',
+                    icon: NotebookPen,
+                    action: quickNote,
+                  },
+                  {
+                    title: 'Upload Transcript',
+                    hint: 'Or paste an email',
+                    icon: Upload,
+                    action: () => openModal('upload'),
+                  },
+                  {
+                    title: 'AI Capture',
+                    // No vendor or price wording here: Settings explains providers.
+                    hint: aiReady
+                      ? 'Turn a capture into tasks'
+                      : aiSettings
+                        ? 'Set up in Settings'
+                        : 'Coming soon',
+                    unavailable: !aiSettings,
+                    icon: Sparkles,
+                    action: () => {
+                      if (!aiReady) {
+                        openModal('settings');
+                        return;
+                      }
+                      setProcessAfterImport(true);
+                      openModal('upload');
+                    },
+                  },
+                ].map((action) => (
+                  <button
+                    className="action-card"
+                    key={action.title}
+                    onClick={action.action}
+                    disabled={
+                      action.unavailable ||
+                      (busy && action.title === 'Quick Note')
                     }
-                  />
-                  <div className="section-heading">
-                    <ProjectTabs
-                      tab={tab}
-                      onChange={setTab}
-                      counts={{
-                        tasks: tasks.filter((task) => task.status !== 'done')
-                          .length,
-                        notes: notes.length,
-                      }}
+                    aria-label={
+                      action.unavailable
+                        ? `${action.title} — Coming soon`
+                        : undefined
+                    }
+                  >
+                    <action.icon size={23} strokeWidth={1.4} />
+                    <strong>{action.title}</strong>
+                    <small>{action.hint}</small>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="workspace-layout">
+              <section className="primary-column">
+                {view === 'project' && project ? (
+                  <>
+                    <ProjectActions
+                      busy={busy}
+                      onTask={focusComposer}
+                      onNote={() => void quickNote()}
+                      onRecord={() => openModal('record')}
+                      onUpload={() => openModal('upload')}
+                      recordHint={
+                        audioReady
+                          ? undefined
+                          : audioSettings
+                            ? 'Set up in Settings'
+                            : 'Coming soon'
+                      }
                     />
-                    {tab === 'tasks' && (
+                    <div className="section-heading">
+                      <ProjectTabs
+                        tab={tab}
+                        onChange={setTab}
+                        counts={{
+                          tasks: tasks.filter((task) => task.status !== 'done')
+                            .length,
+                          notes: notes.length,
+                        }}
+                      />
+                      {tab === 'tasks' && (
+                        <label className="completed-toggle">
+                          <input
+                            type="checkbox"
+                            checked={showDone}
+                            onChange={(event) =>
+                              setShowDone(event.target.checked)
+                            }
+                          />
+                          Show done
+                        </label>
+                      )}
+                    </div>
+                  </>
+                ) : hasNotesTab ? (
+                  <div className="section-heading">
+                    <div className="section-tabs" role="tablist">
+                      <button
+                        role="tab"
+                        aria-selected={tab === 'tasks'}
+                        className={tab === 'tasks' ? 'selected' : ''}
+                        onClick={() => setTab('tasks')}
+                      >
+                        {view === 'day' ? 'Your focus' : 'Tasks'}
+                      </button>
+                      <button
+                        role="tab"
+                        aria-selected={tab === 'notes'}
+                        className={tab === 'notes' ? 'selected' : ''}
+                        onClick={() => setTab('notes')}
+                      >
+                        Notes<span className="count">{notes.length}</span>
+                      </button>
+                    </div>
+                    {tab === 'tasks' && view !== 'day' && (
                       <label className="completed-toggle">
                         <input
                           type="checkbox"
@@ -1063,678 +1121,696 @@ export function WorkspaceApp() {
                       </label>
                     )}
                   </div>
-                </>
-              ) : hasNotesTab ? (
-                <div className="section-heading">
-                  <div className="section-tabs" role="tablist">
-                    <button
-                      role="tab"
-                      aria-selected={tab === 'tasks'}
-                      className={tab === 'tasks' ? 'selected' : ''}
-                      onClick={() => setTab('tasks')}
-                    >
-                      {view === 'day' ? 'Your focus' : 'Tasks'}
-                    </button>
-                    <button
-                      role="tab"
-                      aria-selected={tab === 'notes'}
-                      className={tab === 'notes' ? 'selected' : ''}
-                      onClick={() => setTab('notes')}
-                    >
-                      Notes<span className="count">{notes.length}</span>
-                    </button>
-                  </div>
-                  {tab === 'tasks' && view !== 'day' && (
-                    <label className="completed-toggle">
-                      <input
-                        type="checkbox"
-                        checked={showDone}
-                        onChange={(event) => setShowDone(event.target.checked)}
-                      />
-                      Show done
-                    </label>
-                  )}
-                </div>
-              ) : null}
-              <div
-                className="tab-panel"
-                {...(view === 'project'
-                  ? {
-                      role: 'tabpanel',
-                      id: panelId,
-                      'aria-labelledby': tabId(tab),
-                    }
-                  : {})}
-              >
-                {view === 'project' && project && tab === 'overview' ? (
-                  <ProjectOverview
-                    data={data}
-                    projectId={project.id}
-                    now={now}
-                    row={row}
-                    onNote={setSelectedNote}
-                    onTab={setTab}
-                  />
-                ) : view === 'project' && project && tab === 'conversations' ? (
-                  <ConversationsList
-                    data={data}
-                    workspaceId={project.workspaceId}
-                    projectId={project.id}
-                    online={!work.readOnly}
-                    onNote={setSelectedNote}
-                    onTask={setSelectedTask}
-                    onProcess={processCapture}
-                  />
-                ) : view === 'project' && project && tab === 'drafts' ? (
-                  <DraftsList
-                    key={project.id}
-                    projectId={project.id}
-                    workspaceId={project.workspaceId}
-                    online={!work.readOnly}
-                    onNote={setSelectedNote}
-                  />
-                ) : tab === 'tasks' || !hasNotesTab ? (
-                  <>
-                    <InlineComposer
-                      key={`${view}:${projectId || activeWorkspace || ''}`}
-                      inputRef={composerRef}
-                      placeholder={composer.placeholder}
-                      hint={composer.hint}
-                      onAdd={addFromComposer}
-                    >
-                      {view === 'upcoming' && (
-                        <label className="composer-day">
-                          <span className="sr-only">Due on</span>
-                          <select
-                            value={upcomingDate}
-                            onChange={(event) =>
-                              setUpcomingDate(event.target.value)
-                            }
+                ) : null}
+                <div
+                  className="tab-panel"
+                  {...(view === 'project'
+                    ? {
+                        role: 'tabpanel',
+                        id: panelId,
+                        'aria-labelledby': tabId(tab),
+                      }
+                    : {})}
+                >
+                  {view === 'project' && project && tab === 'overview' ? (
+                    <ProjectOverview
+                      data={data}
+                      projectId={project.id}
+                      now={now}
+                      row={row}
+                      onNote={setSelectedNote}
+                      onTab={setTab}
+                    />
+                  ) : view === 'project' &&
+                    project &&
+                    tab === 'conversations' ? (
+                    <ConversationsList
+                      data={data}
+                      workspaceId={project.workspaceId}
+                      projectId={project.id}
+                      online={!work.readOnly}
+                      onNote={setSelectedNote}
+                      onTask={setSelectedTask}
+                      onProcess={processCapture}
+                    />
+                  ) : view === 'project' && project && tab === 'drafts' ? (
+                    <DraftsList
+                      key={project.id}
+                      projectId={project.id}
+                      workspaceId={project.workspaceId}
+                      online={!work.readOnly}
+                      onNote={setSelectedNote}
+                    />
+                  ) : tab === 'tasks' || !hasNotesTab ? (
+                    <>
+                      <InlineComposer
+                        key={`${view}:${projectId || activeWorkspace || ''}`}
+                        inputRef={composerRef}
+                        placeholder={composer.placeholder}
+                        hint={composer.hint}
+                        onAdd={addFromComposer}
+                      >
+                        {view === 'upcoming' && (
+                          <label className="composer-day">
+                            <span className="sr-only">Due on</span>
+                            <select
+                              value={upcomingDate}
+                              onChange={(event) =>
+                                setUpcomingDate(event.target.value)
+                              }
+                            >
+                              {groups.map((group) => (
+                                <option key={group.date} value={group.date}>
+                                  {group.label}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown size={11} />
+                          </label>
+                        )}
+                      </InlineComposer>
+                      {pending.map((item) => (
+                        <div className="task-row pending" key={item.key}>
+                          <Clock3 size={15} />
+                          <div className="task-main">
+                            <span className="task-title">
+                              {item.input.title}
+                            </span>
+                            <small className={item.error ? 'error-text' : ''}>
+                              {item.error ||
+                                'Saved on this device · Needs sync'}
+                            </small>
+                          </div>
+                          <button
+                            className="text-button"
+                            onClick={() => void work.sync()}
                           >
-                            {groups.map((group) => (
-                              <option key={group.date} value={group.date}>
-                                {group.label}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown size={11} />
-                        </label>
-                      )}
-                    </InlineComposer>
-                    {pending.map((item) => (
-                      <div className="task-row pending" key={item.key}>
-                        <Clock3 size={15} />
-                        <div className="task-main">
-                          <span className="task-title">{item.input.title}</span>
-                          <small className={item.error ? 'error-text' : ''}>
-                            {item.error || 'Saved on this device · Needs sync'}
-                          </small>
+                            Retry
+                          </button>
                         </div>
-                        <button
-                          className="text-button"
-                          onClick={() => void work.sync()}
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    ))}
-                    {view === 'day' ? (
-                      <>
-                        {sections.dueNow.length > 0 && (
+                      ))}
+                      {view === 'day' ? (
+                        <>
+                          {sections.dueNow.length > 0 && (
+                            <Section
+                              id="day-now"
+                              title="Due now"
+                              count={sections.dueNow.length}
+                              tone="now"
+                            >
+                              {sections.dueNow.map(row)}
+                            </Section>
+                          )}
+                          {sections.overdue.length > 0 && (
+                            <Section
+                              id="day-overdue"
+                              title="Overdue"
+                              count={sections.overdue.length}
+                              tone="warm"
+                            >
+                              {sections.overdue.map(row)}
+                            </Section>
+                          )}
                           <Section
-                            id="day-now"
-                            title="Due now"
-                            count={sections.dueNow.length}
-                            tone="now"
+                            id="day-today"
+                            title="Today"
+                            count={sections.today.length}
                           >
-                            {sections.dueNow.map(row)}
+                            {sections.today.length ? (
+                              sections.today.map(row)
+                            ) : sections.dueNow.length ||
+                              sections.overdue.length ? (
+                              <p className="section-empty">
+                                Nothing else is due today.
+                              </p>
+                            ) : (
+                              <Empty
+                                icon={Sun}
+                                title="A little breathing room."
+                                text="Nothing is due today. Add the one thing you want to move forward and it will land here."
+                              />
+                            )}
                           </Section>
-                        )}
-                        {sections.overdue.length > 0 && (
-                          <Section
-                            id="day-overdue"
-                            title="Overdue"
-                            count={sections.overdue.length}
-                            tone="warm"
-                          >
-                            {sections.overdue.map(row)}
-                          </Section>
-                        )}
-                        <Section
-                          id="day-today"
-                          title="Today"
-                          count={sections.today.length}
-                        >
-                          {sections.today.length ? (
-                            sections.today.map(row)
-                          ) : sections.dueNow.length ||
-                            sections.overdue.length ? (
-                            <p className="section-empty">
-                              Nothing else is due today.
-                            </p>
-                          ) : (
+                          <WaitingPreview
+                            tasks={waitingList.slice(0, 3)}
+                            total={waitingList.length}
+                            now={now}
+                            onOpen={setSelectedTask}
+                            onSeeAll={() => navigate('waiting')}
+                          />
+                          {undated.length > 0 && (
+                            <Section
+                              title="Without a date"
+                              count={undated.length}
+                              action={
+                                <span className="muted small">
+                                  Ready when you are
+                                </span>
+                              }
+                            >
+                              {undated.slice(0, 8).map(row)}
+                            </Section>
+                          )}
+                        </>
+                      ) : view === 'upcoming' ? (
+                        <div className="day-groups">
+                          {upcomingTotal === 0 && (
                             <Empty
-                              icon={Sun}
-                              title="A little breathing room."
-                              text="Nothing is due today. Add the one thing you want to move forward and it will land here."
+                              icon={CalendarDays}
+                              title="A clear week ahead."
+                              text="Nothing is due or waiting for follow-up in the next seven days. Plan something above and pick its day."
                             />
                           )}
-                        </Section>
-                        <WaitingPreview
-                          tasks={waitingList.slice(0, 3)}
-                          total={waitingList.length}
-                          now={now}
-                          onOpen={setSelectedTask}
-                          onSeeAll={() => navigate('waiting')}
-                        />
-                        {undated.length > 0 && (
-                          <Section
-                            title="Without a date"
-                            count={undated.length}
-                            action={
-                              <span className="muted small">
-                                Ready when you are
-                              </span>
-                            }
-                          >
-                            {undated.slice(0, 8).map(row)}
-                          </Section>
-                        )}
-                      </>
-                    ) : view === 'upcoming' ? (
-                      <div className="day-groups">
-                        {upcomingTotal === 0 && (
-                          <Empty
-                            icon={CalendarDays}
-                            title="A clear week ahead."
-                            text="Nothing is due or waiting for follow-up in the next seven days. Plan something above and pick its day."
-                          />
-                        )}
-                        {groups.map((group) => (
-                          <section
-                            className={`day-group ${group.items.length ? '' : 'is-empty'}`}
-                            key={group.date}
-                            aria-label={group.label}
-                          >
-                            <h2 className="day-group-title">
-                              <span>{group.label}</span>
-                              {group.label === 'Tomorrow' && (
-                                <small>{shortDate(group.date)}</small>
+                          {groups.map((group) => (
+                            <section
+                              className={`day-group ${group.items.length ? '' : 'is-empty'}`}
+                              key={group.date}
+                              aria-label={group.label}
+                            >
+                              <h2 className="day-group-title">
+                                <span>{group.label}</span>
+                                {group.label === 'Tomorrow' && (
+                                  <small>{shortDate(group.date)}</small>
+                                )}
+                                {group.items.length > 0 && (
+                                  <span className="count">
+                                    {group.items.length}
+                                  </span>
+                                )}
+                              </h2>
+                              {group.items.length ? (
+                                group.items.map((moment) => (
+                                  <TaskRow
+                                    key={`${moment.task.id}:${moment.kind}`}
+                                    task={moment.task}
+                                    data={data}
+                                    now={now}
+                                    moment={moment}
+                                    variant="flat"
+                                    busy={taskBusy.includes(moment.task.id)}
+                                    onComplete={() =>
+                                      void complete(moment.task)
+                                    }
+                                    onOpen={() =>
+                                      setSelectedTask(moment.task.id)
+                                    }
+                                  />
+                                ))
+                              ) : (
+                                <button
+                                  className="day-group-add"
+                                  onClick={() => {
+                                    setUpcomingDate(group.date);
+                                    focusComposer();
+                                  }}
+                                >
+                                  <Plus size={12} /> Nothing yet · Plan
+                                  something
+                                </button>
                               )}
-                              {group.items.length > 0 && (
-                                <span className="count">
-                                  {group.items.length}
+                            </section>
+                          ))}
+                        </div>
+                      ) : view === 'waiting' ? (
+                        waitingList.length ? (
+                          waitingList.map((task) => (
+                            <TaskRow
+                              key={task.id}
+                              task={task}
+                              data={data}
+                              now={now}
+                              variant="waiting"
+                              busy={taskBusy.includes(task.id)}
+                              onComplete={() => void complete(task)}
+                              onOpen={() => setSelectedTask(task.id)}
+                            />
+                          ))
+                        ) : (
+                          <Empty
+                            icon={Clock3}
+                            title="No loose ends."
+                            text="When you hand something off, add it here. Open it to note who you are waiting on and when to follow up."
+                          />
+                        )
+                      ) : tasks.length ? (
+                        tasks.map(row)
+                      ) : view === 'inbox' ? (
+                        <Empty
+                          icon={Inbox}
+                          title="Inbox clear."
+                          text="Anything you capture without a project lands here, ready to sort when you have a minute."
+                        />
+                      ) : (
+                        <Empty
+                          icon={Folder}
+                          title="A fresh start."
+                          text="Capture a next step above, or keep a thought as a note."
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <div className="notes-grid">
+                      {notes.length ? (
+                        notes.map((note) => (
+                          <button
+                            className="note-card"
+                            key={note.id}
+                            onClick={() => setSelectedNote(note.id)}
+                          >
+                            <FileText size={17} />
+                            <h3>{note.title}</h3>
+                            <p>
+                              {notePreview(listPreview(note)) ||
+                                'A little space for your thoughts…'}
+                              {previewIsPartial(note) && '…'}
+                            </p>
+                            <small>
+                              {new Date(note.updatedAt).toLocaleDateString(
+                                'en-GB',
+                              )}
+                              {noteSourceLabel(note.source) &&
+                                ` · ${noteSourceLabel(note.source)}`}
+                              <ByAgent item={note} className="by-agent" />
+                              {notProcessed(note) && (
+                                <span className="not-processed">
+                                  {' '}
+                                  · Not processed
                                 </span>
                               )}
-                            </h2>
-                            {group.items.length ? (
-                              group.items.map((moment) => (
-                                <TaskRow
-                                  key={`${moment.task.id}:${moment.kind}`}
-                                  task={moment.task}
-                                  data={data}
-                                  now={now}
-                                  moment={moment}
-                                  variant="flat"
-                                  busy={taskBusy.includes(moment.task.id)}
-                                  onComplete={() => void complete(moment.task)}
-                                  onOpen={() => setSelectedTask(moment.task.id)}
-                                />
-                              ))
-                            ) : (
-                              <button
-                                className="day-group-add"
-                                onClick={() => {
-                                  setUpcomingDate(group.date);
-                                  focusComposer();
-                                }}
-                              >
-                                <Plus size={12} /> Nothing yet · Plan something
-                              </button>
-                            )}
-                          </section>
-                        ))}
-                      </div>
-                    ) : view === 'waiting' ? (
-                      waitingList.length ? (
-                        waitingList.map((task) => (
-                          <TaskRow
-                            key={task.id}
-                            task={task}
-                            data={data}
-                            now={now}
-                            variant="waiting"
-                            busy={taskBusy.includes(task.id)}
-                            onComplete={() => void complete(task)}
-                            onOpen={() => setSelectedTask(task.id)}
-                          />
+                            </small>
+                          </button>
                         ))
                       ) : (
                         <Empty
-                          icon={Clock3}
-                          title="No loose ends."
-                          text="When you hand something off, add it here. Open it to note who you are waiting on and when to follow up."
+                          icon={NotebookPen}
+                          title="Leave yourself a thought."
+                          text="Notes stay in the context you choose, ready when you need them."
                         />
-                      )
-                    ) : tasks.length ? (
-                      tasks.map(row)
-                    ) : view === 'inbox' ? (
-                      <Empty
-                        icon={Inbox}
-                        title="Inbox clear."
-                        text="Anything you capture without a project lands here, ready to sort when you have a minute."
-                      />
+                      )}
+                      <button
+                        className="new-note"
+                        onClick={() => void quickNote()}
+                        disabled={busy}
+                      >
+                        <Plus size={17} />
+                        New note
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {!data.workspaces.length && (
+                  <div className="onboarding">
+                    <h3>Make it your own.</h3>
+                    <p>
+                      Create a workspace for work, a side project, or everyday
+                      life.
+                    </p>
+                    <div>
+                      <button
+                        className="primary"
+                        onClick={() => openModal('workspace')}
+                      >
+                        Create a workspace <Plus size={14} />
+                      </button>
+                      <button
+                        className="text-button"
+                        disabled={busy}
+                        onClick={() => void mutate(() => api.demo())}
+                      >
+                        {busy ? 'Loading…' : 'Explore fictional examples'}
+                      </button>
+                    </div>
+                    <small>
+                      Examples are clearly fictional and added only to your
+                      account.
+                    </small>
+                  </div>
+                )}
+                <footer className="content-footer">
+                  <span>Small steps. Meaningful progress.</span>
+                  <button
+                    className={`sync-state ${!work.online || work.pending.length ? 'needs-sync' : ''}`}
+                    onClick={() => void work.sync()}
+                    disabled={work.syncing}
+                  >
+                    {work.syncing ? (
+                      <LoaderCircle size={12} className="spin" />
+                    ) : !work.online ? (
+                      <CloudOff size={12} />
+                    ) : work.pending.length ? (
+                      <RefreshCw size={12} />
                     ) : (
-                      <Empty
-                        icon={Folder}
-                        title="A fresh start."
-                        text="Capture a next step above, or keep a thought as a note."
-                      />
-                    )}
-                  </>
-                ) : (
-                  <div className="notes-grid">
-                    {notes.length ? (
-                      notes.map((note) => (
+                      <Check size={12} />
+                    )}{' '}
+                    {work.syncing
+                      ? 'Syncing…'
+                      : !work.online
+                        ? 'Offline'
+                        : work.pending.length
+                          ? `${work.pending.length} need sync`
+                          : 'Saved'}
+                  </button>
+                </footer>
+              </section>
+              <aside className="context-column">
+                {view === 'day' && (
+                  <RecentConversations
+                    data={data}
+                    workspaceId={activeWorkspace}
+                    onNote={setSelectedNote}
+                  />
+                )}
+                {view !== 'day' && view !== 'waiting' && (
+                  <section className="waiting-card">
+                    <h2>
+                      <Clock3 size={14} />
+                      Waiting on<span>{waitingList.length}</span>
+                    </h2>
+                    {waitingList.length ? (
+                      waitingList.slice(0, 3).map((task) => (
                         <button
-                          className="note-card"
-                          key={note.id}
-                          onClick={() => setSelectedNote(note.id)}
+                          key={task.id}
+                          onClick={() => setSelectedTask(task.id)}
                         >
-                          <FileText size={17} />
-                          <h3>{note.title}</h3>
-                          <p>
-                            {notePreview(listPreview(note)) ||
-                              'A little space for your thoughts…'}
-                            {previewIsPartial(note) && '…'}
-                          </p>
+                          <strong>{task.title}</strong>
                           <small>
-                            {new Date(note.updatedAt).toLocaleDateString(
-                              'en-GB',
-                            )}
-                            {noteSourceLabel(note.source) &&
-                              ` · ${noteSourceLabel(note.source)}`}
-                            {notProcessed(note) && (
-                              <span className="not-processed">
-                                {' '}
-                                · Not processed
+                            {task.waitingOn ||
+                              data.workspaces.find(
+                                (item) => item.id === task.workspaceId,
+                              )?.name ||
+                              'Inbox'}
+                            {task.followUpDate && (
+                              <span
+                                className={
+                                  followUpOverdue(task, now)
+                                    ? 'overdue-text'
+                                    : ''
+                                }
+                              >
+                                {' · Follow up '}
+                                {whenLabel(
+                                  task.followUpDate,
+                                  task.followUpTime,
+                                  now.date,
+                                )}
                               </span>
                             )}
                           </small>
                         </button>
                       ))
                     ) : (
-                      <Empty
-                        icon={NotebookPen}
-                        title="Leave yourself a thought."
-                        text="Notes stay in the context you choose, ready when you need them."
-                      />
+                      <p>
+                        No loose ends here.
+                        <br />
+                        Tasks marked Waiting will appear here.
+                      </p>
                     )}
-                    <button
-                      className="new-note"
-                      onClick={() => void quickNote()}
-                      disabled={busy}
-                    >
-                      <Plus size={17} />
-                      New note
-                    </button>
-                  </div>
+                  </section>
                 )}
-              </div>
-              {!data.workspaces.length && (
-                <div className="onboarding">
-                  <h3>Make it your own.</h3>
-                  <p>
-                    Create a workspace for work, a side project, or everyday
-                    life.
-                  </p>
-                  <div>
-                    <button
-                      className="primary"
-                      onClick={() => openModal('workspace')}
-                    >
-                      Create a workspace <Plus size={14} />
-                    </button>
-                    <button
-                      className="text-button"
-                      disabled={busy}
-                      onClick={() => void mutate(() => api.demo())}
-                    >
-                      {busy ? 'Loading…' : 'Explore fictional examples'}
-                    </button>
-                  </div>
-                  <small>
-                    Examples are clearly fictional and added only to your
-                    account.
-                  </small>
+                <div className="section-heading">
+                  <h2>Pick up where you left off</h2>
                 </div>
-              )}
-              <footer className="content-footer">
-                <span>Small steps. Meaningful progress.</span>
-                <button
-                  className={`sync-state ${!work.online || work.pending.length ? 'needs-sync' : ''}`}
-                  onClick={() => void work.sync()}
-                  disabled={work.syncing}
-                >
-                  {work.syncing ? (
-                    <LoaderCircle size={12} className="spin" />
-                  ) : !work.online ? (
-                    <CloudOff size={12} />
-                  ) : work.pending.length ? (
-                    <RefreshCw size={12} />
-                  ) : (
-                    <Check size={12} />
-                  )}{' '}
-                  {work.syncing
-                    ? 'Syncing…'
-                    : !work.online
-                      ? 'Offline'
-                      : work.pending.length
-                        ? `${work.pending.length} need sync`
-                        : 'Saved'}
-                </button>
-              </footer>
-            </section>
-            <aside className="context-column">
-              {view === 'day' && (
-                <RecentConversations
-                  data={data}
-                  workspaceId={activeWorkspace}
-                  onNote={setSelectedNote}
-                />
-              )}
-              {view !== 'day' && view !== 'waiting' && (
-                <section className="waiting-card">
-                  <h2>
-                    <Clock3 size={14} />
-                    Waiting on<span>{waitingList.length}</span>
-                  </h2>
-                  {waitingList.length ? (
-                    waitingList.slice(0, 3).map((task) => (
-                      <button
-                        key={task.id}
-                        onClick={() => setSelectedTask(task.id)}
-                      >
-                        <strong>{task.title}</strong>
-                        <small>
-                          {task.waitingOn ||
-                            data.workspaces.find(
-                              (item) => item.id === task.workspaceId,
-                            )?.name ||
-                            'Inbox'}
-                          {task.followUpDate && (
-                            <span
-                              className={
-                                followUpOverdue(task, now) ? 'overdue-text' : ''
-                              }
-                            >
-                              {' · Follow up '}
-                              {whenLabel(
-                                task.followUpDate,
-                                task.followUpTime,
-                                now.date,
-                              )}
-                            </span>
-                          )}
-                        </small>
-                      </button>
-                    ))
-                  ) : (
-                    <p>
-                      No loose ends here.
-                      <br />
-                      Tasks marked Waiting will appear here.
-                    </p>
-                  )}
-                </section>
-              )}
-              <div className="section-heading">
-                <h2>Pick up where you left off</h2>
-              </div>
-              {favoritesFirst(
-                data.projects.filter(
-                  (item) =>
-                    !activeWorkspace || item.workspaceId === activeWorkspace,
-                ),
-              )
-                .slice(0, 3)
-                .map((item) => (
-                  <button
-                    className="recent-project"
-                    key={item.id}
-                    onClick={() =>
-                      navigate('project', item.workspaceId, item.id)
-                    }
-                  >
-                    <span>
-                      {item.favorite ? (
-                        <Star
-                          size={15}
-                          fill="currentColor"
-                          className="favorite-mark"
-                          aria-label="Favourite"
-                        />
-                      ) : (
-                        <Folder size={15} />
-                      )}
-                      {item.name}
-                      <ArrowUpRight size={13} />
-                    </span>
-                    <small>
-                      {
-                        data.workspaces.find((w) => w.id === item.workspaceId)
-                          ?.name
-                      }{' '}
-                      ·{' '}
-                      {
-                        data.tasks.filter(
-                          (task) =>
-                            task.projectId === item.id &&
-                            task.status !== 'done',
-                        ).length
-                      }{' '}
-                      open tasks
-                    </small>
-                  </button>
-                ))}
-              {data.projects.length === 0 && (
-                <p className="context-empty">
-                  Your projects will appear here.
-                  <br />A little structure, on your terms.
-                </p>
-              )}
-            </aside>
-          </div>
-        </main>
-      </div>
-      {modal === 'task' && (
-        <CaptureTask
-          data={data}
-          workspaceId={activeWorkspace}
-          projectId={projectId}
-          onClose={() => setModal(null)}
-          onSave={work.capture}
-        />
-      )}
-      {(modal === 'workspace' || modal === 'project') && (
-        <CreateContainer
-          kind={modal}
-          workspaceId={activeWorkspace}
-          data={data}
-          onClose={() => setModal(null)}
-          onSave={work.refresh}
-        />
-      )}
-      {modal === 'settings' && (
-        <AudioSettingsDialog
-          key={data.user.id}
-          initial={audioSettings}
-          profile={
-            <>
-              <NameSettings user={data.user} onSaved={work.refresh} />
-              <AiSettingsSection
-                initial={aiSettings}
-                onChange={(settings) =>
-                  setAiConfig({ ownerId: data.user.id, settings })
-                }
-              />
-            </>
-          }
-          onClose={() => setModal(null)}
-          onChange={(settings) =>
-            setAudioConfig({ ownerId: data.user.id, settings })
-          }
-        />
-      )}
-      {modal === 'record' && (
-        <Recorder
-          key={data.user.id}
-          transcription={audioReady}
-          unavailableReason={unavailableReason(audioSettings)}
-          provider={audioSettings?.provider || defaultProvider}
-          workspaceId={activeWorkspace}
-          projectId={projectId}
-          onClose={() => setModal(null)}
-          onSettings={() => openModal('settings')}
-          onNote={async (id) => {
-            await work.refresh();
-            setModal(null);
-            setSelectedNote(id);
-          }}
-        />
-      )}
-      {(modal === 'upload' || modal === 'email') && (
-        <ImportDialog
-          key={data.user.id}
-          data={data}
-          initialKind={modal === 'email' ? 'email' : 'transcript'}
-          workspaceId={activeWorkspace}
-          projectId={projectId}
-          onClose={() => {
-            setProcessAfterImport(false);
-            setModal(null);
-          }}
-          onSaved={async (id) => {
-            setModal(null);
-            await work.refresh().catch(() => {});
-            if (processAfterImport) {
-              setProcessAfterImport(false);
-              setCaptureNote(id);
-            } else setSelectedNote(id);
-          }}
-        />
-      )}
-      {modal === 'search' && (
-        <SearchDialog
-          key={data.user.id}
-          data={data}
-          everything={everything!}
-          archived={(kind, id) => {
-            setModal(null);
-            manageItem(kind, id);
-          }}
-          query={query}
-          setQuery={setQuery}
-          onClose={() => setModal(null)}
-          task={(id) => {
-            setModal(null);
-            setSelectedTask(id);
-          }}
-          note={(id) => {
-            setModal(null);
-            setSelectedNote(id);
-          }}
-          project={(id) => {
-            const p = data.projects.find((p) => p.id === id);
-            if (p) {
-              setModal(null);
-              navigate('project', p.workspaceId, p.id);
-            }
-          }}
-        />
-      )}
-      {activeTask && (
-        <TaskDetail
-          key={activeTask.id}
-          task={activeTask}
-          data={data}
-          readOnly={work.readOnly}
-          onClose={() => setSelectedTask(null)}
-          onChange={work.refresh}
-          onSelect={setSelectedTask}
-          onOpenNote={(id) => {
-            setSelectedTask(null);
-            setSelectedNote(id);
-          }}
-          onOpenDrafts={(project, workspace) => {
-            setSelectedTask(null);
-            if (project) {
-              navigate('project', workspace, project);
-              setTab('drafts');
-            }
-          }}
-        />
-      )}
-      {activeNote && (
-        <NoteLoader
-          listed={activeNote}
-          ownerId={data.user.id}
-          offline={work.readOnly}
-          key={activeNote.id}
-          readOnly={work.readOnly}
-          onClose={() => setSelectedNote(null)}
-          onSaved={work.refresh}
-          onProcess={() => processCapture(activeNote.id)}
-          processHint={aiReady ? undefined : 'Set up in Settings'}
-        />
-      )}
-      {captureNote && data.notes.some((note) => note.id === captureNote) && (
-        <CaptureFlow
-          key={captureNote}
-          data={data}
-          note={data.notes.find((note) => note.id === captureNote)!}
-          onClose={() => setCaptureNote(null)}
-          onSaved={work.refresh}
-          onOpenTask={(id) => {
-            setCaptureNote(null);
-            setSelectedTask(id);
-          }}
-          onOpenDrafts={(project, workspace) => {
-            setCaptureNote(null);
-            if (project) {
-              navigate('project', workspace, project);
-              setTab('drafts');
-            }
-          }}
-        />
-      )}
-      {modal === 'manage' && managed?.kind === 'projects' && managedProject && (
-        <ProjectSettingsDialog
-          key={managedProject.id}
-          project={managedProject}
-          onClose={() => setModal(null)}
-          onSaved={work.refresh}
-          onArchived={(nowArchived) =>
-            afterArchive(nowArchived, managedProject.id)
-          }
-          onDeleted={afterDelete}
-        />
-      )}
-      {modal === 'manage' &&
-        managed?.kind === 'workspaces' &&
-        managedWorkspace && (
-          <WorkspaceSettingsDialog
-            key={managedWorkspace.id}
-            workspace={managedWorkspace}
-            lastWorkspace={isLastWorkspace(everything!)}
+                {favoritesFirst(
+                  data.projects.filter(
+                    (item) =>
+                      !activeWorkspace || item.workspaceId === activeWorkspace,
+                  ),
+                )
+                  .slice(0, 3)
+                  .map((item) => (
+                    <button
+                      className="recent-project"
+                      key={item.id}
+                      onClick={() =>
+                        navigate('project', item.workspaceId, item.id)
+                      }
+                    >
+                      <span>
+                        {item.favorite ? (
+                          <Star
+                            size={15}
+                            fill="currentColor"
+                            className="favorite-mark"
+                            aria-label="Favourite"
+                          />
+                        ) : (
+                          <Folder size={15} />
+                        )}
+                        {item.name}
+                        <ArrowUpRight size={13} />
+                      </span>
+                      <small>
+                        {
+                          data.workspaces.find((w) => w.id === item.workspaceId)
+                            ?.name
+                        }{' '}
+                        ·{' '}
+                        {
+                          data.tasks.filter(
+                            (task) =>
+                              task.projectId === item.id &&
+                              task.status !== 'done',
+                          ).length
+                        }{' '}
+                        open tasks
+                      </small>
+                    </button>
+                  ))}
+                {data.projects.length === 0 && (
+                  <p className="context-empty">
+                    Your projects will appear here.
+                    <br />A little structure, on your terms.
+                  </p>
+                )}
+              </aside>
+            </div>
+          </main>
+        </div>
+        {modal === 'task' && (
+          <CaptureTask
+            data={data}
+            workspaceId={activeWorkspace}
+            projectId={projectId}
             onClose={() => setModal(null)}
-            onArchived={(nowArchived) =>
-              afterArchive(nowArchived, managedWorkspace.id)
-            }
-            onDeleted={afterDelete}
+            onSave={work.capture}
           />
         )}
-    </div>
+        {(modal === 'workspace' || modal === 'project') && (
+          <CreateContainer
+            kind={modal}
+            workspaceId={activeWorkspace}
+            data={data}
+            onClose={() => setModal(null)}
+            onSave={work.refresh}
+          />
+        )}
+        {modal === 'settings' && (
+          <AudioSettingsDialog
+            key={data.user.id}
+            initial={audioSettings}
+            profile={
+              <>
+                <NameSettings user={data.user} onSaved={work.refresh} />
+                <AiSettingsSection
+                  initial={aiSettings}
+                  onChange={(settings) =>
+                    setAiConfig({ ownerId: data.user.id, settings })
+                  }
+                />
+                <section
+                  className="ai-settings"
+                  aria-labelledby="assistants-heading"
+                >
+                  <h3 className="settings-heading" id="assistants-heading">
+                    Connected assistants
+                  </h3>
+                  <p className="muted">
+                    Let Claude Code, Claude Desktop or another assistant read
+                    and add to your Ordo with its own revocable key.
+                  </p>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setModal('assistants')}
+                  >
+                    Manage keys and activity
+                  </button>
+                </section>
+              </>
+            }
+            onClose={() => setModal(null)}
+            onChange={(settings) =>
+              setAudioConfig({ ownerId: data.user.id, settings })
+            }
+          />
+        )}
+        {modal === 'record' && (
+          <Recorder
+            key={data.user.id}
+            transcription={audioReady}
+            unavailableReason={unavailableReason(audioSettings)}
+            provider={audioSettings?.provider || defaultProvider}
+            workspaceId={activeWorkspace}
+            projectId={projectId}
+            onClose={() => setModal(null)}
+            onSettings={() => openModal('settings')}
+            onNote={async (id) => {
+              await work.refresh();
+              setModal(null);
+              setSelectedNote(id);
+            }}
+          />
+        )}
+        {(modal === 'upload' || modal === 'email') && (
+          <ImportDialog
+            key={data.user.id}
+            data={data}
+            initialKind={modal === 'email' ? 'email' : 'transcript'}
+            workspaceId={activeWorkspace}
+            projectId={projectId}
+            onClose={() => {
+              setProcessAfterImport(false);
+              setModal(null);
+            }}
+            onSaved={async (id) => {
+              setModal(null);
+              await work.refresh().catch(() => {});
+              if (processAfterImport) {
+                setProcessAfterImport(false);
+                setCaptureNote(id);
+              } else setSelectedNote(id);
+            }}
+          />
+        )}
+        {modal === 'search' && (
+          <SearchDialog
+            key={data.user.id}
+            data={data}
+            everything={everything!}
+            archived={(kind, id) => {
+              setModal(null);
+              manageItem(kind, id);
+            }}
+            query={query}
+            setQuery={setQuery}
+            onClose={() => setModal(null)}
+            task={(id) => {
+              setModal(null);
+              setSelectedTask(id);
+            }}
+            note={(id) => {
+              setModal(null);
+              setSelectedNote(id);
+            }}
+            project={(id) => {
+              const p = data.projects.find((p) => p.id === id);
+              if (p) {
+                setModal(null);
+                navigate('project', p.workspaceId, p.id);
+              }
+            }}
+          />
+        )}
+        {activeTask && (
+          <TaskDetail
+            key={activeTask.id}
+            task={activeTask}
+            data={data}
+            readOnly={work.readOnly}
+            onClose={() => setSelectedTask(null)}
+            onChange={work.refresh}
+            onSelect={setSelectedTask}
+            onOpenNote={(id) => {
+              setSelectedTask(null);
+              setSelectedNote(id);
+            }}
+            onOpenDrafts={(project, workspace) => {
+              setSelectedTask(null);
+              if (project) {
+                navigate('project', workspace, project);
+                setTab('drafts');
+              }
+            }}
+          />
+        )}
+        {activeNote && (
+          <NoteLoader
+            listed={activeNote}
+            ownerId={data.user.id}
+            offline={work.readOnly}
+            key={activeNote.id}
+            readOnly={work.readOnly}
+            onClose={() => setSelectedNote(null)}
+            onSaved={work.refresh}
+            onProcess={() => processCapture(activeNote.id)}
+            processHint={aiReady ? undefined : 'Set up in Settings'}
+          />
+        )}
+        {captureNote && data.notes.some((note) => note.id === captureNote) && (
+          <CaptureFlow
+            key={captureNote}
+            data={data}
+            note={data.notes.find((note) => note.id === captureNote)!}
+            onClose={() => setCaptureNote(null)}
+            onSaved={work.refresh}
+            onOpenTask={(id) => {
+              setCaptureNote(null);
+              setSelectedTask(id);
+            }}
+            onOpenDrafts={(project, workspace) => {
+              setCaptureNote(null);
+              if (project) {
+                navigate('project', workspace, project);
+                setTab('drafts');
+              }
+            }}
+          />
+        )}
+        {modal === 'assistants' && (
+          <AssistantsDialog
+            data={data}
+            onClose={() => setModal(null)}
+            onTokens={setAgentTokens}
+            onOpenTask={(id) => {
+              setModal(null);
+              setSelectedTask(id);
+            }}
+            onOpenNote={(id) => {
+              setModal(null);
+              setSelectedNote(id);
+            }}
+          />
+        )}
+        {modal === 'manage' &&
+          managed?.kind === 'projects' &&
+          managedProject && (
+            <ProjectSettingsDialog
+              key={managedProject.id}
+              project={managedProject}
+              onClose={() => setModal(null)}
+              onSaved={work.refresh}
+              onArchived={(nowArchived) =>
+                afterArchive(nowArchived, managedProject.id)
+              }
+              onDeleted={afterDelete}
+            />
+          )}
+        {modal === 'manage' &&
+          managed?.kind === 'workspaces' &&
+          managedWorkspace && (
+            <WorkspaceSettingsDialog
+              key={managedWorkspace.id}
+              workspace={managedWorkspace}
+              lastWorkspace={isLastWorkspace(everything!)}
+              onClose={() => setModal(null)}
+              onArchived={(nowArchived) =>
+                afterArchive(nowArchived, managedWorkspace.id)
+              }
+              onDeleted={afterDelete}
+            />
+          )}
+      </div>
+    </AgentNames.Provider>
   );
 }
 function CaptureTask({

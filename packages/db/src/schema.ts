@@ -102,6 +102,8 @@ export const tasks = sqliteTable('tasks', {
     .notNull()
     .default('manual'),
   sourceNoteId: text('source_note_id'),
+  // 0007: the access token that created it, if an agent did.
+  createdByTokenId: text('created_by_token_id'),
   completedAt: text('completed_at'),
   deletedAt: text('deleted_at'),
   ...revisionFields(),
@@ -120,6 +122,12 @@ export const notes = sqliteTable('notes', {
     .$type<'manual' | 'recording' | 'email' | 'transcript'>()
     .notNull()
     .default('manual'),
+  // 0007: provenance, set by the server.
+  origin: text('origin')
+    .$type<'manual' | 'capture' | 'agent'>()
+    .notNull()
+    .default('manual'),
+  createdByTokenId: text('created_by_token_id'),
   deletedAt: text('deleted_at'),
   ...revisionFields(),
 });
@@ -185,6 +193,34 @@ export const aiSettings = sqliteTable('ai_settings', {
     .default('workers_ai'),
   encryptedAnthropicKey: text('encrypted_anthropic_key'),
   ...timestampFields(),
+});
+
+/** Personal access tokens for agents (0007); revoked, never deleted. */
+export const agentTokens = sqliteTable('agent_tokens', {
+  id: text('id').primaryKey(),
+  ownerUserId: text('owner_user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  scopes: text('scopes').$type<'read' | 'read write'>().notNull(),
+  secretHash: text('secret_hash').notNull(),
+  createdAt: text('created_at').notNull().default(now),
+  expiresAt: text('expires_at'),
+  lastUsedAt: text('last_used_at'),
+  revokedAt: text('revoked_at'),
+});
+
+/** What an agent did to which item (0007); never content. */
+export const agentActivity = sqliteTable('agent_activity', {
+  id: text('id').primaryKey(),
+  ownerUserId: text('owner_user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  tokenId: text('token_id').notNull(),
+  action: text('action').notNull(),
+  entityType: text('entity_type'),
+  entityId: text('entity_id'),
+  createdAt: text('created_at').notNull().default(now),
 });
 
 /** Notes linked to a task by hand (0006); removed with either side. */

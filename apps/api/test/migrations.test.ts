@@ -533,3 +533,86 @@ test('0006 adds archiving and task links, keeping every row; links go with eithe
     'deleting the note removes its links',
   );
 });
+
+test('0007 adds agent tokens, activity and provenance, keeping every row', async (t) => {
+  const proxy = await getPlatformProxy<{ DB: D1Database }>({
+    configPath: wranglerConfig,
+    persist: false,
+    remoteBindings: false,
+    envFiles: [],
+  });
+  t.after(() => proxy.dispose());
+  const d1 = proxy.env.DB;
+  const migrations = await migrationStatements();
+  assert.equal(migrations[6].name, '0007_agent_access.sql');
+  const apply = (index: number) =>
+    d1.batch(migrations[index].statements.map((sql) => d1.prepare(sql)));
+  for (const index of [0, 1, 2, 3, 4, 5]) await apply(index);
+  const [owner, task, note, token] = Array.from({ length: 4 }, () =>
+    crypto.randomUUID(),
+  );
+  await d1.batch([
+    d1
+      .prepare(
+        "INSERT INTO users (id, email) VALUES (?, 'fiction@example.test')",
+      )
+      .bind(owner),
+    d1
+      .prepare(
+        "INSERT INTO tasks (id, owner_user_id, title, origin) VALUES (?, ?, 'Task', 'capture')",
+      )
+      .bind(task, owner),
+    d1
+      .prepare(
+        "INSERT INTO notes (id, owner_user_id, title, revision) VALUES (?, ?, 'Note', 3)",
+      )
+      .bind(note, owner),
+  ]);
+  await apply(6);
+  assert.deepEqual(
+    await d1
+      .prepare(
+        'SELECT origin, created_by_token_id, revision FROM notes WHERE id = ?',
+      )
+      .bind(note)
+      .first(),
+    { origin: 'manual', created_by_token_id: null, revision: 3 },
+  );
+  assert.deepEqual(
+    await d1
+      .prepare('SELECT origin, created_by_token_id FROM tasks WHERE id = ?')
+      .bind(task)
+      .first(),
+    { origin: 'capture', created_by_token_id: null },
+  );
+  const insert = (scopes: string) =>
+    d1
+      .prepare(
+        "INSERT INTO agent_tokens (id, owner_user_id, name, scopes, secret_hash) VALUES (?, ?, 'Key', ?, 'h')",
+      )
+      .bind(token, owner, scopes)
+      .run();
+  await assert.rejects(() => insert('admin'));
+  await insert('read write');
+  await d1
+    .prepare(
+      "INSERT INTO agent_activity (id, owner_user_id, token_id, action) VALUES (?, ?, ?, 'task.create')",
+    )
+    .bind(crypto.randomUUID(), owner, token)
+    .run();
+  // Activity cannot point at another owner's token.
+  await assert.rejects(() =>
+    d1
+      .prepare(
+        "INSERT INTO agent_activity (id, owner_user_id, token_id, action) VALUES (?, ?, ?, 'x')",
+      )
+      .bind(crypto.randomUUID(), crypto.randomUUID(), token)
+      .run(),
+  );
+  await assert.rejects(() =>
+    d1
+      .prepare("UPDATE notes SET origin = 'robot' WHERE id = ?")
+      .bind(note)
+      .run(),
+  );
+});

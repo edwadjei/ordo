@@ -15,6 +15,7 @@ import { noteSourceLabel, savedAtLabel } from '../lib/views';
 import { conversationSources, notProcessed } from '../lib/capture';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
+import { ByAgent } from './agent-names';
 import { lostToDelete, saveErrorText } from '../lib/errors';
 
 // The editor and its Markdown parser load only when a note opens.
@@ -218,6 +219,7 @@ export function NoteEditor({
       )}
       {(noteSourceLabel(note.source) || onProcess) && (
         <div className="note-capture-bar">
+          <ByAgent item={note} className="note-source by-agent" />
           {noteSourceLabel(note.source) && (
             <span className="note-source">
               {noteSourceLabel(note.source)}

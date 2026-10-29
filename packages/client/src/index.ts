@@ -1,6 +1,12 @@
 import { requestId } from './request-id.ts';
 import type { DeletePreview, DeleteResult, RelatedItems } from './related.ts';
 import type {
+  AgentActivity,
+  AgentScope,
+  AgentTokenRecord,
+  CreatedAgentToken,
+} from '@ordo/core';
+import type {
   AiSettings,
   AiSettingsInput,
   CaptureRun,
@@ -242,6 +248,33 @@ export function createClient(
         `/tasks/${taskId}/related${includeArchived ? '?includeArchived=1' : ''}`,
         { signal },
       ),
+    /** Connected assistants' access keys (never their secrets). */
+    agentTokens: (signal?: AbortSignal) =>
+      request<AgentTokenRecord[]>('/settings/agent-tokens', { signal }),
+    /** The one response carrying the key itself: show it once, never store it. */
+    createAgentToken: (data: {
+      name: string;
+      scopes: AgentScope[];
+      expiresAt?: string | null;
+    }) => send<CreatedAgentToken>('/settings/agent-tokens', 'POST', data),
+    revokeAgentToken: (id: string) =>
+      send<AgentTokenRecord>(`/settings/agent-tokens/${id}`, 'DELETE'),
+    /** What keys did, newest first, 100 a page; `before` is the last createdAt seen. */
+    agentActivity: (
+      filter: { tokenId?: string; before?: string } = {},
+      signal?: AbortSignal,
+    ) => {
+      const query = new URLSearchParams(
+        Object.entries(filter).filter(([, value]) => !!value) as [
+          string,
+          string,
+        ][],
+      ).toString();
+      return request<AgentActivity[]>(
+        `/settings/agent-activity${query ? `?${query}` : ''}`,
+        { signal },
+      );
+    },
     linkNote: (taskId: string, noteId: string) =>
       send<unknown>(`/tasks/${taskId}/links`, 'POST', { noteId }),
     unlinkNote: (taskId: string, noteId: string) =>
@@ -335,6 +368,12 @@ export function createClient(
 export type OrdoClient = ReturnType<typeof createClient>;
 export type * from './capture.ts';
 export type * from './related.ts';
+export type {
+  AgentActivity,
+  AgentScope,
+  AgentTokenRecord,
+  CreatedAgentToken,
+} from '@ordo/core';
 export {
   bookmarkHeader,
   createBookmarkStore,

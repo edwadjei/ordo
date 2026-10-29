@@ -1,4 +1,4 @@
-import type { User } from '@ordo/core';
+import type { AgentScope, User } from '@ordo/core';
 
 // Framework-neutral HTTP surface. Controllers, modules and platform guards
 // depend only on these types; a host adapter (adapters/http) maps a concrete
@@ -27,10 +27,32 @@ export interface HttpRequest {
   readonly signal: AbortSignal;
   /** The signed-in user, set by the session guard on private routes. */
   actor: User | null;
+  /**
+   * Set when the request came with an agent access token instead of a
+   * session: which token, its scopes, and what the request does (for the
+   * activity log).
+   */
+  agent: AgentContext | null;
   /** Case-insensitive request header. */
   header(name: string): string | undefined;
   cookie(name: string): string | undefined;
 }
+
+export interface AgentContext {
+  tokenId: string;
+  scopes: AgentScope[];
+  /** Activity-log action and entity type for this route, e.g. `task.create`. */
+  action: string;
+  entityType: string | null;
+  /** Update the token's `lastUsedAt` with this request's activity entry. */
+  touch: boolean;
+}
+
+/** Runs after a route answered successfully, with what it returned. */
+export type AfterHook = (
+  request: HttpRequest,
+  result: unknown,
+) => Promise<void>;
 
 export interface HttpReply {
   status(code: number): HttpReply;
@@ -87,6 +109,7 @@ export class HttpPipeline implements HttpRoutes {
   readonly routes: RouteDefinition[] = [];
   readonly guards: RequestGuard[] = [];
   readonly closeHooks: (() => Promise<void>)[] = [];
+  readonly afterHooks: AfterHook[] = [];
 
   private add(
     method: HttpMethod,
@@ -110,6 +133,9 @@ export class HttpPipeline implements HttpRoutes {
   }
   guard(guard: RequestGuard) {
     this.guards.push(guard);
+  }
+  after(hook: AfterHook) {
+    this.afterHooks.push(hook);
   }
   onClose(hook: () => Promise<void>) {
     this.closeHooks.push(hook);

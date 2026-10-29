@@ -46,13 +46,21 @@ export class NotesService {
     return { title, body, source, revision };
   }
 
-  async create(owner: string, input: NoteInput) {
+  /** With an agent's token id, the note's origin is `agent` (server-set). */
+  async create(
+    owner: string,
+    input: NoteInput,
+    createdByTokenId: string | null = null,
+  ) {
     await this.workspaces.validateScope(owner, input);
     return publicNote(
       await this.repository.insert({
         id: newId(),
         ownerUserId: owner,
         ...input,
+        ...(createdByTokenId
+          ? { origin: 'agent' as const, createdByTokenId }
+          : {}),
       }),
     );
   }

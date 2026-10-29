@@ -27,6 +27,8 @@ import {
   captureRuns,
   aiSettings,
   taskNoteLinks,
+  agentTokens,
+  agentActivity,
   type Database,
 } from '@ordo/db';
 
@@ -46,6 +48,8 @@ export const tables = {
   captureRuns,
   aiSettings,
   taskNoteLinks,
+  agentTokens,
+  agentActivity,
 };
 export type { Database };
 export type UserRecord = typeof users.$inferSelect;
@@ -54,6 +58,7 @@ export type ProjectRecord = typeof projects.$inferSelect;
 export type TaskRecord = typeof tasks.$inferSelect;
 export type NoteRecord = typeof notes.$inferSelect;
 export type DraftRecord = typeof drafts.$inferSelect;
+export type AgentTokenRecord = typeof agentTokens.$inferSelect;
 export type CaptureRunRecord = typeof captureRuns.$inferSelect;
 export type NewDraft = typeof drafts.$inferInsert;
 export type NewCaptureRun = typeof captureRuns.$inferInsert;

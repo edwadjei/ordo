@@ -8,7 +8,7 @@ Hono + TypeScript + Zod in one Cloudflare Worker on the Workers Free plan, with 
 
 The API follows the structure and concepts requested from Edward's DAMSYN API: `platform/`, abstract `capabilities/`, concrete `adapters/`, and business `domains/`. Controllers parse and call services; services own invariants and save preconditions; repositories own scoped queries. Routes and payloads are unchanged from the Node build except that password routes are gone.
 
-Read [the architecture map](docs/architecture.md), then the owning domain's concept note: [identity](src/domains/identity/identity.md), [workspaces/projects](src/domains/workspaces/workspaces.md), [tasks](src/domains/tasks/tasks.md), [notes](src/domains/notes/notes.md), [Home](src/domains/home/home.md), [search](src/domains/search/search.md), [fictional demo](src/domains/demo/demo.md), [audio settings](src/domains/audio-settings/audio-settings.md), [transcriptions](src/domains/transcriptions/transcriptions.md), [AI capture](src/domains/capture/capture.md), [drafts](src/domains/drafts/drafts.md), or [AI settings](src/domains/ai-settings/ai-settings.md). Import-boundary tests enforce the platform/domain split and capability ownership.
+Read [the architecture map](docs/architecture.md), then the owning domain's concept note: [identity](src/domains/identity/identity.md), [workspaces/projects](src/domains/workspaces/workspaces.md), [tasks](src/domains/tasks/tasks.md), [notes](src/domains/notes/notes.md), [Home](src/domains/home/home.md), [search](src/domains/search/search.md), [fictional demo](src/domains/demo/demo.md), [audio settings](src/domains/audio-settings/audio-settings.md), [transcriptions](src/domains/transcriptions/transcriptions.md), [AI capture](src/domains/capture/capture.md), [drafts](src/domains/drafts/drafts.md), or [AI settings](src/domains/ai-settings/ai-settings.md), or [agent access and MCP](src/domains/agent-access/agent-access.md). Import-boundary tests enforce the platform/domain split and capability ownership.
 
 ## Run locally
 
@@ -123,7 +123,7 @@ Errors have `{ error: { code, message } }`. Expected codes include `UNAUTHORIZED
 
 ## Migrations and verification
 
-The schema is one numbered SQLite migration set in `packages/db/migrations/` (Phase 2 starts fresh with `0001_initial.sql`; `0002` moves transcription to Workers AI, `0003` makes the display name optional, `0004` adds project favourites and note sources, `0005` adds AI capture: project aliases, task provenance, drafts, capture runs and AI settings, and `0006` adds archiving and task links), with matching Drizzle `sqlite-core` tables in `packages/db/src/schema.ts`. It includes the FTS5 search tables and their triggers, `auth_throttle`, and the check constraints for task times and name lengths. Future changes are new numbered files; an applied file is never edited. Every shared-environment migration needs Edward's approval, a D1 restore point and the rollback gates.
+The schema is one numbered SQLite migration set in `packages/db/migrations/` (Phase 2 starts fresh with `0001_initial.sql`; `0002` moves transcription to Workers AI, `0003` makes the display name optional, `0004` adds project favourites and note sources, `0005` adds AI capture: project aliases, task provenance, drafts, capture runs and AI settings, `0006` adds archiving and task links and `0007` adds agent access: tokens, activity and provenance), with matching Drizzle `sqlite-core` tables in `packages/db/src/schema.ts`. It includes the FTS5 search tables and their triggers, `auth_throttle`, and the check constraints for task times and name lengths. Future changes are new numbered files; an applied file is never edited. Every shared-environment migration needs Edward's approval, a D1 restore point and the rollback gates.
 
 ```bash
 npm run typecheck --workspace @ordo/api
@@ -188,3 +188,17 @@ Details are in the [workspaces](src/domains/workspaces/workspaces.md#deleting-pe
 | `GET /v1/tasks/:id/related` | `{ sourceNote, linkedNotes, captureTasks, drafts }`; `?includeArchived=1` |
 | `POST /v1/tasks/:id/links` | `{ noteId }` → `201` (or `200` if already linked) `{ taskId, noteId, createdAt }` |
 | `DELETE /v1/tasks/:id/links/:noteId` | `204`, then `404` |
+
+## Agent access and MCP
+
+An assistant connects with a personal access token (`Authorization: Bearer ordo_pat_…`) that the owner creates and can revoke. The [agent access concept note](src/domains/agent-access/agent-access.md) has what a token may do, the MCP tools and how to connect Claude Code and Claude Desktop.
+
+| Method and path | Body / behavior |
+|---|---|
+| `POST /v1/settings/agent-tokens` | Session only. `{ name, scopes: ["read"] or ["read","write"], expiresAt? }` → `201 { token, record }`; the token is shown only here. At most 20 active (`409 TOKEN_LIMIT`) |
+| `GET /v1/settings/agent-tokens` | Session only. `[{ id, name, scopes, createdAt, expiresAt, lastUsedAt, revokedAt }]` |
+| `DELETE /v1/settings/agent-tokens/:id` | Session only. Revokes; returns the record |
+| `GET /v1/settings/agent-activity` | Session only. `?tokenId=&before=`; newest first, 100 a page; never content |
+| `POST /api/mcp` | Token only. MCP over Streamable HTTP (JSON-RPC 2.0): `initialize`, `server/discover`, `ping`, `tools/list`, `tools/call` |
+
+A token may use the read routes (with `read`) and create, edit, complete and archive tasks and notes and save captures (with `write`). Anything else is `403 AGENT_NOT_ALLOWED`; a write with a read token is `403 INSUFFICIENT_SCOPE`. What a token creates has `origin: "agent"` and `createdByTokenId`; notes now carry `origin` too.
