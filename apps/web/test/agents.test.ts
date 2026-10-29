@@ -192,3 +192,23 @@ test('creating an existing name says so plainly', () => {
     'You already have a project called “Verify”. Opened it.',
   );
 });
+
+test('a create that found an existing one says so', () => {
+  const places = {
+    tasks: [],
+    notes: [],
+    workspaces: [
+      { id: 'w1', name: 'DOSH' },
+      { id: 'mtn', name: 'MTN' },
+    ],
+    projects: [{ id: 'p1', name: 'Verify', workspaceId: 'mtn' }],
+  } as unknown as HomeSnapshot;
+  assert.equal(
+    activityText(entry('workspace.found', 'workspace', 'w1'), places),
+    'Found existing workspace “DOSH”',
+  );
+  assert.equal(
+    activityText(entry('project.found', 'project', 'p1'), places),
+    'Found existing project “Verify” in MTN',
+  );
+});

@@ -73,6 +73,9 @@ const actionWords: Record<string, string> = {
   'workspace.create': 'Created workspace',
   'project.create': 'Created project',
   'project.update': 'Updated project',
+  // A create that matched an existing one by name.
+  'workspace.found': 'Found existing workspace',
+  'project.found': 'Found existing project',
 };
 /** Activity in words: "Created task “Send QA the scope”". */
 export function activityText(entry: AgentActivity, data: HomeSnapshot) {
