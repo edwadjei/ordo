@@ -22,9 +22,9 @@
     {
       "binding": "DB",
       "database_name": "ordo",
-      // TODO(hosting step 1): the id printed by `wrangler d1 create ordo`,
-      // after Edward approves it. Not secret.
-      "database_id": "TODO-set-after-wrangler-d1-create",
+      // Hosted D1 `ordo` (region WEUR), created 29 October 2026 with
+      // Edward's approval. Not secret.
+      "database_id": "fa30bd33-275d-4120-8d0e-a6a50887687d",
       // Local development and `--local` commands use this id, so the local
       // database (.wrangler/state) stays the same one as before hosting.
       "preview_database_id": "00000000-0000-4000-8000-000000000000",
@@ -48,8 +48,8 @@
   "preview_urls": false,
   // Hosted settings. Locally, apps/api/.dev.vars (created from
   // .dev.vars.example) sets the same names and overrides these, so
-  // `npm run dev` stays in development mode. Anything other than
-  // ORDO_ENV=development is hosted: real code delivery, Secure cookies, and
+  // `npm run dev` stays in development mode. Any ORDO_ENV other than
+  // development is hosted: real code delivery, Secure cookies, and
   // OTP_HMAC_KEY and TRUSTED_ORIGINS required.
   "vars": {
     "ORDO_ENV": "production",

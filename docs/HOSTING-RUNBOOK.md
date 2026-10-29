@@ -2,7 +2,7 @@
 
 **Scope:** Hosting Ordo on Cloudflare (Phase 3 of the [Cloudflare platform spec](specs/02-cloudflare-platform.md)). There is one hosted deployment, Worker `ordo` with D1 database `ordo`, at `https://ordo.edward-dejaysblog.workers.dev`. This runbook covers creating the database, applying migrations, setting secrets, deploying, checking, measuring CPU time and rolling back.
 
-**Status:** Nothing for Ordo exists on Cloudflare yet. The hosted settings live at the top level of `apps/api/wrangler.jsonc`. One value is marked `TODO` until step 1 runs: the D1 `database_id`.
+**Status:** Step 1 is done: D1 database `ordo` (id `fa30bd33-275d-4120-8d0e-a6a50887687d`, region WEUR) was created on 29 October 2026 with Edward's approval and is empty. Steps 2 to 6 have not run. The hosted settings live at the top level of `apps/api/wrangler.jsonc`.
 
 **Edward's decisions (29 October 2026):** one deployment only ("just ordo, I don't want to be running 2"), on the free `workers.dev` address, run with production care. Only Edward signs in for now, with real codes through his Gatekeeper key. He keeps a copy of `ORDO_CREDENTIAL_KEY` in his password manager.
 
