@@ -121,3 +121,13 @@ test('a cancelled open is not turned into a fallback', async () => {
     /Aborted/,
   );
 });
+
+test('a note that arrives without its whole body never reaches the editor', async () => {
+  const opened = await openNote({
+    listed,
+    offline: false,
+    fetchNote: async () => ({ ...listed }) as Note,
+    cached: () => null,
+  });
+  assert.equal(opened.kind, 'preview');
+});

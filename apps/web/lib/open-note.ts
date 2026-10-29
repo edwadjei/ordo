@@ -32,12 +32,11 @@ export async function openNote({
   let failure = '';
   if (!offline) {
     try {
-      return {
-        kind: 'full',
-        note: await fetchNote(),
-        from: 'server',
-        outdated: false,
-      };
+      const note = await fetchNote();
+      // The editor saves what it shows: without the whole body it never opens.
+      if (typeof note.body !== 'string')
+        throw new Error('Ordo didn’t send the whole note.');
+      return { kind: 'full', note, from: 'server', outdated: false };
     } catch (cause) {
       if ((cause as Error)?.name === 'AbortError') throw cause;
       failure = (cause as Error)?.message || 'Couldn’t reach Ordo.';
