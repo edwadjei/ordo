@@ -4,11 +4,13 @@
 
 **Architectural principle:** **Fast deterministic core; AI is asynchronous, optional, and replaceable.**
 
-**Implementation status:** Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database (check-on-save writes, code-only sign-in, FTS5 search), serving the static web export; Workers AI Whisper transcribes by default and has been verified on Edward's Cloudflare account. Nothing is deployed; hosted staging is Phase 3. Where a section is not yet true of the running code, the [delivery ledger](PLAN.md) says so.
+**Implementation status:** Ordo is hosted as one Cloudflare Worker, `ordo`, at https://ordo.edward-dejaysblog.workers.dev on the Workers Free plan, with the D1 database `ordo` (check-on-save writes, code-only sign-in, FTS5 search) and Workers AI Whisper transcription. Locally, `npm run dev` runs the same Worker under `wrangler dev` on a local D1 copy. The [hosting runbook](HOSTING-RUNBOOK.md) records each hosting step. Where a section is not yet true of the running code, the [delivery ledger](PLAN.md) says so.
 
 ## 1. Architecture at a glance
 
 Ordo runs as **one Cloudflare Worker on the Workers Free plan**. The same Worker serves the web app as static files and the API under `/api`, so the browser talks to a single origin and the session cookie stays first-party. The database is Cloudflare D1 (SQLite). There is no server to patch, no container, no object store, and no monthly bill.
+
+**Diagram:** [Ordo, hosted on Cloudflare](diagrams/ordo-architecture.html) shows what runs where today: the Worker, D1, Workers AI and Worker secrets inside Cloudflare, and Gatekeeper (sign-in codes) and optional OpenAI outside it.
 
 ```text
    Ordo Web (browser)      Ordo for iOS / Android      Ordo for Mac

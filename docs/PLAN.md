@@ -1,12 +1,12 @@
 # Ordo — delivery ledger
 
-**Updated:** 27 October 2026.
+**Updated:** 29 October 2026.
 
-**Current milestone:** H1, the Cloudflare Phase 1 Hono port, after the hosting documentation PR. Native mobile follows hosted staging so the apps target a real API.
+**Current milestone:** H3, the hosted release: Ordo is live and the signed-in check on the hosted address is in progress. Native mobile (I2) follows, against the hosted Worker.
 
-**Application status:** Working locally. `main` is at `e96df57` (latest merges: #11 D1 and the Worker, #12 Workers AI transcription, #13 sign-in code delivery on the Worker, each on Edward's word). Nothing is deployed and no hosted environment exists.
+**Application status:** Hosted at https://ordo.edward-dejaysblog.workers.dev since 29 October 2026 (see the [release record](#release-record)); only Edward signs in there for now. `main` is at `dc1a049` (#20, on Edward's word).
 
-**Implementation status:** Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database (check-on-save writes, code-only sign-in, FTS5 search), serving the static web export; Workers AI Whisper transcribes by default and has been verified on Edward's Cloudflare account. Nothing is deployed; hosted staging is Phase 3.
+**Implementation status:** Ordo is hosted as one Cloudflare Worker, `ordo`, at https://ordo.edward-dejaysblog.workers.dev on the Workers Free plan, with the D1 database `ordo` (check-on-save writes, code-only sign-in, FTS5 search) and Workers AI Whisper transcription. Locally, `npm run dev` runs the same Worker under `wrangler dev` on a local D1 copy. The [architecture diagram](diagrams/ordo-architecture.html) shows what runs where.
 
 ## Milestones
 
@@ -15,9 +15,9 @@
 | D0 | Import briefs, document workflow, create local documentation site | Verified locally | Identical source copies; documentation generation/link checks pass; checkpoint pushed |
 | F0 | Responsive web/API foundation, local database/auth, CI | Verified locally | Fresh install, format, typechecks, 16 tests, production build, and docs checks pass; no hosted CI/deployment claim |
 | W1 | Responsive web everyday core | Merged; remaining acceptance work | [Everyday core acceptance scenarios](specs/01-everyday-core.md#acceptance-scenarios) verified without AI keys, including phone-browser touch workflows and durable capture |
-| H1 | Cloudflare Phase 1: Hono port, Web Crypto adapters, web static export | Delivered in one combined PR; [brief](coordination/CLOUDFLARE-PHASE-1-BRIEF.md) | About five PRs merged; no Fastify dependency; all checks and existing tests pass in Node on the embedded database; signed-in browser journeys pass on `npm run dev` and on the static export through same-origin `/api`; existing sessions, fingerprints, and saved keys still work |
-| H2 | Cloudflare Phase 2: D1 | Proposed; briefed after H1 | SQLite schema applied by `wrangler d1 migrations apply --local`; FTS5 search; check-on-save and code-once sign-in pass concurrency tests on local D1; Worker runs under `wrangler dev`; local data import matches row counts; local-dev docs work on a fresh machine |
-| H3 | Cloudflare Phase 3: hosted staging | Proposed; needs Edward's approval for account access and each deploy | Worker and D1 on Edward's account; D1 restore point and rollback point recorded below; signed-in staging checks (sign-in, task create/edit/complete, note, search, reload); observed CPU per request and daily request/row counts recorded against the free-plan budget |
+| H1 | Cloudflare Phase 1: Hono port, Web Crypto adapters, web static export | Merged (#9); [brief](coordination/CLOUDFLARE-PHASE-1-BRIEF.md) | About five PRs merged; no Fastify dependency; all checks and existing tests pass in Node on the embedded database; signed-in browser journeys pass on `npm run dev` and on the static export through same-origin `/api`; existing sessions, fingerprints, and saved keys still work |
+| H2 | Cloudflare Phase 2: D1 | Merged (#11); [brief](coordination/CLOUDFLARE-PHASE-2-BRIEF.md) | SQLite schema applied by `wrangler d1 migrations apply --local`; FTS5 search; check-on-save and code-once sign-in pass concurrency tests on local D1; Worker runs under `wrangler dev`; local data import matches row counts; local-dev docs work on a fresh machine |
+| H3 | Cloudflare Phase 3: hosted release | Live 29 October 2026; signed-in check in progress; each account step on Edward's word | Worker and D1 on Edward's account; D1 restore point and rollback point recorded below; signed-in staging checks (sign-in, task create/edit/complete, note, search, reload); observed CPU per request and daily request/row counts recorded against the free-plan budget |
 | I2 | Shared iOS/Android mobile app — iOS urgent and prioritized | Priority confirmed; implementation pending | Native installation and token-authenticated task/note workflows against the hosted Worker; device, offline, lifecycle, and accessibility evidence |
 | D3 | macOS app — after iOS | Priority confirmed; implementation pending | Packaged Mac app with verified authentication, supported core workflows, permissions, and release/distribution evidence |
 | A | Intelligent capture and review | Proposed feature stream | Durable source → validated suggestions → edited selected commit; provider policy, provenance, permissions, and failure checks on each supported client |

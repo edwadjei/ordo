@@ -53,7 +53,7 @@ Markdown is the source of truth. The generated site works without a server; rebu
 
 Ordo is designed to run as one Cloudflare Worker on the Workers Free plan ($0/month): the web app as static files, a Hono API under `/api`, and Cloudflare D1 for data. See the [technical architecture](docs/TECHNICAL.md).
 
-**Implementation status:** the everyday web core is merged to `main` and works locally: code sign-in, owned workspaces/projects, tasks/subtasks with times and people, plain-text notes, daily views, search, and durable queued task capture. Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database (check-on-save writes, code-only sign-in, FTS5 search), serving the static web export; Workers AI Whisper transcribes by default and has been verified on Edward's Cloudflare account. Nothing is deployed; hosted staging is Phase 3. This is not the complete MVP or a production release.
+**Implementation status:** the everyday web core is merged to `main` and works locally: code sign-in, owned workspaces/projects, tasks/subtasks with times and people, plain-text notes, daily views, search, and durable queued task capture. Ordo is hosted as one Cloudflare Worker, `ordo`, at https://ordo.edward-dejaysblog.workers.dev on the Workers Free plan, with the D1 database `ordo` (check-on-save writes, code-only sign-in, FTS5 search) and Workers AI Whisper transcription. Locally, `npm run dev` runs the same Worker under `wrangler dev` on a local D1 copy. Only Edward signs in on the hosted address for now. This is not the complete MVP or a production release.
 
 | Area | Implementation |
 |---|---|
