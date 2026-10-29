@@ -2,7 +2,7 @@
 
 **Status:** Decided by Edward on 27 October 2026 ("aligned"; "I don't want to pay $5"). Documentation first, then Phase 1.
 
-**Implementation status:** Phases 1 and 2 are delivered: Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database (check-on-save writes, code-only sign-in, FTS5 search), serving the static web export; Workers AI Whisper transcribes by default and has been verified on Edward's Cloudflare account. Nothing is deployed; hosted staging is Phase 3. Phase 3 follows with Edward's approval at each deploy.
+**Implementation status:** Phases 1 and 2 are delivered: Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database (check-on-save writes, code-only sign-in, FTS5 search), serving the static web export; Workers AI Whisper transcribes by default and has been verified on Edward's Cloudflare account. Phase 3 is prepared but not started. Edward chose one hosted deployment ("just ordo"): Worker `ordo` with D1 `ordo` at `https://ordo.edward-dejaysblog.workers.dev`, run with production care. Its settings are at the top level of `apps/api/wrangler.jsonc`, and the steps are in the [hosting runbook](../HOSTING-RUNBOOK.md). Nothing has been created on Cloudflare; each step on Edward's account runs only with his approval.
 
 **References:** [Technical architecture](../TECHNICAL.md), [API architecture](../API-ARCHITECTURE.md), [everyday core spec](01-everyday-core.md), [decision register](../coordination/DECISIONS.md), [Phase 1 brief](../coordination/CLOUDFLARE-PHASE-1-BRIEF.md).
 
@@ -125,7 +125,7 @@ No locks, interactive transactions, or Durable Objects.
 - Audio is never stored (C20). Bytes exist in memory only while the provider request runs.
 - Ordo transcribes with **Workers AI Whisper** (`@cf/openai/whisper-large-v3-turbo`) through the Worker's `AI` binding. It is free within the daily allowance of 10,000 neurons (about 214 audio minutes at 46.63 neurons per minute); on the Free plan, use beyond that fails until 00:00 UTC and is never billed, and the user sees a clear message.
 - An account-owned OpenAI key (`gpt-4o-mini-transcribe`, $0.003 per minute, billed to that key) is an optional provider chosen in Settings. Ordo never switches provider silently.
-- Workers AI always runs on Cloudflare, so local development without an account transcribes only with a saved OpenAI key. **Implementation status:** today's code supports OpenAI only; the [Workers AI transcription brief](../coordination/WORKERS-AI-TRANSCRIPTION-BRIEF.md) delivers the rest.
+- Workers AI always runs on Cloudflare, so local development without an account transcribes only with a saved OpenAI key. **Implementation status:** delivered ([Workers AI transcription brief](../coordination/WORKERS-AI-TRANSCRIPTION-BRIEF.md)); the hosted Worker turns it on with `ORDO_WORKERS_AI=on`.
 
 ### Read consistency
 
@@ -182,6 +182,8 @@ Phase 2 provides a one-time import so Edward's local content moves to D1:
 - Local-dev documentation lets a fresh machine run `wrangler dev` without a Node API process.
 
 ### Phase 3 — hosted staging
+
+The step-by-step procedure, with the approvals each step needs, is the [hosting runbook](../HOSTING-RUNBOOK.md).
 
 - Edward approves account access and each deploy. Backups via D1 export/Time Travel; the rollback point is recorded in the ledger.
 - Signed-in verification on staging: sign-in, task create/edit/complete, note save, search, reload.

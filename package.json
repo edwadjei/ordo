@@ -20,6 +20,7 @@
     "test": "npm run test --workspaces --if-present",
     "format": "prettier --write \"{apps,packages,scripts}/**/*.{ts,tsx,mjs,css,json}\" package.json .github/workflows/ci.yml",
     "format:check": "prettier --check \"{apps,packages,scripts}/**/*.{ts,tsx,mjs,css,json}\" package.json .github/workflows/ci.yml",
+    "deploy": "npm run typecheck && npm test && npm run build && npm run deploy --workspace @ordo/api",
     "phone:https": "node scripts/phone-https.mjs"
   },
   "devDependencies": {

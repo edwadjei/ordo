@@ -20,6 +20,7 @@ Edward's confirmed delivery order is **Ordo Web (responsive) → Ordo for iOS (u
 | [Delivery ledger](PLAN.md) | Phase status, deliverables, and completion evidence |
 | [Engineering method](engineering-method.md) | How a requirement becomes reviewed, verified code |
 | [Local development](LOCAL-DEVELOPMENT.md) | Start web/API, configuration names, persistence, checks, and release limits |
+| [Hosting runbook](HOSTING-RUNBOOK.md) | Hosting the single `ordo` Worker on Cloudflare: D1, migrations, secrets, deploy, checks, CPU budget, rollback, and who approves each step |
 | [API architecture and concepts](API-ARCHITECTURE.md) | DAMSYN-style boundaries, domain ownership, ports/adapters, and intentional differences |
 | [Everyday core spec](specs/01-everyday-core.md) | First working slice and acceptance scenarios |
 | [Cloudflare platform spec](specs/02-cloudflare-platform.md) | Hosting design, free-plan budget, rules, data import, testing, phase acceptance, risks, and open questions |

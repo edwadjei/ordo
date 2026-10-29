@@ -2,19 +2,19 @@
 
 **Scope:** Running Ordo on your own machine. No cloud deployment or native app is implied by these commands.
 
-**Implementation status:** Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database: the Worker serves the web app's static export and answers `/api` itself. For day-to-day web work the Next.js dev server runs beside it and proxies `/api` to the Worker. Nothing is hosted and no Cloudflare account is used; hosting is Phase 3 ([technical architecture](TECHNICAL.md)).
+**Implementation status:** Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database: the Worker serves the web app's static export and answers `/api` itself. For day-to-day web work the Next.js dev server runs beside it and proxies `/api` to the Worker. Local work uses no Cloudflare account. Hosting is Phase 3: one Worker `ordo` at `https://ordo.edward-dejaysblog.workers.dev`, configured at the top level of the same `apps/api/wrangler.jsonc`. Local work keeps its own database (`preview_database_id`) and settings (`.dev.vars` overrides the hosted `vars`). Every step on the account is in the [hosting runbook](HOSTING-RUNBOOK.md). Nothing is hosted yet.
 
 ## Local and hosted
 
-| Concern | Local (`npm run dev`) | Hosted (Phase 3) |
+| Concern | Local (`npm run dev`) | Hosted (Phase 3, [runbook](HOSTING-RUNBOOK.md)) |
 |---|---|---|
 | API | Hono in the Worker under `wrangler dev` on `127.0.0.1:8788`; `/api/*` is mapped to `/v1/*` | The same Worker under `/api` |
 | Web | Next.js dev server on `127.0.0.1:3358` with hot reload, proxying `/api/*` to the Worker; the Worker also serves the last static export (`apps/web/out`) on 8788 | Static export served by the Worker |
 | Database | Local D1 in `apps/api/.wrangler/state` (ignored by Git) | D1 |
-| Migrations | `wrangler d1 migrations apply ordo --local`, run by `npm run dev` before it starts the servers | `wrangler d1 migrations apply`; nothing runs at Worker boot |
+| Migrations | `wrangler d1 migrations apply ordo --local`, run by `npm run dev` before it starts the servers | `npm run db:migrate:remote --workspace @ordo/api` (D1 `ordo`) after a Time Travel restore point; nothing runs at Worker boot |
 | Search | SQLite FTS5 tables kept in sync by triggers | The same |
 | Sign-in | Code only; with no Gatekeeper values the code prints in the terminal | Code only, delivered by Gatekeeper |
-| Secrets | `apps/api/.dev.vars` (ignored by Git; names in `.dev.vars.example`) | Workers secrets set with `wrangler secret put` |
+| Secrets | `apps/api/.dev.vars` (ignored by Git; names in `.dev.vars.example`) | Workers secrets set with `wrangler secret put`; `ORDO_ENV`, `ORDO_WORKERS_AI` and `TRUSTED_ORIGINS` are plain `vars` in `wrangler.jsonc` (overridden locally by `.dev.vars`) |
 
 ## Start Ordo
 
@@ -84,7 +84,7 @@ Documentation source is Markdown in `docs/`. `npm run docs:check` generates the 
 
 The API workspace guide is `apps/api/README.md`; shared types and validation live in `packages/core/src/index.ts`. Request/response shapes and current limitations are documented there alongside the implementation. The SQLite schema is `packages/db/migrations/0001_initial.sql` and the corresponding Drizzle schema is `packages/db/src/schema.ts`.
 
-Numbered files are applied with `wrangler d1 migrations apply ordo --local` for development and, with Edward's approval, against staging; an applied file is never edited. The Worker never runs migrations itself. Every shared-environment migration needs the owner's approval, a D1 restore point, and the rollback gates in the engineering method.
+Numbered files are applied with `wrangler d1 migrations apply ordo --local` for development and, with Edward's approval, against the hosted `ordo` database (`npm run db:migrate:remote --workspace @ordo/api`, see the [hosting runbook](HOSTING-RUNBOOK.md)); an applied file is never edited. The Worker never runs migrations itself. Every shared-environment migration needs the owner's approval, a D1 restore point, and the rollback gates in the engineering method.
 
 ## Moving content from the old embedded database
 
@@ -92,7 +92,7 @@ A one-time import moves content from the old `.data/ordo` into local D1: export 
 
 ## Current release limits
 
-This build is local development, not a hosted release. Hosted staging is Phase 3. The sign-in throttle is stored in D1 (`auth_throttle`) keyed by route and `CF-Connecting-IP`. Contact linking/recovery and native-client authentication need further work. Recording-to-transcription uses temporary memory only; Ordo stores no audio or uploaded files. AI extraction and transcript imports show Coming soon. MCP, native mobile packages, and Mac packaging remain separate slices. See [phone verification](PHONE-TESTING.md) for HTTPS requirements and the actual-device checklist.
+This build is local development, not a hosted release. Hosting is Phase 3 ([hosting runbook](HOSTING-RUNBOOK.md)). The sign-in throttle is stored in D1 (`auth_throttle`) keyed by route and `CF-Connecting-IP`. Contact linking/recovery and native-client authentication need further work. Recording-to-transcription uses temporary memory only; Ordo stores no audio or uploaded files. AI extraction and transcript imports show Coming soon. MCP, native mobile packages, and Mac packaging remain separate slices. See [phone verification](PHONE-TESTING.md) for HTTPS requirements and the actual-device checklist.
 
 ## Delivery and audio settings
 
