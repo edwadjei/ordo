@@ -2,7 +2,7 @@
 
 **Scope:** Hosting Ordo on Cloudflare (Phase 3 of the [Cloudflare platform spec](specs/02-cloudflare-platform.md)). There is one hosted deployment, Worker `ordo` with D1 database `ordo`, at `https://ordo.edward-dejaysblog.workers.dev`. This runbook covers creating the database, applying migrations, setting secrets, deploying, checking, measuring CPU time and rolling back.
 
-**Status:** Step 1 is done: D1 database `ordo` (id `fa30bd33-275d-4120-8d0e-a6a50887687d`, region WEUR) was created on 29 October 2026 with Edward's approval and is empty. Steps 2 to 6 have not run. The hosted settings live at the top level of `apps/api/wrangler.jsonc`.
+**Status (29 October 2026):** Steps 1 to 3 are done: D1 `ordo` (id `fa30bd33-275d-4120-8d0e-a6a50887687d`, region WEUR) has migrations 0001–0003, and Worker `ordo` is live. In step 4 only `OTP_HMAC_KEY` is set; `ORDO_CREDENTIAL_KEY`, `GATEKEEPER_API_KEY` and `GATEKEEPER_API_URL` wait for Edward. Signed-out checks passed; the signed-in checks and their CPU measurement wait for sign-in. Restore point, versions and evidence are in the [delivery ledger](PLAN.md#release-record) and [verification](coordination/VERIFICATION.md#hosted-ordo-on-cloudflare-29-october-2026). The hosted settings live at the top level of `apps/api/wrangler.jsonc`.
 
 **Edward's decisions (29 October 2026):** one deployment only ("just ordo, I don't want to be running 2"), on the free `workers.dev` address, run with production care. Only Edward signs in for now, with real codes through his Gatekeeper key. He keeps a copy of `ORDO_CREDENTIAL_KEY` in his password manager.
 
@@ -21,7 +21,7 @@
 | Logs | Workers Logs (observability on): CPU and wall time per request, 200,000 events a day, kept 3 days |
 | Cost | $0 on the Workers Free plan. Over a limit, requests fail until 00:00 UTC and nothing is billed |
 
-Any `ORDO_ENV` other than `development` is hosted. Codes are sent for real through Gatekeeper (there is no console code sender), cookies are Secure, and `/api` refuses to start without `OTP_HMAC_KEY` and `TRUSTED_ORIGINS`. Until step 4 is done, `/api/*` answers 500 while the web pages load.
+Any `ORDO_ENV` other than `development` is hosted. Codes are sent for real through Gatekeeper (there is no console code sender), cookies are Secure, and `/api` refuses to start without `OTP_HMAC_KEY` and `TRUSTED_ORIGINS`. Until `OTP_HMAC_KEY` is set, every `/api` route (including `/api/health`) answers 500 while the web pages load.
 
 ### Local development is unaffected
 
@@ -129,7 +129,7 @@ curl -s https://ordo.edward-dejaysblog.workers.dev/api/capabilities
 | Request | Expected | Proves |
 |---|---|---|
 | `/` | 200 | The web app (static assets) is served |
-| `/api/health` | `{"status":"ok"}` | The Worker runs; it does **not** prove configuration |
+| `/api/health` | `{"status":"ok"}` | The Worker runs and its configuration loads (without `OTP_HMAC_KEY` it answers 500) |
 | `/api/auth/me` | 401 | Secrets and variables loaded and the route exists. A 500 means a configuration problem; a 404 means a routing problem |
 | `/api/capabilities` | Workers AI transcription available | The `AI` binding is wired |
 
