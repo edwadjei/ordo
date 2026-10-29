@@ -134,3 +134,47 @@ Before `OTP_HMAC_KEY` was set, every `/api` route, including `/api/health`, answ
 CPU time from `wrangler tail` on signed-out requests: `/api/health` median 0.5 ms, max 2 ms; `/api/auth/me` median 0.5 ms, max 1 ms; `/api/capabilities` median 0 ms, max 1 ms. All are well under the 10 ms Free-plan limit. Static pages are served from assets without running the Worker.
 
 Not verified: sign-in and every signed-in journey (task, note, search, reload, transcription), and their CPU time. These need `GATEKEEPER_API_KEY` and `GATEKEEPER_API_URL`, which Edward sets himself, plus a real code to his own address.
+
+## Hosted slice 1 — 29 October 2026
+
+Live site `https://ordo.edward-dejaysblog.workers.dev`, Worker version `b503fb99-6a38-4bbd-bcbb-f23a18c7376d` (`main` at `72bcb37`). Release details are in the [delivery ledger](../PLAN.md#release-record).
+
+**Sign-in (release 1 code, morning of 29 October).** Edward signed in himself with a real email code. The first attempts failed because the pasted `GATEKEEPER_API_URL` and `GATEKEEPER_API_KEY` values were not usable (`reason=network error=TypeError`, then `rejected status=401`); both were set again from his local values and the next code was accepted (202) and verified (200).
+
+**Signed in, after the deploy** (agent driving Edward's existing session in the built-in browser; test items are named "Hosting check (delete me)"):
+
+| Check | Result |
+|---|---|
+| Create workspace and two projects | Passed |
+| Project tabs (Overview, Tasks, Notes, Conversations, Drafts) | Shown |
+| Favourite a project | Star filled on the project and in the sidebar |
+| Create a task, edit its title, move it to the other project | Passed; it left the first project and appears in the second |
+| Complete the task | Passed; open count 0 |
+| Rich note with a heading, checklist and bold text; tick an item in place | Rendered and saved |
+| Reload, then search for a word in the note | Found, with the ticked item saved |
+| Set name in Settings | Greeting reads "Good afternoon, Edward" after reload |
+| Service worker | Registered and active; cache `ordo-shell-v1` holds no `/api` responses |
+| Transcription (recording) | Not checked: needs a microphone |
+| Email or transcript notes | Not checked |
+
+**CPU per request** (`wrangler tail`, milliseconds; Free plan limit 10 ms, targets: reads under 3, writes and search under 5). Every request completed with outcome `ok`:
+
+| Route | Requests | Median | Max |
+|---|---|---|---|
+| `GET /api/auth/me` | 3 | 3 | 6 |
+| `GET /api/home` | 15 | 12 | 18 |
+| `GET /api/settings/audio` | 4 | 7 | 53 (first request on a new isolate) |
+| `GET /api/search` | 1 | 10 | 10 |
+| `PATCH /api/auth/me` | 1 | 7 | 7 |
+| `POST /api/workspaces` | 1 | 27 | 27 |
+| `POST /api/projects` | 2 | 19.5 | 23 |
+| `PATCH /api/projects/:id` | 1 | 13 | 13 |
+| `POST /api/tasks` | 1 | 26 | 26 |
+| `PATCH /api/tasks/:id` | 2 | 16.5 | 22 |
+| `POST /api/notes` | 1 | 21 | 21 |
+| `PATCH /api/notes/:id` | 2 | 14 | 14 |
+| `POST /api/auth/otp/request` (release 1 code) | 1 accepted | 35 | 35 |
+| `POST /api/auth/otp/verify` (release 1 code) | 1 | 19 | 19 |
+
+Most signed-in routes are over the 10 ms limit and well over target. Cloudflare let every request finish in this light use, but heavier use risks `Exceeded CPU` errors. This goes to the API specialist with these numbers. Static pages do not run the Worker.
+

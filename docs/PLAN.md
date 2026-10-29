@@ -84,7 +84,19 @@ Application baseline verification: fresh `npm ci`, `npm run format:check`, all w
 | D1 | `ordo`, id `fa30bd33-275d-4120-8d0e-a6a50887687d`, region WEUR; migrations 0001–0003 applied |
 | D1 restore point (before migrations) | Time Travel bookmark `00000001-00000000-00005113-69c37252a9cb4375ff0d76ef2d7ede98` (empty database) |
 | Worker versions | `de1fa2c2-a7b7-47d8-a451-a55c500566b8` (upload, 02:02 UTC); `06856662-1fd0-4d20-abd5-ab22c58c9a22` (adds `OTP_HMAC_KEY`, 02:02 UTC, live). Rollback point for the next deploy: `06856662-1fd0-4d20-abd5-ab22c58c9a22`. There is no version before the first upload; its undo is `wrangler delete` |
-| Secrets set | `OTP_HMAC_KEY` only. Still to set by Edward: `ORDO_CREDENTIAL_KEY`, `GATEKEEPER_API_KEY`, `GATEKEEPER_API_URL` |
+| Secrets set | `OTP_HMAC_KEY` at release; the morning of 29 October Edward set `ORDO_CREDENTIAL_KEY`, and `GATEKEEPER_API_URL` and `GATEKEEPER_API_KEY` were set from his local values on his word. All four are present; sign-in by email code works |
+
+**Hosted release 2 (slice 1) — 29 October 2026** (on Edward's word, "Deploy slice 1", in the Cloudflare specialist session):
+
+| Item | Value |
+|---|---|
+| Revision deployed | `main` at `72bcb37` (#22, #23), from a clean detached worktree; typecheck, 166 tests (82 API, 55 web, 29 client) and build passed, then passed again in the deploy gate |
+| D1 restore point (before 0004) | Time Travel bookmark `00000005-00000000-00005113-2f246157fab0044ceb93f620a7eeaeee` |
+| Migration | `0004_favourites_and_note_sources.sql` applied; 0001–0004 applied, none pending; `projects.favorite` and `notes.source` present |
+| Rollback point | `2bacfb27-f386-4b1d-96b7-c10f13513cf8` (live before the deploy: release 1 code with all four secrets) |
+| New live version | `b503fb99-6a38-4bbd-bcbb-f23a18c7376d` (16:48 UTC) |
+| Checks | Signed out: `/` 200, `/api/health` 200, `/api/auth/me` 401, capabilities (email and SMS codes, Workers AI, credential storage), `/sw.js` 200 and identical to the build. Signed in (Edward's own session): see [verification](coordination/VERIFICATION.md#hosted-slice-1-29-october-2026) |
+| CPU | Above target on most signed-in routes; see verification. Every request completed |
 
 Before this release, migrations had run on local D1 only. Recent merges to `main`, each on Edward's word: #9 Phase 1 → `180742d` (rollback `2bac518`); #11 D1 and the Worker → `97b0469` (rollback `0838aad`); #12 Workers AI transcription → `ff4a567` (rollback `97b0469`); #13 sign-in delivery fix → `e96df57` (rollback `ff4a567`). Add a release entry only after an approved integration/deploy, with revision, checks, D1 restore point if relevant, rollback point, and post-deploy evidence.
 
