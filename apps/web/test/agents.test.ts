@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { AgentActivity, HomeSnapshot } from '@ordo/client';
 import {
   activityTarget,
+  existingMessage,
   activityText,
   byAgent,
   connectCommand,
@@ -178,5 +179,16 @@ test('By agent works on workspaces and projects too', () => {
   assert.equal(
     byAgent({ id: 'w', name: 'MTN' }, [{ id: 'k1', name: 'Claude Code' }]),
     '',
+  );
+});
+
+test('creating an existing name says so plainly', () => {
+  assert.equal(
+    existingMessage('workspace', 'Work'),
+    'You already have a workspace called “Work”. Opened it.',
+  );
+  assert.equal(
+    existingMessage('project', 'Verify'),
+    'You already have a project called “Verify”. Opened it.',
   );
 });

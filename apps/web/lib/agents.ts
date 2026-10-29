@@ -147,3 +147,7 @@ export const agentCannot = [
   'Delete or archive workspaces and projects, or delete anything else',
   'Change your settings or access keys',
 ];
+
+/** Creating a name that already exists opens that one instead; say so plainly. */
+export const existingMessage = (kind: 'workspace' | 'project', name: string) =>
+  `You already have a ${kind} called “${name}”. Opened it.`;

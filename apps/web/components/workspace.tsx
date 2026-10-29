@@ -91,6 +91,7 @@ import {
 import { AiSettingsSection } from './ai-settings';
 import { ProjectSettingsDialog } from './project-settings';
 import { WorkspaceSettingsDialog } from './workspace-settings';
+import { existingMessage } from '../lib/agents';
 import {
   archivedItems,
   archivedScope,
@@ -1610,6 +1611,12 @@ export function WorkspaceApp() {
             data={data}
             onClose={() => setModal(null)}
             onSave={work.refresh}
+            onCreated={(kind, item, existing) => {
+              if (kind === 'workspace') navigate('workspace', item.id);
+              else navigate('project', item.workspaceId ?? null, item.id);
+              // navigate() clears messages; say so after it.
+              if (existing) work.setMessage(existingMessage(kind, item.name));
+            }}
           />
         )}
         {modal === 'settings' && (
@@ -1944,12 +1951,19 @@ function CreateContainer({
   workspaceId,
   onClose,
   onSave,
+  onCreated,
 }: {
   kind: 'workspace' | 'project';
   data: HomeSnapshot;
   workspaceId: string | null;
   onClose: () => void;
   onSave: () => Promise<unknown>;
+  /** Opens what was made, or the existing one of the same name. */
+  onCreated: (
+    kind: 'workspace' | 'project',
+    item: { id: string; name: string; workspaceId?: string },
+    existing: boolean,
+  ) => void;
 }) {
   const [name, setName] = useState(''),
     [workspace, setWorkspace] = useState(
@@ -1962,10 +1976,13 @@ function CreateContainer({
     event.preventDefault();
     setBusy(true);
     try {
-      if (kind === 'workspace') await api.createWorkspace({ name, color });
-      else await api.createProject({ name, workspaceId: workspace });
+      const made =
+        kind === 'workspace'
+          ? await api.createWorkspace({ name, color })
+          : await api.createProject({ name, workspaceId: workspace });
       await onSave();
       onClose();
+      onCreated(kind, made, !!made.existing);
     } catch (error) {
       setError((error as Error).message);
     } finally {
