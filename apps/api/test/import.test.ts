@@ -42,7 +42,30 @@ test('transform: ISO timestamps, 0/1 booleans, kept IDs and revisions, no passwo
     { keepProviderKeys: false },
   );
   assert.equal(user.demo_loaded, 1);
-  assert.equal(user.display_name, 'Ordo member');
+  assert.equal(user.display_name, null);
+  for (const [email, display_name] of [
+    ['a@example.invalid', 'Ordo member'],
+    ['kofi.mensah@example.invalid', 'kofi.mensah'],
+    ['phone:u', '0558601966'],
+    ['b@example.invalid', 'b@example.invalid'],
+  ])
+    assert.equal(
+      transform(
+        'users',
+        { id: 'u', email, display_name },
+        { keepProviderKeys: false },
+      ).display_name,
+      null,
+      display_name,
+    );
+  assert.equal(
+    transform(
+      'users',
+      { id: 'u', email: 'a@example.invalid', display_name: ' Ama Fiction ' },
+      { keepProviderKeys: false },
+    ).display_name,
+    'Ama Fiction',
+  );
   assert.equal(user.created_at, '2026-10-28T08:28:04.522Z');
   assert.equal(user.updated_at, '2026-10-28T08:28:04.500Z');
   assert.ok(!('password_hash' in user));

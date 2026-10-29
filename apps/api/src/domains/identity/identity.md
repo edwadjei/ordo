@@ -32,6 +32,10 @@ The request is **one upsert** on the contact's `otp_challenges` row: `INSERT …
 
 Every refusal is `401 OTP_INVALID` with the same message. Existing accounts keep their IDs and data. The first successful email proof revokes every earlier session of that account (a legacy local account converting, or an email squatter). New accounts are created only after a successful challenge. Phone-only accounts have an opaque internal non-email identifier and expose an empty email string; no fabricated email address appears in the UI. Phone and email logins are distinct accounts; no automatic merging occurs.
 
+### Display names
+
+`displayName` is optional and only ever a name the person typed. `otp.service.ts` passes it through `cleanDisplayName` (`@ordo/core`): it is trimmed, and a value that looks like a phone number (seven or more digits once spaces, `+`, `-`, `.` and brackets are removed) or an email address is dropped rather than refused, so sign-in still succeeds. Nothing is invented in its place: an account without a real name stores `display_name` as `NULL` and the public user carries `displayName: ""`, which clients show as no name. The name is set only when the account is created; a later sign-in never changes it. Migration `0003_optional_display_name.sql` cleared the same kinds of name already stored, together with the defaults sign-in used to invent ("Ordo member" for a phone, the email's local part for an email), and the embedded-database import applies the same rule.
+
 ## Throttle and delivery
 
 Sign-in routes are limited to 12 requests a minute per route and per client in the `auth_throttle` table: one upsert per request keyed by route and the `CF-Connecting-IP` address (stored only as a SHA-256 digest), batched with a bounded cleanup of stale rows. Over the limit is `429 RATE_LIMITED` with `Retry-After: 60`. Sign-out is never throttled.

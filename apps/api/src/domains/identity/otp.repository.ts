@@ -108,7 +108,7 @@ export class OtpRepository {
     claim: string;
     now: number;
     accountId: string;
-    displayName?: string;
+    displayName: string | null;
     sessionHash: string;
   }): Promise<UserRecord | undefined> {
     const db = this.database.use();
@@ -118,9 +118,6 @@ export class OtpRepository {
     const account = phone
       ? sql`phone = ${input.contact}`
       : sql`email = ${input.contact}`;
-    const displayName =
-      input.displayName ??
-      (phone ? 'Ordo member' : input.contact.split('@')[0].slice(0, 80));
     const results = await db.batch([
       db.run(sql`
         UPDATE ${otpChallenges} SET consumed = 1, consumed_by = ${input.claim}, code_hash = ''
@@ -128,7 +125,7 @@ export class OtpRepository {
       db.run(sql`
         INSERT INTO ${users} (id, email, phone, display_name)
         SELECT ${input.accountId}, ${phone ? `phone:${input.accountId}` : input.contact},
-               ${phone ? input.contact : null}, ${displayName}
+               ${phone ? input.contact : null}, ${input.displayName}
          WHERE ${claimed}
         ON CONFLICT DO NOTHING`),
       // The first proven email supersedes every earlier session, including

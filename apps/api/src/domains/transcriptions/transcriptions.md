@@ -14,13 +14,13 @@ Provider choice comes from the authenticated owner's [audio settings](../audio-s
 
 Workers AI errors carry an internal code in the message ([Workers AI errors](https://developers.cloudflare.com/workers-ai/platform/errors/)). They become specific API failures, with the provider's own message never passed on:
 
-| Workers AI | Response |
-|---|---|
-| 3036, daily free allocation used | `429 TRANSCRIPTION_ALLOWANCE_USED`: "Today's free transcription is used up; it resets at midnight UTC, or add an OpenAI key in Settings." |
-| 3040, capacity temporarily exceeded | `429 TRANSCRIPTION_BUSY`: "Cloudflare transcription is busy. Please retry shortly." |
-| 3006, request too large | `413 PAYLOAD_TOO_LARGE`: "This recording is too large to transcribe. Record a shorter clip." |
-| "Binding AI needs to be run remotely" (`wrangler dev --local`) | `503 WORKERS_AI_UNAVAILABLE`: "Cloudflare transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here." |
-| anything else | `502 TRANSCRIPTION_FAILED`: "Transcription failed. Please record again and retry." |
+| Workers AI                                                     | Response                                                                                                                                            |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3036, daily free allocation used                               | `429 TRANSCRIPTION_ALLOWANCE_USED`: "Today's built-in transcription limit is used up; it resets at midnight UTC, or add an OpenAI key in Settings." |
+| 3040, capacity temporarily exceeded                            | `429 TRANSCRIPTION_BUSY`: "Built-in transcription is busy. Please retry shortly."                                                                   |
+| 3006, request too large                                        | `413 PAYLOAD_TOO_LARGE`: "This recording is too large to transcribe. Record a shorter clip."                                                        |
+| "Binding AI needs to be run remotely" (`wrangler dev --local`) | `503 WORKERS_AI_UNAVAILABLE`: "Built-in transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here."            |
+| anything else                                                  | `502 TRANSCRIPTION_FAILED`: "Transcription failed. Please record again and retry."                                                                  |
 
 Without a usable binding the service returns `503 WORKERS_AI_UNAVAILABLE` before any call. On the Workers Free plan the allowance is 10,000 neurons per day (about 214 audio minutes at 46.63 neurons per minute) and resets at 00:00 UTC; usage beyond it fails and is never billed. Tests use a fake binding and fictional audio; real Workers AI transcription is verified in Phase 3.
 

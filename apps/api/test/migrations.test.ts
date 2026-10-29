@@ -119,3 +119,142 @@ test('0002 maps existing local_whisper settings to workers_ai and keeps OpenAI r
     0,
   );
 });
+
+test('0003 clears invented and contact-like names and keeps every account, session, setting and record', async (t) => {
+  const proxy = await getPlatformProxy<{ DB: D1Database }>({
+    configPath: wranglerConfig,
+    persist: false,
+    remoteBindings: false,
+    envFiles: [],
+  });
+  t.after(() => proxy.dispose());
+  const d1 = proxy.env.DB;
+  const migrations = await migrationStatements();
+  assert.equal(migrations[2].name, '0003_optional_display_name.sql');
+  const apply = (index: number) =>
+    d1.batch(migrations[index].statements.map((sql) => d1.prepare(sql)));
+  await apply(0);
+  await apply(1);
+  // Fictional accounts as the old schema stored them: [email, phone, name, kept?].
+  const accounts: [string, string | null, string, boolean][] = [
+    ['ama@example.test', null, 'Ama Fiction', true],
+    ['kofi.mensah@example.test', null, 'kofi.mensah', false],
+    ['phone:1', '+233241234567', 'Ordo member', false],
+    ['phone:2', '+233247654321', '0558601966', false],
+    ['phone:3', '+233201112223', '+233 55 860 1966', false],
+    ['typed@example.test', null, 'typed@example.test', false],
+    ['agent@example.test', null, 'Agent 007', true],
+  ];
+  const ids = accounts.map(() => crypto.randomUUID());
+  await d1.batch(
+    accounts.map(([email, phone, name], index) =>
+      d1
+        .prepare(
+          "INSERT INTO users (id, email, phone, display_name, updated_at) VALUES (?, ?, ?, ?, '2026-01-02T00:00:00.000Z')",
+        )
+        .bind(ids[index], email, phone, name),
+    ),
+  );
+  const [owner] = ids;
+  const workspace = crypto.randomUUID();
+  await d1.batch([
+    d1
+      .prepare(
+        "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ('fictional-hash', ?, '2026-12-01T00:00:00.000Z')",
+      )
+      .bind(owner),
+    d1
+      .prepare(
+        "INSERT INTO audio_settings (owner_user_id, provider, encrypted_api_key) VALUES (?, 'openai', 'fictional-ciphertext')",
+      )
+      .bind(owner),
+    d1
+      .prepare(
+        "INSERT INTO workspaces (id, owner_user_id, name, color) VALUES (?, ?, 'Fiction', '#577664')",
+      )
+      .bind(workspace, owner),
+    d1
+      .prepare(
+        "INSERT INTO tasks (id, owner_user_id, workspace_id, title) VALUES (?, ?, ?, 'Fictional task')",
+      )
+      .bind(crypto.randomUUID(), owner, workspace),
+    d1
+      .prepare(
+        "INSERT INTO notes (id, owner_user_id, title) VALUES (?, ?, 'Fictional note')",
+      )
+      .bind(crypto.randomUUID(), owner),
+  ]);
+  await apply(2);
+  const rows = (
+    await d1
+      .prepare('SELECT id, email, display_name, updated_at FROM users')
+      .all<{
+        id: string;
+        email: string;
+        display_name: string | null;
+        updated_at: string;
+      }>()
+  ).results;
+  assert.equal(rows.length, accounts.length);
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  accounts.forEach(([email, , name, kept], index) => {
+    const row = byId.get(ids[index])!;
+    assert.equal(row.email, email);
+    assert.equal(row.display_name, kept ? name : null, name);
+    assert.equal(row.updated_at, '2026-01-02T00:00:00.000Z');
+  });
+  const count = async (table: string) =>
+    d1.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first('n');
+  for (const table of [
+    'sessions',
+    'audio_settings',
+    'workspaces',
+    'tasks',
+    'notes',
+  ])
+    assert.equal(await count(table), 1, table);
+  assert.equal(
+    await d1
+      .prepare(
+        'SELECT encrypted_api_key FROM audio_settings WHERE owner_user_id = ?',
+      )
+      .bind(owner)
+      .first('encrypted_api_key'),
+    'fictional-ciphertext',
+  );
+  for (const table of ['users_keep', 'sessions_keep', 'audio_settings_keep'])
+    assert.equal(
+      await d1
+        .prepare('SELECT COUNT(*) AS n FROM sqlite_master WHERE name = ?')
+        .bind(table)
+        .first('n'),
+      0,
+      table,
+    );
+  // NULL is allowed, an empty name is still refused, and foreign keys hold.
+  await assert.rejects(() =>
+    d1
+      .prepare("UPDATE users SET display_name = '' WHERE id = ?")
+      .bind(owner)
+      .run(),
+  );
+  await assert.rejects(() =>
+    d1
+      .prepare(
+        "INSERT INTO notes (id, owner_user_id, title) VALUES (?, ?, 'Orphan')",
+      )
+      .bind(crypto.randomUUID(), crypto.randomUUID())
+      .run(),
+  );
+  // The cascade from users to sessions and audio_settings still works.
+  const loner = ids[1];
+  await d1.batch([
+    d1
+      .prepare(
+        "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ('fictional-hash-2', ?, '2026-12-01T00:00:00.000Z')",
+      )
+      .bind(loner),
+    d1.prepare('DELETE FROM users WHERE id = ?').bind(loner),
+  ]);
+  assert.equal(await count('sessions'), 1);
+});

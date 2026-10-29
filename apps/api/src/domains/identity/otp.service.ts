@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { cleanDisplayName } from '@ordo/core';
 import {
   OtpDelivery,
   otpDeliveryFailure,
@@ -137,7 +138,8 @@ export class OtpService {
       claim: newId(),
       now,
       accountId: newId(),
-      displayName: input.displayName,
+      // No invented default: without a real name the account stores none.
+      displayName: cleanDisplayName(input.displayName),
       sessionHash: await this.tokens.digest(token),
     });
     if (!user) refused();

@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
+import { cleanDisplayName } from '@ordo/core';
 
 const run = promisify(execFile);
 
@@ -70,6 +71,15 @@ const integer = (value: unknown, fallback = 1) =>
   Number.isInteger(Number(value)) && Number(value) > 0
     ? Number(value)
     : fallback;
+// Same rule as migration 0003: invented defaults ("Ordo member", the email's
+// local part) and phone- or email-like names become no name.
+const displayName = (row: Row) => {
+  const kept = cleanDisplayName(text(row.display_name));
+  const localPart = String(row.email ?? '')
+    .split('@')[0]
+    .slice(0, 80);
+  return kept === 'Ordo member' || kept === localPart ? null : kept;
+};
 const name = (value: unknown) => {
   const trimmed = String(value ?? '')
     .trim()
@@ -88,10 +98,7 @@ export function transform(
       return {
         id: text(row.id),
         email: text(row.email),
-        display_name:
-          String(row.display_name ?? '')
-            .trim()
-            .slice(0, 80) || 'Ordo member',
+        display_name: displayName(row),
         timezone: text(row.timezone) ?? 'Africa/Accra',
         phone: text(row.phone),
         email_verified_at: timestamp(

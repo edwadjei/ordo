@@ -4,11 +4,11 @@
 
 Open **Settings** from the sidebar. Voice setup is optional and does not block tasks or notes.
 
-| Provider | Setup | Cost | Where audio is processed |
-|---|---|---|---|
-| Cloudflare Workers AI Whisper (default) | None for the user; the Worker has an `AI` binding | Free allowance of 10,000 neurons per day, about 214 audio minutes. On the Workers Free plan, use beyond that fails until 00:00 UTC and is never billed | Cloudflare; audio stays within Cloudflare |
-| OpenAI (your key) | Select OpenAI, enter your own key, Save, then Test connection | About $0.003 per minute, billed to your own OpenAI account | OpenAI; its charges and retention policy apply |
-| Native on-device | Coming soon with the native apps | | Not implemented in the web app |
+| Provider                                | Setup                                                         | Cost                                                                                                                                                   | Where audio is processed                       |
+| --------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| Cloudflare Workers AI Whisper (default) | None for the user; the Worker has an `AI` binding             | Free allowance of 10,000 neurons per day, about 214 audio minutes. On the Workers Free plan, use beyond that fails until 00:00 UTC and is never billed | Cloudflare; audio stays within Cloudflare      |
+| OpenAI (your key)                       | Select OpenAI, enter your own key, Save, then Test connection | About $0.003 per minute, billed to your own OpenAI account                                                                                             | OpenAI; its charges and retention policy apply |
+| Native on-device                        | Coming soon with the native apps                              |                                                                                                                                                        | Not implemented in the web app                 |
 
 The Workers AI model is `@cf/openai/whisper-large-v3-turbo`; the OpenAI model is `gpt-4o-mini-transcribe`. Ordo never stores audio with either provider: the recording exists only in memory while the provider request runs. Local Whisper is not part of Ordo, because a Worker cannot run it; accounts that had it selected now use Workers AI (migration `0002_workers_ai_transcription.sql`).
 
@@ -20,13 +20,13 @@ The Worker calls the model through its `AI` binding (`"ai": { "binding": "AI" }`
 
 Ordo never switches provider on its own. If Workers AI cannot transcribe, the request fails with a specific message and nothing is sent to OpenAI:
 
-| Situation | Response | Message |
-|---|---|---|
-| Daily free allowance used up (Workers AI error 3036) | `429 TRANSCRIPTION_ALLOWANCE_USED` | Today's free transcription is used up; it resets at midnight UTC, or add an OpenAI key in Settings. |
-| No `AI` binding, or it cannot reach Cloudflare | `503 WORKERS_AI_UNAVAILABLE` | Cloudflare transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here. |
-| Workers AI out of capacity (3040) | `429 TRANSCRIPTION_BUSY` | Cloudflare transcription is busy. Please retry shortly. |
-| Request too large for Workers AI (3006) | `413 PAYLOAD_TOO_LARGE` | This recording is too large to transcribe. Record a shorter clip. |
-| Anything else | `502 TRANSCRIPTION_FAILED` | Transcription failed. Please record again and retry. |
+| Situation                                            | Response                           | Message                                                                                                       |
+| ---------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Daily free allowance used up (Workers AI error 3036) | `429 TRANSCRIPTION_ALLOWANCE_USED` | Today's built-in transcription limit is used up; it resets at midnight UTC, or add an OpenAI key in Settings. |
+| No `AI` binding, or it cannot reach Cloudflare       | `503 WORKERS_AI_UNAVAILABLE`       | Built-in transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here.      |
+| Workers AI out of capacity (3040)                    | `429 TRANSCRIPTION_BUSY`           | Built-in transcription is busy. Please retry shortly.                                                         |
+| Request too large for Workers AI (3006)              | `413 PAYLOAD_TOO_LARGE`            | This recording is too large to transcribe. Record a shorter clip.                                             |
+| Anything else                                        | `502 TRANSCRIPTION_FAILED`         | Transcription failed. Please record again and retry.                                                          |
 
 Test connection for Workers AI checks only that the binding is available; it does not run a test transcription, because that would spend the daily allowance.
 

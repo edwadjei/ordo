@@ -43,16 +43,16 @@ The import is developed and tested only against a fictional fixture (`packages/d
 
 ## Configuration
 
-| Name | Kind | Purpose |
-| --- | --- | --- |
-| `DB` | D1 binding | The database (`database_name` `ordo`); locally a placeholder ID |
-| `ASSETS` | Assets binding | The static web export |
-| `ORDO_ENV` | Variable | `development` enables the console code transport, a temporary OTP key, non-Secure cookies and the default local origins; anything else is hosted |
-| `TRUSTED_ORIGINS` | Variable | Comma-separated exact origins allowed for writes; required when hosted. Development default: `http://127.0.0.1:8788`, `http://localhost:8788`, and the same on port 3358 |
-| `OTP_HMAC_KEY` | Secret | 64 hex characters; required when hosted |
-| `ORDO_CREDENTIAL_KEY` | Secret | 64 hex characters; without it credential storage reports unavailable |
-| `GATEKEEPER_API_KEY`, `GATEKEEPER_API_URL` | Secrets | Real code delivery; used instead of the console transport when both are set |
-| `GATEKEEPER_SENDER_ID`, `GATEKEEPER_EMAIL_HTML` | Variables | Optional SMS sender ID; `false` selects the plain-text email |
+| Name                                            | Kind           | Purpose                                                                                                                                                                  |
+| ----------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DB`                                            | D1 binding     | The database (`database_name` `ordo`); locally a placeholder ID                                                                                                          |
+| `ASSETS`                                        | Assets binding | The static web export                                                                                                                                                    |
+| `ORDO_ENV`                                      | Variable       | `development` enables the console code transport, a temporary OTP key, non-Secure cookies and the default local origins; anything else is hosted                         |
+| `TRUSTED_ORIGINS`                               | Variable       | Comma-separated exact origins allowed for writes; required when hosted. Development default: `http://127.0.0.1:8788`, `http://localhost:8788`, and the same on port 3358 |
+| `OTP_HMAC_KEY`                                  | Secret         | 64 hex characters; required when hosted                                                                                                                                  |
+| `ORDO_CREDENTIAL_KEY`                           | Secret         | 64 hex characters; without it credential storage reports unavailable                                                                                                     |
+| `GATEKEEPER_API_KEY`, `GATEKEEPER_API_URL`      | Secrets        | Real code delivery; used instead of the console transport when both are set                                                                                              |
+| `GATEKEEPER_SENDER_ID`, `GATEKEEPER_EMAIL_HTML` | Variables      | Optional SMS sender ID; `false` selects the plain-text email                                                                                                             |
 
 Values come from `.dev.vars` locally and from Worker secrets when hosted (Phase 3). Names only appear in this repository. A hosted Worker missing a required value answers API requests with a generic `500 INTERNAL_ERROR` and logs which name is missing, never a value. The application does not log request bodies or codes, except the development-only console transport, which prints the code it would have sent.
 
@@ -74,7 +74,7 @@ Each API request opens a D1 Sessions API session from the `X-Ordo-Bookmark` requ
 
 Shared TypeScript types and strict Zod input schemas live in `packages/core/src/index.ts`. All entity IDs are UUIDs. JSON uses camelCase; `revision` is a positive integer beginning at 1. Dates are validated calendar dates in `YYYY-MM-DD` form, intentionally without converting date-only values to arbitrary UTC instants. Record timestamps are UTC ISO 8601 text (`2026-10-28T08:28:04.522Z`). User timezone defaults to `Africa/Accra`.
 
-- `User`: `id, email, displayName, timezone`.
+- `User`: `id, email, displayName, timezone`. `displayName` is `""` when the account has no name; it is never a phone number or email address (see [display names](src/domains/identity/identity.md#display-names)).
 - `Workspace`: `id, name, color, revision, createdAt, updatedAt`.
 - `Project`: `id, workspaceId, name, description, revision, createdAt, updatedAt`.
 - `Task`: `id, title, description, status, priority, dueDate, dueTime, followUpDate, followUpTime, responsiblePerson, waitingOn, workspaceId, projectId, parentId, completedAt, deletedAt, revision, createdAt, updatedAt`.
@@ -121,7 +121,7 @@ Errors have `{ error: { code, message } }`. Expected codes include `UNAUTHORIZED
 
 ## Migrations and verification
 
-The schema is one numbered SQLite migration set in `packages/db/migrations/` (Phase 2 starts fresh with `0001_initial.sql`), with matching Drizzle `sqlite-core` tables in `packages/db/src/schema.ts`. It includes the FTS5 search tables and their triggers, `auth_throttle`, and the check constraints for task times and name lengths. Future changes are new numbered files; an applied file is never edited. Every shared-environment migration needs Edward's approval, a D1 restore point and the rollback gates.
+The schema is one numbered SQLite migration set in `packages/db/migrations/` (Phase 2 starts fresh with `0001_initial.sql`; `0002` moves transcription to Workers AI and `0003` makes the display name optional), with matching Drizzle `sqlite-core` tables in `packages/db/src/schema.ts`. It includes the FTS5 search tables and their triggers, `auth_throttle`, and the check constraints for task times and name lengths. Future changes are new numbered files; an applied file is never edited. Every shared-environment migration needs Edward's approval, a D1 restore point and the rollback gates.
 
 ```bash
 npm run typecheck --workspace @ordo/api
@@ -138,12 +138,12 @@ Not yet implemented: contact linking/recovery, account/export/deletion UI, sessi
 
 ## Codes, search, and recordings
 
-| Route                       | Behavior                                                                                                              |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `GET /v1/capabilities`      | Public configuration availability, including `transcriptionProviders` and `credentialStorage`; no credentials         |
-| `POST /v1/auth/otp/request` | `{contact}` email or Ghana phone → 202 `{challengeId,retryAfterSeconds,expiresInSeconds}`                             |
-| `POST /v1/auth/otp/verify`  | `{challengeId,code,displayName?}` → user and session cookie                                                           |
-| `GET /v1/search?q=...`      | Ranked owner-scoped task/note/project FTS5 results (`bm25()`), max 30                                                 |
+| Route                       | Behavior                                                                                                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /v1/capabilities`      | Public configuration availability, including `transcriptionProviders` and `credentialStorage`; no credentials                                                                        |
+| `POST /v1/auth/otp/request` | `{contact}` email or Ghana phone → 202 `{challengeId,retryAfterSeconds,expiresInSeconds}`                                                                                            |
+| `POST /v1/auth/otp/verify`  | `{challengeId,code,displayName?}` → user and session cookie; a phone- or email-like name is not stored                                                                               |
+| `GET /v1/search?q=...`      | Ranked owner-scoped task/note/project FTS5 results (`bm25()`), max 30                                                                                                                |
 | `POST /v1/transcriptions`   | Raw supported audio, max 20 MiB → `{transcript}` via Workers AI or the account's OpenAI key; memory only, audio discarded after processing; specific 429/503 errors when unavailable |
 
 A code is valid for five minutes and works once, with 60-second resend spacing, five sends and five attempts per 15-minute contact window; resending does not clear failed attempts. Email and phone accounts are not automatically linked. Codes are stored as HMAC-SHA256 hashes keyed by `OTP_HMAC_KEY`. A legacy local account (for example one moved by the import) keeps its ID and data and has its old sessions deleted at its first successful email code. Details live in the identity, search, and transcriptions domain concept notes. Ordo stores no audio/files or recording metadata. Audio buffers are request-scoped and cleared after processing; transcripts persist only when separately saved through Notes. Per-isolate concurrency limits apply.
