@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import {
+  ArrowUpRight,
   Check,
   Copy,
   FileText,
@@ -175,6 +176,7 @@ export function RecentConversations({
             <span>
               <Icon size={15} />
               {note.title}
+              <ArrowUpRight size={13} />
             </span>
             <small>
               {noteSourceLabel(note.source)} ·{' '}
