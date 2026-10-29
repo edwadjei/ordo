@@ -129,14 +129,15 @@ The D1 schema keeps today's tables and columns, translated to SQLite types:
 | `sessions` | token_hash (primary key), user_id, expires_at | SHA-256 digest of the token; the row is deleted on sign-out |
 | `otp_challenges` | contact (primary key), challenge_id, code_hash, expires_at, next_send_at, window_started_at, requests, attempts, ready, consumed, consumed_by | One row per email/phone; holds the current code and the contact's rate-limit window |
 | `auth_throttle` | key (route + client IP), window_started_at, count | Per-IP limits for sign-in routes |
-| `workspaces` | id, owner_user_id, name, color, revision, created_at, updated_at | |
-| `projects` | id, owner_user_id, workspace_id, name, description, favorite, aliases, revision, created_at, updated_at | Composite keys keep a project inside its workspace; `aliases` is a JSON array of up to 10 names |
+| `workspaces` | id, owner_user_id, name, color, archived_at, revision, created_at, updated_at | `archived_at` hides it (restorable); a permanent delete removes it and everything inside |
+| `projects` | id, owner_user_id, workspace_id, name, description, favorite, aliases, archived_at, revision, created_at, updated_at | Composite keys keep a project inside its workspace; `aliases` is a JSON array of up to 10 names |
 | `tasks` | id, owner_user_id, workspace_id, project_id, parent_id, title, description, status, priority, due_date, due_time, follow_up_date, follow_up_time, responsible_person, waiting_on, origin, source_note_id, completed_at, deleted_at, revision, created_at, updated_at | Null workspace and project = personal Inbox; `origin` and `source_note_id` record provenance |
 | `idempotency_keys` | id, owner_user_id, key, fingerprint, task_id, created_at | Unique on (owner_user_id, key) |
 | `notes` | id, owner_user_id, workspace_id, project_id, title, body, deleted_at, revision, created_at, updated_at | |
 | `audio_settings` | owner_user_id (primary key), provider, encrypted_api_key, created_at, updated_at | Ciphertext only |
 | `drafts` | id, owner_user_id, workspace_id, project_id, source_note_id, kind, recipient, subject, body, used_at, deleted_at, revision, created_at, updated_at | Email/message drafts; never sent by Ordo |
 | `capture_runs` | id, owner_user_id, note_id, note_revision, workspace_id, project_id, status, provider, model, suggestions, error_code, input_tokens, output_tokens, neurons, save_key, save_fingerprint, save_claim, saved_result, saved_at, created_at, updated_at | One "Process with AI" request; validated suggestions only, never note text or raw model output |
+| `task_note_links` | task_id, note_id, owner_user_id, created_at | Notes linked to a task by hand; one per pair; removed with either side |
 | `ai_settings` | owner_user_id (primary key), text_provider, encrypted_anthropic_key, created_at, updated_at | Ciphertext only; the one OpenAI key stays in `audio_settings`, shared with transcription |
 | `tasks_fts`, `notes_fts`, `projects_fts` | FTS5 virtual tables | Kept current by insert/update/delete triggers |
 

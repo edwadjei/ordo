@@ -24,6 +24,7 @@ test('the warm-up runs every main request path through', async () => {
     // The save's batch runs; the made-up run then reads as saved elsewhere.
     409, // POST /v1/capture-runs/:id/save
     200, // GET /v1/drafts
+    200, // GET /v1/tasks/:id/related
   ]);
 });
 

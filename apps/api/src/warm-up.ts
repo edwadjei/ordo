@@ -157,6 +157,7 @@ const requests: [string, string, object?][] = [
     { workspaceId: id, tasks: [{ title: 'Warm-up' }], drafts: [] },
   ],
   ['GET', '/v1/drafts'],
+  ['GET', `/v1/tasks/${id}/related`],
 ];
 
 /**
