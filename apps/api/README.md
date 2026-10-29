@@ -76,52 +76,53 @@ Shared TypeScript types and strict Zod input schemas live in `packages/core/src/
 
 - `User`: `id, email, displayName, timezone`. `displayName` is `""` when the account has no name; it is never a phone number or email address (see [display names](src/domains/identity/identity.md#display-names)).
 - `Workspace`: `id, name, color, revision, createdAt, updatedAt`.
-- `Project`: `id, workspaceId, name, description, revision, createdAt, updatedAt`.
+- `Project`: `id, workspaceId, name, description, favorite, revision, createdAt, updatedAt`. `favorite` is a boolean, `false` by default.
 - `Task`: `id, title, description, status, priority, dueDate, dueTime, followUpDate, followUpTime, responsiblePerson, waitingOn, workspaceId, projectId, parentId, completedAt, deletedAt, revision, createdAt, updatedAt`.
-- `Note`: `id, title, body, workspaceId, projectId, deletedAt, revision, createdAt, updatedAt`.
+- `Note`: `id, title, body, source, workspaceId, projectId, deletedAt, revision, createdAt, updatedAt`. `body` is Markdown text; `source` is `manual | recording | email | transcript`, `manual` by default, and is set on create only.
 
 Task status is `todo | in_progress | waiting | done`. Priority is `low | medium | high | null`. Workspace, project, parent, due/follow-up date fields are nullable. `dueTime` and `followUpTime` are optional 24-hour `HH:MM` local wall-clock times in the user's timezone, stored separately from their date-only fields; a time requires its date, so a request that leaves a time without its date (including clearing the date but not the time) returns `400 INVALID_INPUT` ("A due time needs a due date." / "A follow-up time needs a follow-up date."). `responsiblePerson` and `waitingOn` are plain-text names (trimmed, at most 80 characters, empty becomes `null`) and are never matched to accounts; `waitingOn` describes who a task waits on but Waiting On membership is still `status: waiting`. Unscoped tasks/notes have `workspaceId: null` and `projectId: null`, but always have an authenticated owner in storage; that is the personal Inbox. A project requires its workspace. Parent and child must share both workspace and project, including null Inbox scope.
 
 `GET /v1/home` returns `{ user, workspaces, projects, tasks, notes }` for the current owner, excluding archived tasks/notes. Entity writes return the saved entity directly. Code verification returns `{ user }`, logout `{ ok: true }`. Demo returns a refreshed Home snapshot. Owner IDs and session hashes are never included.
 
-| Method and path                    | Body / behavior                                                                                                   |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `GET /health`                      | Public `{ status: 'ok' }` liveness (`/api/health` on the Worker); does not prove a signed-in feature works        |
-| `GET /v1/auth/me`                  | Authenticated public user                                                                                         |
-| `POST /v1/auth/logout`             | No body; revokes current session and clears cookie                                                                |
-| `GET /v1/home`                     | Current owner's full active snapshot                                                                              |
-| `GET /v1/workspaces`               | Current owner's workspace list                                                                                    |
-| `GET /v1/workspaces/:id`           | Owned workspace or 404                                                                                            |
-| `POST /v1/workspaces`              | Required `name`; optional `color` (hex, default `#577664`)                                                        |
-| `PATCH /v1/workspaces/:id`         | Optional `name, color`; required `expectedRevision`                                                               |
-| `GET /v1/workspaces/:id/projects`  | Scoped owned project list                                                                                         |
-| `POST /v1/projects`                | Required `name, workspaceId`; optional `description`                                                              |
-| `POST /v1/workspaces/:id/projects` | Required `name`; workspace from URL; optional `description`                                                       |
-| `GET /v1/projects/:id`             | Owned project or 404                                                                                              |
-| `PATCH /v1/projects/:id`           | Optional `name, description`; required `expectedRevision`                                                         |
-| `GET /v1/tasks`                    | Current owner's active tasks                                                                                      |
-| `GET /v1/tasks/:id`                | Active owned task or 404                                                                                          |
-| `POST /v1/tasks`                   | Required `title` and `Idempotency-Key` header; optional task fields above; 201 first create / 200 identical retry |
-| `PATCH /v1/tasks/:id`              | Optional editable task fields; required `expectedRevision`; omitted fields remain unchanged                       |
-| `DELETE /v1/tasks/:id`             | Required `{ expectedRevision }`; soft archive; returns tombstone                                                  |
-| `GET /v1/notes`                    | Current owner's active notes                                                                                      |
-| `GET /v1/notes/:id`                | Active owned note or 404                                                                                          |
-| `POST /v1/notes`                   | Required `title`; optional `body, workspaceId, projectId`                                                         |
-| `PATCH /v1/notes/:id`              | Optional note fields; required `expectedRevision`; omitted fields remain unchanged                                |
-| `DELETE /v1/notes/:id`             | Required `{ expectedRevision }`; soft archive; returns tombstone                                                  |
-| `POST /v1/demo`                    | Explicitly loads fictional fixtures once for the authenticated owner, in one batch                                |
+| Method and path                    | Body / behavior                                                                                                                                     |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                      | Public `{ status: 'ok' }` liveness (`/api/health` on the Worker); does not prove a signed-in feature works                                          |
+| `GET /v1/auth/me`                  | Authenticated public user                                                                                                                           |
+| `PATCH /v1/auth/me`                | `{ displayName: string \| null }`; trimmed, at most 80; empty/`null` clears; phone- or email-like names are `400`; returns `{ user }`               |
+| `POST /v1/auth/logout`             | No body; revokes current session and clears cookie                                                                                                  |
+| `GET /v1/home`                     | Current owner's full active snapshot                                                                                                                |
+| `GET /v1/workspaces`               | Current owner's workspace list                                                                                                                      |
+| `GET /v1/workspaces/:id`           | Owned workspace or 404                                                                                                                              |
+| `POST /v1/workspaces`              | Required `name`; optional `color` (hex, default `#577664`)                                                                                          |
+| `PATCH /v1/workspaces/:id`         | Optional `name, color`; required `expectedRevision`                                                                                                 |
+| `GET /v1/workspaces/:id/projects`  | Scoped owned project list                                                                                                                           |
+| `POST /v1/projects`                | Required `name, workspaceId`; optional `description, favorite`                                                                                      |
+| `POST /v1/workspaces/:id/projects` | Required `name`; workspace from URL; optional `description, favorite`                                                                               |
+| `GET /v1/projects/:id`             | Owned project or 404                                                                                                                                |
+| `PATCH /v1/projects/:id`           | Optional `name, description, favorite`; required `expectedRevision`                                                                                 |
+| `GET /v1/tasks`                    | Current owner's active tasks                                                                                                                        |
+| `GET /v1/tasks/:id`                | Active owned task or 404                                                                                                                            |
+| `POST /v1/tasks`                   | Required `title` and `Idempotency-Key` header; optional task fields above; 201 first create / 200 identical retry                                   |
+| `PATCH /v1/tasks/:id`              | Optional editable task fields; required `expectedRevision`; omitted fields unchanged; a new `workspaceId`/`projectId` moves the task's subtasks too |
+| `DELETE /v1/tasks/:id`             | Required `{ expectedRevision }`; soft archive; returns tombstone                                                                                    |
+| `GET /v1/notes`                    | Current owner's active notes                                                                                                                        |
+| `GET /v1/notes/:id`                | Active owned note or 404                                                                                                                            |
+| `POST /v1/notes`                   | Required `title`; optional `body, source, workspaceId, projectId`                                                                                   |
+| `PATCH /v1/notes/:id`              | Optional `title, body, workspaceId, projectId`; required `expectedRevision`; omitted fields unchanged; `source` cannot change                       |
+| `DELETE /v1/notes/:id`             | Required `{ expectedRevision }`; soft archive; returns tombstone                                                                                    |
+| `POST /v1/demo`                    | Explicitly loads fictional fixtures once for the authenticated owner, in one batch                                                                  |
 
 Task creation defaults to `todo`, empty description, null optional scope/dates/times/people/priority/parent. Idempotency keys are owner-scoped, at most 128 characters, and retained with the task reference; a changed payload under the same key returns `409 IDEMPOTENCY_CONFLICT`. An archived original task does not reappear on retry (`410 TASK_ARCHIVED`). Keep the same key only for retrying the same original payload.
 
 ### Saving safely: check-on-save
 
-D1 has no row locks or interactive transactions, so every write carries its own preconditions. PATCH and DELETE are `UPDATE … WHERE revision = ?`; a stale or concurrently overtaken revision returns `409 REVISION_CONFLICT` ("changed elsewhere") with no write. A hierarchy change is also conditional on the revisions of every ancestor read during the cycle check, so crossing moves cannot create a cycle. Moving a task to another destination or archiving it while it has active children returns `409 HAS_SUBTASKS` (the statement includes `NOT EXISTS (active child)`); a subtask is inserted only while its parent is still active and unchanged in the same destination. Task creation inserts the task and its idempotency key in one `batch()`. Cross-owner/project/workspace injection is rejected, cycles are rejected, and completing a parent never automatically completes children. Each rule has statement-level and concurrent-request tests in `test/concurrency.test.ts`.
+D1 has no row locks or interactive transactions, so every write carries its own preconditions. PATCH and DELETE are `UPDATE … WHERE revision = ?`; a stale or concurrently overtaken revision returns `409 REVISION_CONFLICT` ("changed elsewhere") with no write. A hierarchy change is also conditional on the revisions of every ancestor read during the cycle check, so crossing moves cannot create a cycle. Moving a task to another workspace or project moves its subtasks with it in the same `batch()` (see the [tasks concept note](src/domains/tasks/tasks.md)). Archiving a task while it has active children returns `409 HAS_SUBTASKS` (the statement includes `NOT EXISTS (active child)`); a subtask is inserted only while its parent is still active and unchanged in the same destination. Task creation inserts the task and its idempotency key in one `batch()`. Cross-owner/project/workspace injection is rejected, cycles are rejected, and completing a parent never automatically completes children. Each rule has statement-level and concurrent-request tests in `test/concurrency.test.ts`.
 
 Errors have `{ error: { code, message } }`. Expected codes include `UNAUTHORIZED`, `INVALID_INPUT`, `ORIGIN_REJECTED`, `SESSION_CHANGED`, `NOT_FOUND`, `SCOPE_MISMATCH`, `TASK_CYCLE`, `HIERARCHY_LIMIT`, `REVISION_CONFLICT`, `IDEMPOTENCY_CONFLICT`, `TASK_ARCHIVED`, `HAS_SUBTASKS`, `RATE_LIMITED`, `OTP_INVALID`, `OTP_RATE_LIMITED` and `PAYLOAD_TOO_LARGE`. Unexpected errors return a generic `INTERNAL_ERROR` without SQL, secrets, or request content. Request body limit is 150,000 bytes; note body up to 100,000 characters, task description 20,000, names/titles 200.
 
 ## Migrations and verification
 
-The schema is one numbered SQLite migration set in `packages/db/migrations/` (Phase 2 starts fresh with `0001_initial.sql`; `0002` moves transcription to Workers AI and `0003` makes the display name optional), with matching Drizzle `sqlite-core` tables in `packages/db/src/schema.ts`. It includes the FTS5 search tables and their triggers, `auth_throttle`, and the check constraints for task times and name lengths. Future changes are new numbered files; an applied file is never edited. Every shared-environment migration needs Edward's approval, a D1 restore point and the rollback gates.
+The schema is one numbered SQLite migration set in `packages/db/migrations/` (Phase 2 starts fresh with `0001_initial.sql`; `0002` moves transcription to Workers AI and `0003` makes the display name optional; `0004` adds project favourites and note sources), with matching Drizzle `sqlite-core` tables in `packages/db/src/schema.ts`. It includes the FTS5 search tables and their triggers, `auth_throttle`, and the check constraints for task times and name lengths. Future changes are new numbered files; an applied file is never edited. Every shared-environment migration needs Edward's approval, a D1 restore point and the rollback gates.
 
 ```bash
 npm run typecheck --workspace @ordo/api

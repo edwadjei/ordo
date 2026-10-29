@@ -44,6 +44,7 @@ export const projectInput = z
     name,
     workspaceId: id,
     description: z.string().max(5000).default(''),
+    favorite: z.boolean().default(false),
   })
   .strict();
 export const scopeInput = z.object({
@@ -84,8 +85,21 @@ export const taskPatch = z
     expectedRevision: z.number().int().positive(),
   })
   .strict();
+/** Where a note came from; set on create and never changed. */
+export const noteSources = [
+  'manual',
+  'recording',
+  'email',
+  'transcript',
+] as const;
+export type NoteSource = (typeof noteSources)[number];
+// `body` is Markdown text; plain text is valid Markdown. The API stores text only.
 export const noteInput = scopeInput
-  .extend({ title: name, body: z.string().max(100000).default('') })
+  .extend({
+    title: name,
+    body: z.string().max(100000).default(''),
+    source: z.enum(noteSources).default('manual'),
+  })
   .strict();
 export const notePatch = z
   .object({
@@ -95,6 +109,11 @@ export const notePatch = z
     projectId: id.nullable().optional(),
     expectedRevision: z.number().int().positive(),
   })
+  .strict();
+// `PATCH /v1/auth/me`: empty or null clears the name. A phone- or email-like
+// name is refused by the identity service (`looksLikeContact`).
+export const profilePatch = z
+  .object({ displayName: z.string().trim().max(80).nullable() })
   .strict();
 export const revisionInput = z
   .object({ expectedRevision: z.number().int().positive() })
@@ -113,6 +132,7 @@ export const projectPatch = z
   .object({
     name: name.optional(),
     description: z.string().max(5000).optional(),
+    favorite: z.boolean().optional(),
     expectedRevision: z.number().int().positive(),
   })
   .strict();
@@ -148,6 +168,7 @@ export interface Project {
   name: string;
   description: string;
   workspaceId: string;
+  favorite: boolean;
   revision: number;
   createdAt: string;
   updatedAt: string;

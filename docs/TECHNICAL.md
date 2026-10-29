@@ -162,7 +162,7 @@ D1 has no row locks or interactive transactions, and Ordo does not use Durable O
 | Retried creates never duplicate | The task insert and its `idempotency_keys` row go in one `batch()`. A repeated key violates the unique constraint and rolls the batch back; the API then reads the stored key: same fingerprint returns the original task, a different one returns `409 IDEMPOTENCY_CONFLICT` |
 | Multi-row writes are all-or-nothing | One `batch()` per operation, e.g. demo fixtures, or the sign-in batch below |
 | Hierarchy stays valid | Ancestry is read (bounded to 500 IDs) and checked for cycles, scope, and archived parents. The write is conditional on the task's revision **and** the revisions of every ancestor read, so a concurrent move anywhere in that chain refuses one of the two saves |
-| No orphaned children | Archive and destination moves include `NOT EXISTS` (active children) in the `UPDATE`; a subtask insert requires its parent to still be active (`INSERT … SELECT … WHERE` parent active) |
+| No orphaned children | Archive includes `NOT EXISTS` (active children) in the `UPDATE`; a destination move carries the whole subtree in the same batch; a subtask insert requires its parent to still be active (`INSERT … SELECT … WHERE` parent active) |
 | A code works exactly once | Compare-and-set on `consumed = 0` (see section 8) |
 | Demo fixtures load once | The batch starts with a conditional `demo_loaded` claim and every fixture insert depends on that claim |
 

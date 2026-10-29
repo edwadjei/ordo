@@ -6,6 +6,10 @@ WorkspacesService owns workspace/project records and destination validation. Pro
 
 Every lookup resolves both entity ID and authenticated owner. A foreign ID yields the same not-found behavior as a missing ID. A project must belong to the selected workspace; merely owning both records is insufficient. Database composite foreign keys backstop the same containment rules.
 
+## Favourites
+
+A project has `favorite: boolean`, `false` by default, set on create or with `PATCH /v1/projects/:id` like any other project field (a revision-checked save). It is returned wherever projects are: project reads and lists, and the Home snapshot. Ordering favourites first is the client's choice; the API keeps its name order. Projects are never archived or deleted, so nothing clears a favourite except the owner.
+
 ## Personal Inbox
 
 The personal Inbox is a null workspace/project destination with a non-null authenticated owner. It is not a fabricated workspace and is never ownerless data. `validateScope()` accepts this explicit empty destination, but a non-null project with null or mismatched workspace is rejected.
