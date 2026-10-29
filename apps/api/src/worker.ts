@@ -59,6 +59,12 @@ function compose(env: Env): Composition {
     secureCookies: config.secureCookies,
     otpDelivery,
     otpHmacKey,
+    aiSettings: {
+      ai: config.workersAi ? usableAiBinding(env.AI) : undefined,
+      credentialKey: config.credentialKey
+        ? fromHex(config.credentialKey)
+        : undefined,
+    },
     audioSettings: {
       ai: config.workersAi ? usableAiBinding(env.AI) : undefined,
       credentialKey: config.credentialKey

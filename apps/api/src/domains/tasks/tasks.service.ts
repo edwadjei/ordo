@@ -61,6 +61,11 @@ export class TasksService {
     if (previous) return previous;
     assertTimesHaveDates(input);
     await this.workspaces.validateScope(owner, input);
+    if (
+      input.sourceNoteId &&
+      !(await this.repository.noteExists(owner, input.sourceNoteId))
+    )
+      fail(404, 'NOT_FOUND', 'Source note not found.');
     const id = newId();
     const ancestors = await this.validateParent(owner, { ...input, id });
     let saved: TaskRecord | undefined;
