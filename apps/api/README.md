@@ -84,33 +84,33 @@ Task status is `todo | in_progress | waiting | done`. Priority is `low | medium 
 
 `GET /v1/home` returns `{ user, workspaces, projects, tasks, notes }` for the current owner, excluding archived tasks/notes. Entity writes return the saved entity directly. Code verification returns `{ user }`, logout `{ ok: true }`. Demo returns a refreshed Home snapshot. Owner IDs and session hashes are never included.
 
-| Method and path                    | Body / behavior                                                                                                                                     |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health`                      | Public `{ status: 'ok' }` liveness (`/api/health` on the Worker); does not prove a signed-in feature works                                          |
-| `GET /v1/auth/me`                  | Authenticated public user                                                                                                                           |
-| `PATCH /v1/auth/me`                | `{ displayName: string \| null }`; trimmed, at most 80; empty/`null` clears; phone- or email-like names are `400`; returns `{ user }`               |
-| `POST /v1/auth/logout`             | No body; revokes current session and clears cookie                                                                                                  |
-| `GET /v1/home`                     | Current owner's full active snapshot                                                                                                                |
-| `GET /v1/workspaces`               | Current owner's workspace list                                                                                                                      |
-| `GET /v1/workspaces/:id`           | Owned workspace or 404                                                                                                                              |
-| `POST /v1/workspaces`              | Required `name`; optional `color` (hex, default `#577664`)                                                                                          |
-| `PATCH /v1/workspaces/:id`         | Optional `name, color`; required `expectedRevision`                                                                                                 |
-| `GET /v1/workspaces/:id/projects`  | Scoped owned project list                                                                                                                           |
-| `POST /v1/projects`                | Required `name, workspaceId`; optional `description, favorite`                                                                                      |
-| `POST /v1/workspaces/:id/projects` | Required `name`; workspace from URL; optional `description, favorite`                                                                               |
-| `GET /v1/projects/:id`             | Owned project or 404                                                                                                                                |
-| `PATCH /v1/projects/:id`           | Optional `name, description, favorite`; required `expectedRevision`                                                                                 |
-| `GET /v1/tasks`                    | Current owner's active tasks                                                                                                                        |
-| `GET /v1/tasks/:id`                | Active owned task or 404                                                                                                                            |
-| `POST /v1/tasks`                   | Required `title` and `Idempotency-Key` header; optional task fields above; 201 first create / 200 identical retry                                   |
-| `PATCH /v1/tasks/:id`              | Optional editable task fields; required `expectedRevision`; omitted fields unchanged; a new `workspaceId`/`projectId` moves the task's subtasks too |
-| `DELETE /v1/tasks/:id`             | Required `{ expectedRevision }`; soft archive; returns tombstone                                                                                    |
-| `GET /v1/notes`                    | Current owner's active notes                                                                                                                        |
-| `GET /v1/notes/:id`                | Active owned note or 404                                                                                                                            |
-| `POST /v1/notes`                   | Required `title`; optional `body, source, workspaceId, projectId`                                                                                   |
-| `PATCH /v1/notes/:id`              | Optional `title, body, workspaceId, projectId`; required `expectedRevision`; omitted fields unchanged; `source` cannot change                       |
-| `DELETE /v1/notes/:id`             | Required `{ expectedRevision }`; soft archive; returns tombstone                                                                                    |
-| `POST /v1/demo`                    | Explicitly loads fictional fixtures once for the authenticated owner, in one batch                                                                  |
+| Method and path                    | Body / behavior                                                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                      | Public `{ status: 'ok' }` liveness (`/api/health` on the Worker); does not prove a signed-in feature works        |
+| `GET /v1/auth/me`                  | Authenticated public user                                                                                         |
+| `PATCH /v1/auth/me`                | `{ displayName: string \| null }`; trimmed, at most 80; empty or `null` clears; a phone- or email-like name is `400`; returns `{ user }` |
+| `POST /v1/auth/logout`             | No body; revokes current session and clears cookie                                                                |
+| `GET /v1/home`                     | Current owner's full active snapshot                                                                              |
+| `GET /v1/workspaces`               | Current owner's workspace list                                                                                    |
+| `GET /v1/workspaces/:id`           | Owned workspace or 404                                                                                            |
+| `POST /v1/workspaces`              | Required `name`; optional `color` (hex, default `#577664`)                                                        |
+| `PATCH /v1/workspaces/:id`         | Optional `name, color`; required `expectedRevision`                                                               |
+| `GET /v1/workspaces/:id/projects`  | Scoped owned project list                                                                                         |
+| `POST /v1/projects`                | Required `name, workspaceId`; optional `description, favorite`                                                    |
+| `POST /v1/workspaces/:id/projects` | Required `name`; workspace from URL; optional `description, favorite`                                             |
+| `GET /v1/projects/:id`             | Owned project or 404                                                                                              |
+| `PATCH /v1/projects/:id`           | Optional `name, description, favorite`; required `expectedRevision`                                               |
+| `GET /v1/tasks`                    | Current owner's active tasks                                                                                      |
+| `GET /v1/tasks/:id`                | Active owned task or 404                                                                                          |
+| `POST /v1/tasks`                   | Required `title` and `Idempotency-Key` header; optional task fields above; 201 first create / 200 identical retry |
+| `PATCH /v1/tasks/:id`              | Optional editable task fields; required `expectedRevision`; omitted fields remain unchanged; a new `workspaceId`/`projectId` moves the task's subtasks too |
+| `DELETE /v1/tasks/:id`             | Required `{ expectedRevision }`; soft archive; returns tombstone                                                  |
+| `GET /v1/notes`                    | Current owner's active notes                                                                                      |
+| `GET /v1/notes/:id`                | Active owned note or 404                                                                                          |
+| `POST /v1/notes`                   | Required `title`; optional `body, source, workspaceId, projectId`                                                 |
+| `PATCH /v1/notes/:id`              | Optional `title, body, workspaceId, projectId`; required `expectedRevision`; omitted fields remain unchanged; `source` cannot change |
+| `DELETE /v1/notes/:id`             | Required `{ expectedRevision }`; soft archive; returns tombstone                                                  |
+| `POST /v1/demo`                    | Explicitly loads fictional fixtures once for the authenticated owner, in one batch                                |
 
 Task creation defaults to `todo`, empty description, null optional scope/dates/times/people/priority/parent. Idempotency keys are owner-scoped, at most 128 characters, and retained with the task reference; a changed payload under the same key returns `409 IDEMPOTENCY_CONFLICT`. An archived original task does not reappear on retry (`410 TASK_ARCHIVED`). Keep the same key only for retrying the same original payload.
 
@@ -122,7 +122,7 @@ Errors have `{ error: { code, message } }`. Expected codes include `UNAUTHORIZED
 
 ## Migrations and verification
 
-The schema is one numbered SQLite migration set in `packages/db/migrations/` (Phase 2 starts fresh with `0001_initial.sql`; `0002` moves transcription to Workers AI and `0003` makes the display name optional; `0004` adds project favourites and note sources), with matching Drizzle `sqlite-core` tables in `packages/db/src/schema.ts`. It includes the FTS5 search tables and their triggers, `auth_throttle`, and the check constraints for task times and name lengths. Future changes are new numbered files; an applied file is never edited. Every shared-environment migration needs Edward's approval, a D1 restore point and the rollback gates.
+The schema is one numbered SQLite migration set in `packages/db/migrations/` (Phase 2 starts fresh with `0001_initial.sql`; `0002` moves transcription to Workers AI, `0003` makes the display name optional and `0004` adds project favourites and note sources), with matching Drizzle `sqlite-core` tables in `packages/db/src/schema.ts`. It includes the FTS5 search tables and their triggers, `auth_throttle`, and the check constraints for task times and name lengths. Future changes are new numbered files; an applied file is never edited. Every shared-environment migration needs Edward's approval, a D1 restore point and the rollback gates.
 
 ```bash
 npm run typecheck --workspace @ordo/api
