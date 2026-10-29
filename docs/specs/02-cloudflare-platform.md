@@ -2,7 +2,7 @@
 
 **Status:** Decided by Edward on 27 October 2026 ("aligned"; "I don't want to pay $5"). Documentation first, then Phase 1.
 
-**Implementation status:** Phases 1 and 2 are delivered and Workers AI transcription is merged: Ordo runs as one Worker on D1 under `wrangler dev`. Phase 3 is prepared but not started. Edward chose one hosted deployment ("just ordo"): Worker `ordo` with D1 `ordo` at `https://ordo.edward-dejaysblog.workers.dev`, run with production care. Its settings are at the top level of `apps/api/wrangler.jsonc`, and the steps are in the [hosting runbook](../HOSTING-RUNBOOK.md). Nothing has been created on Cloudflare; each step on Edward's account runs only with his approval.
+**Implementation status:** Phases 1 and 2 are delivered: Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database (check-on-save writes, code-only sign-in, FTS5 search), serving the static web export; Workers AI Whisper transcribes by default and has been verified on Edward's Cloudflare account. Phase 3 is prepared but not started. Edward chose one hosted deployment ("just ordo"): Worker `ordo` with D1 `ordo` at `https://ordo.edward-dejaysblog.workers.dev`, run with production care. Its settings are at the top level of `apps/api/wrangler.jsonc`, and the steps are in the [hosting runbook](../HOSTING-RUNBOOK.md). Nothing has been created on Cloudflare; each step on Edward's account runs only with his approval.
 
 **References:** [Technical architecture](../TECHNICAL.md), [API architecture](../API-ARCHITECTURE.md), [everyday core spec](01-everyday-core.md), [decision register](../coordination/DECISIONS.md), [Phase 1 brief](../coordination/CLOUDFLARE-PHASE-1-BRIEF.md).
 

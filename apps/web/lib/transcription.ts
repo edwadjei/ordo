@@ -4,18 +4,19 @@ type Provider = AudioSettings['provider'];
 
 export const defaultProvider: Provider = 'workers_ai';
 
-/** Names shown in the Settings provider choice. */
+/**
+ * Names shown in the Settings provider choice. The built-in option is named
+ * for what it is, not for the vendor or its price; where it runs is a detail
+ * line in Settings (`builtInDetail`), never the label.
+ */
 export const providerLabels: Record<Provider, string> = {
-  workers_ai: 'Cloudflare (free, built in)',
+  workers_ai: 'Built-in transcription',
   openai: 'OpenAI (your key)',
 };
 
-/** Where the recorder says the audio goes, shown before recording. */
-export function recorderDestination(provider: Provider) {
-  return provider === 'openai'
-    ? 'OpenAI (your key): audio is sent to OpenAI to transcribe'
-    : 'Cloudflare (free, built in): audio stays within Cloudflare';
-}
+/** Secondary line under the built-in choice in Settings. */
+export const builtInDetail =
+  'Included with Ordo, with nothing to set up. It runs on Ordo’s hosting provider, Cloudflare (Workers AI).';
 
 /** Readiness line under the Settings form, for the saved choice. */
 export function settingsStatus(settings: AudioSettings) {
@@ -31,7 +32,7 @@ export function unavailableReason(settings: AudioSettings | null) {
   if (settings.configured) return null;
   return settings.provider === 'openai'
     ? 'Add your OpenAI key in Settings to transcribe.'
-    : "Cloudflare transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here.";
+    : "Built-in transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here.";
 }
 
 /**

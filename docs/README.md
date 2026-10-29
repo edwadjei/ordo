@@ -4,7 +4,7 @@
 
 **Owner:** Edward Adjei.
 
-**State:** Everyday web core merged to `main` and verified locally. Next: hosting on Cloudflare Workers (Free plan) with D1, starting with the Phase 1 Hono port.
+**State:** Everyday web core runs locally on Cloudflare's stack (Worker, D1, Workers AI). Next: hosted staging (Phase 3) on Edward's Cloudflare account.
 
 ## Platforms
 

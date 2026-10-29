@@ -6,7 +6,7 @@
 
 **Repository:** `git@github.com:edwadjei/ordo.git`, local clone `/Users/edwadjei/projects/ordo`.
 
-**Main:** `aa9d62b` (PRs #1–#3 merged; #3 on Edward's word on 22 October 2026). Rollback point for the last merge: `e0dc0cc`.
+**Main:** `e96df57` (#13 on Edward's word, 29 October 2026). Rollback point for the last merge: `ff4a567`.
 
 ## Current work
 
@@ -20,6 +20,16 @@
 Edward chose Cloudflare Workers (Free plan) with D1 on 27 October 2026 ("aligned"; "I don't want to pay $5"); see C25–C27 in the [decision register](DECISIONS.md).
 
 **Implementation status:** the API runs as a Cloudflare Worker on a local D1 database under `wrangler dev`, with code-only sign-in, check-on-save and FTS5 search (Phase 2, pending merge). The web app runs on Next.js dev proxying `/api` and builds as a static export the Worker serves. Nothing is deployed; hosted staging is Phase 3.
+
+## Specialist sessions
+
+Each specialist is its own Claude session, runs on Opus 5.5 at medium effort, and reports to the coordinator session. Edward approves every merge and deploy.
+
+| # | Session | Owns |
+|---|---|---|
+| 1 | Ordo Web specialist | `apps/web`, `packages/client` |
+| 2 | Ordo API specialist | `apps/api`, `packages/core`, `packages/db` |
+| 3 | Ordo Cloudflare specialist | Worker configuration, D1 environments, secrets, deploys and the hosting runbook |
 
 ## Work areas
 
@@ -48,7 +58,7 @@ The coordinator owns root tooling, docs, and integration evidence, checks every 
 
 | Environment | State | Release / rollback |
 |---|---|---|
-| Local (`npm run dev`) | Worker on `wrangler dev` at `http://127.0.0.1:8788` with a local D1 database under `apps/api/.wrangler`; Next.js dev at `http://127.0.0.1:3358` proxying `/api` | Local only. The old embedded PostgreSQL data in `.data/ordo` is kept until it is imported |
+| Local (`npm run dev`) | Worker on `wrangler dev` at `http://127.0.0.1:8788` with a local D1 database under `apps/api/.wrangler`; Next.js dev at `http://127.0.0.1:3358` proxying `/api` | Local only. The old embedded database in `.data/ordo` is kept but will not be imported (Edward, 29 October 2026: start fresh) |
 | Staging (Cloudflare Worker + D1) | Not provisioned; Phase 3 | None |
 | Production | Not provisioned | None |
 

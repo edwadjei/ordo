@@ -22,7 +22,7 @@ const revisionFields = () => ({
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
-  displayName: text('display_name').notNull(),
+  displayName: text('display_name'),
   timezone: text('timezone').notNull().default('Africa/Accra'),
   phone: text('phone').unique(),
   emailVerifiedAt: text('email_verified_at'),

@@ -4,10 +4,7 @@ import { Mic, Square } from 'lucide-react';
 import { RequestError, type AudioSettings } from '@ordo/client';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
-import {
-  recorderDestination,
-  transcriptionFailure,
-} from '../lib/transcription';
+import { transcriptionFailure } from '../lib/transcription';
 const MAX_BYTES = 20 * 1024 * 1024;
 export function Recorder({
   onClose,
@@ -229,7 +226,6 @@ export function Recorder({
   return (
     <Dialog title="A thought, out loud." onClose={close}>
       <div className="recorder" aria-busy={busy}>
-        <p className="muted small">{recorderDestination(selectedProvider)}</p>
         {!available ? (
           <p className="muted">
             {unavailableReason || 'Voice transcription · Coming soon.'}
