@@ -98,6 +98,19 @@ Application baseline verification: fresh `npm ci`, `npm run format:check`, all w
 | Checks | Signed out: `/` 200, `/api/health` 200, `/api/auth/me` 401, capabilities (email and SMS codes, Workers AI, credential storage), `/sw.js` 200 and identical to the build. Signed in (Edward's own session): see [verification](coordination/VERIFICATION.md#hosted-slice-1-29-october-2026) |
 | CPU | Above target on most signed-in routes; see verification. Every request completed |
 
+**Hosted release 3 (AI capture and the CPU fix) — 29 October 2026** (on Edward's word, "Yes go! All", in the Cloudflare specialist session):
+
+| Item | Value |
+|---|---|
+| Revision deployed | `main` at `25a51fe` (#25, #26, #27 with #28), from a clean detached worktree; typecheck, 230 tests (112 API, 79 web, 39 client) and build passed, then passed again in the deploy gate |
+| D1 restore point (before 0005) | Time Travel bookmark `00000007-00000000-00005113-475ee3a6ae22824ccbcf2723974a808f` |
+| Migration | `0005_ai_capture.sql` applied; 0001–0005 applied, none pending; `drafts`, `capture_runs` and `ai_settings` present |
+| Rollback point | `b503fb99-6a38-4bbd-bcbb-f23a18c7376d` (release 2) |
+| New live version | `e870f486-f40c-4a24-9127-ce617d4b7767`; Worker startup time 72 ms; upload 1178.51 KiB (210.31 KiB gzip) |
+| Secrets and variables | Unchanged: the same four secrets; `ORDO_FAKE_TEXT_AI` is neither a secret nor a variable |
+| Checks | Signed out: `/` 200, `/api/health` 200, `/api/auth/me` 401, capabilities with `aiCapture: true`, `/sw.js` 200 and identical to the build. Signed in, including one real Workers AI capture: see [verification](coordination/VERIFICATION.md#hosted-ai-capture-and-the-cpu-fix-29-october-2026) |
+| CPU | Most routes now within the 10 ms limit; AI processing and saving a capture are not. See verification |
+
 Before this release, migrations had run on local D1 only. Recent merges to `main`, each on Edward's word: #9 Phase 1 → `180742d` (rollback `2bac518`); #11 D1 and the Worker → `97b0469` (rollback `0838aad`); #12 Workers AI transcription → `ff4a567` (rollback `97b0469`); #13 sign-in delivery fix → `e96df57` (rollback `ff4a567`). Add a release entry only after an approved integration/deploy, with revision, checks, D1 restore point if relevant, rollback point, and post-deploy evidence.
 
 ## Remaining web acceptance work
