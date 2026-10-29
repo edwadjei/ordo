@@ -38,3 +38,12 @@ test('fixed ids and bytes stay inside the warm-up, even while it runs', async ()
   assert.notEqual(newId(), newId());
   assert.ok(randomBytes(32).some((byte) => byte !== 0));
 });
+
+test('a failing warm-up is swallowed: it never stops the Worker from starting', async () => {
+  assert.deepEqual(
+    await warmUp(() => {
+      throw new Error('composition failed');
+    }),
+    [],
+  );
+});
