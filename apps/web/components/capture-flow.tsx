@@ -34,6 +34,7 @@ import {
   type ReviewTask,
 } from '../lib/capture-review';
 import { Dialog } from './dialog';
+import { noteLength } from '../lib/notes';
 
 type Phase =
   | { step: 'choose' }
@@ -225,12 +226,12 @@ export function CaptureFlow({
           <div className="form-actions">
             <button
               className="primary"
-              disabled={!workspaceId || !note.body.trim()}
+              disabled={!workspaceId || !noteLength(note)}
               onClick={() => void process()}
             >
               <Sparkles size={14} aria-hidden="true" /> Process with AI
             </button>
-            {!note.body.trim() && (
+            {!noteLength(note) && (
               <span className="muted small">This note has no text yet.</span>
             )}
           </div>

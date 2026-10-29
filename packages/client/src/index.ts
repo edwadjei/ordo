@@ -226,6 +226,9 @@ export function createClient(
       send<Task>(`/tasks/${id}`, 'PATCH', data),
     archiveTask: (id: string, revision: number) =>
       send<void>(`/tasks/${id}`, 'DELETE', { expectedRevision: revision }),
+    /** One note with its full body; lists carry only a preview. */
+    note: (id: string, signal?: AbortSignal) =>
+      request<Note>(`/notes/${id}`, { signal }),
     createNote: (data: Partial<NoteInput> & { title: string }) =>
       send<Note>('/notes', 'POST', data),
     updateNote: (id: string, data: NoteChanges) =>

@@ -72,7 +72,8 @@ import {
 import { Auth } from './auth';
 import { Dialog } from './dialog';
 import { TaskDetail } from './task-detail';
-import { NoteEditor } from './note-editor';
+import { NoteLoader } from './note-loader';
+import { listPreview, previewIsPartial } from '../lib/notes';
 import { Recorder } from './recorder';
 import { defaultProvider, unavailableReason } from '../lib/transcription';
 import { registerServiceWorker } from '../lib/service-worker';
@@ -1224,8 +1225,9 @@ export function WorkspaceApp() {
                           <FileText size={17} />
                           <h3>{note.title}</h3>
                           <p>
-                            {notePreview(note.body) ||
+                            {notePreview(listPreview(note)) ||
                               'A little space for your thoughts…'}
+                            {previewIsPartial(note) && '…'}
                           </p>
                           <small>
                             {new Date(note.updatedAt).toLocaleDateString(
@@ -1543,9 +1545,11 @@ export function WorkspaceApp() {
         />
       )}
       {activeNote && (
-        <NoteEditor
+        <NoteLoader
+          listed={activeNote}
+          ownerId={data.user.id}
+          offline={work.readOnly}
           key={activeNote.id}
-          note={activeNote}
           readOnly={work.readOnly}
           onClose={() => setSelectedNote(null)}
           onSaved={work.refresh}

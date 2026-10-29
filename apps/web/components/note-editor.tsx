@@ -34,6 +34,8 @@ export function NoteEditor({
   readOnly = false,
   onProcess,
   processHint,
+  notice,
+  onRemoteSaved,
 }: {
   note: Note;
   /** Offline or showing the saved view: the note can be read, not edited. */
@@ -42,6 +44,10 @@ export function NoteEditor({
   onProcess?: () => void;
   /** Why AI can't run yet (for example "Set up in Settings"). */
   processHint?: string;
+  /** Why the note is read-only, when it isn't simply offline. */
+  notice?: string;
+  /** Each save's full note, to keep this device's copy current. */
+  onRemoteSaved?: (note: Note) => void;
   onClose: () => void;
   onSaved: () => Promise<unknown>;
 }) {
@@ -83,6 +89,7 @@ export function NoteEditor({
           });
           revision.current = updated.revision;
           saved.current = value;
+          onRemoteSaved?.(updated);
         },
         (a, b) => a.title === b.title && a.body === b.body,
         () => mounted.current,
@@ -167,7 +174,8 @@ export function NoteEditor({
     <Dialog title="A place for your thoughts" drawer onClose={close}>
       {readOnly && state === 'saved' ? (
         <p className="offline-note" role="status">
-          You’re viewing a saved copy. Editing notes needs a connection.
+          {notice ||
+            'You’re viewing a saved copy. Editing notes needs a connection.'}
         </p>
       ) : (
         <div className={`note-save-state is-${state}`} role="status">
