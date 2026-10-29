@@ -60,6 +60,7 @@ export const projects = sqliteTable('projects', {
   workspaceId: text('workspace_id').notNull(),
   name: text('name').notNull(),
   description: text('description').notNull().default(''),
+  favorite: integer('favorite', { mode: 'boolean' }).notNull().default(false),
   ...revisionFields(),
 });
 
@@ -100,6 +101,10 @@ export const notes = sqliteTable('notes', {
   projectId: text('project_id'),
   title: text('title').notNull(),
   body: text('body').notNull().default(''),
+  source: text('source')
+    .$type<'manual' | 'recording' | 'email' | 'transcript'>()
+    .notNull()
+    .default('manual'),
   deletedAt: text('deleted_at'),
   ...revisionFields(),
 });

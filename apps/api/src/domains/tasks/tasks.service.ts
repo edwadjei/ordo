@@ -98,37 +98,22 @@ export class TasksService {
     assertTimesHaveDates(merged);
     await this.workspaces.validateScope(owner, merged);
     const ancestors = await this.validateParent(owner, merged);
+    // A destination change carries the task's subtasks with it.
     const moves =
       row.workspaceId !== merged.workspaceId ||
       row.projectId !== merged.projectId;
-    const hasSubtasks = () =>
-      fail(
-        409,
-        'HAS_SUBTASKS',
-        'Move or archive subtasks before changing this task’s destination.',
-      );
-    if (moves && (await this.repository.hasActiveChildren(owner, id)))
-      hasSubtasks();
-    const guard: TaskSaveGuard = {
-      revision: row.revision,
-      noActiveChildren: moves,
-      ancestors,
+    const guard: TaskSaveGuard = { revision: row.revision, ancestors };
+    const changes = {
+      ...patch,
+      updatedAt: isoNow(),
+      completedAt:
+        merged.status === 'done' ? (row.completedAt ?? isoNow()) : null,
     };
-    const saved = await this.repository.updateGuarded(
-      owner,
-      id,
-      {
-        ...patch,
-        updatedAt: isoNow(),
-        completedAt:
-          merged.status === 'done' ? (row.completedAt ?? isoNow()) : null,
-      },
-      guard,
-    );
+    const saved = moves
+      ? await this.repository.moveGuarded(owner, id, changes, guard)
+      : await this.repository.updateGuarded(owner, id, changes, guard);
     if (saved) return publicRecord(saved);
     await this.requireTask(owner, id);
-    if (moves && (await this.repository.hasActiveChildren(owner, id)))
-      hasSubtasks();
     return revisionConflict();
   }
 

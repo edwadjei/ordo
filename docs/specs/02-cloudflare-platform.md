@@ -97,7 +97,7 @@ No locks, interactive transactions, or Durable Objects.
 | Update or archive | `UPDATE … WHERE id = ? AND owner_user_id = ? AND revision = ?`. Zero rows → `409 REVISION_CONFLICT`, message "changed elsewhere", no write |
 | Create with retry | Idempotency key is a unique constraint `(owner_user_id, key)`. Insert the task and the key row in one `batch()`. Same key, same fingerprint → return original (200). Different fingerprint → `409 IDEMPOTENCY_CONFLICT` |
 | Hierarchy change | Read ancestry (bounded to 500 IDs) and check cycle, scope, and archived parent. The `UPDATE` is conditional on the task's revision and on the revisions of every ancestor read, so a concurrent move anywhere in that chain makes one of the two saves fail with `409 REVISION_CONFLICT` |
-| Move/archive with children | The `UPDATE` includes `NOT EXISTS (active child)`. A subtask insert is `INSERT … SELECT … WHERE` the parent is still active and in the same destination. A refused statement returns `409 HAS_SUBTASKS` or `404`/`409` as today |
+| Move/archive with children | A move is one batch: the task's guarded `UPDATE`, then a recursive `UPDATE` giving every descendant the task's new destination. Archive's `UPDATE` includes `NOT EXISTS (active child)`. A subtask insert is `INSERT … SELECT … WHERE` the parent is still active and in the same destination. A refused statement returns `409 HAS_SUBTASKS` or `404`/`409` as today |
 | Demo fixtures | The batch starts with `UPDATE users SET demo_loaded = 1 WHERE id = ? AND demo_loaded = 0`; each fixture insert is conditional on that claim, so a repeated request inserts nothing |
 | Multi-row writes | One D1 `batch()` per operation (implicit transaction) |
 

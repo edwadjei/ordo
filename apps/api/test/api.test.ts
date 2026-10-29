@@ -348,6 +348,7 @@ test('nested task cycles, scope changes, parent archive and independent completi
     ).statusCode,
     400,
   );
+  // Moving the parent carries its subtasks (moving tasks has its own tests).
   assert.equal(
     (
       await call(app, cookie, 'PATCH', `/v1/tasks/${parent.id}`, {
@@ -355,21 +356,18 @@ test('nested task cycles, scope changes, parent archive and independent completi
         expectedRevision: 1,
       })
     ).statusCode,
-    409,
+    200,
   );
-  assert.equal(
-    (
-      await call(app, cookie, 'DELETE', `/v1/tasks/${parent.id}`, {
-        expectedRevision: 1,
-      })
-    ).statusCode,
-    409,
-  );
+  const deleted = await call(app, cookie, 'DELETE', `/v1/tasks/${parent.id}`, {
+    expectedRevision: 2,
+  });
+  assert.equal(deleted.statusCode, 409);
+  assert.equal(deleted.json().error.code, 'HAS_SUBTASKS');
   assert.equal(
     (
       await call(app, cookie, 'PATCH', `/v1/tasks/${parent.id}`, {
         status: 'done',
-        expectedRevision: 1,
+        expectedRevision: 2,
       })
     ).statusCode,
     200,
@@ -379,7 +377,7 @@ test('nested task cycles, scope changes, parent archive and independent completi
     'todo',
   );
   const archived = await call(app, cookie, 'DELETE', `/v1/tasks/${leaf.id}`, {
-    expectedRevision: 1,
+    expectedRevision: 2,
   });
   assert.equal(archived.statusCode, 200);
   assert.ok(archived.json().deletedAt);

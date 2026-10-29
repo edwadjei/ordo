@@ -159,6 +159,56 @@ export class TasksRepository {
     patch: Partial<NewTask>,
     guard: TaskSaveGuard,
   ): Promise<TaskRecord | undefined> {
+    const [row] = await this.database
+      .use()
+      .update(tasks)
+      .set({ ...patch, revision: sql`${tasks.revision} + 1` })
+      .where(this.guarded(owner, id, guard))
+      .returning();
+    return row;
+  }
+
+  /**
+   * A destination change that carries the task's subtasks with it, in one
+   * batch: the guarded update of the task, then every descendant (archived
+   * ones too, so a parent and child never disagree) takes the task's
+   * workspace and project as they stand after the first statement. When the
+   * guard refuses the task, its descendants already match it and nothing is
+   * written. Each moved subtask's revision increases, so a stale edit of one
+   * is refused. Returns the saved task, or `undefined` when refused.
+   */
+  async moveGuarded(
+    owner: string,
+    id: string,
+    patch: Partial<NewTask> & { updatedAt: string },
+    guard: TaskSaveGuard,
+  ): Promise<TaskRecord | undefined> {
+    const db = this.database.use();
+    const rootWorkspace = sql`(SELECT r.workspace_id FROM ${tasks} AS r WHERE r.id = ${id})`;
+    const rootProject = sql`(SELECT r.project_id FROM ${tasks} AS r WHERE r.id = ${id})`;
+    const [saved] = await db.batch([
+      db
+        .update(tasks)
+        .set({ ...patch, revision: sql`${tasks.revision} + 1` })
+        .where(this.guarded(owner, id, guard))
+        .returning(),
+      db.run(sql`
+        WITH RECURSIVE subtree (id) AS (
+          SELECT id FROM ${tasks} WHERE parent_id = ${id} AND owner_user_id = ${owner}
+          UNION
+          SELECT t.id FROM ${tasks} AS t JOIN subtree ON t.parent_id = subtree.id
+           WHERE t.owner_user_id = ${owner}
+        )
+        UPDATE ${tasks}
+           SET workspace_id = ${rootWorkspace}, project_id = ${rootProject},
+               revision = revision + 1, updated_at = ${patch.updatedAt}
+         WHERE id IN (SELECT id FROM subtree)
+           AND (workspace_id IS NOT ${rootWorkspace} OR project_id IS NOT ${rootProject})`),
+    ]);
+    return saved[0];
+  }
+
+  private guarded(owner: string, id: string, guard: TaskSaveGuard) {
     const conditions: (SQL | undefined)[] = [
       eq(tasks.id, id),
       eq(tasks.ownerUserId, owner),
@@ -177,12 +227,6 @@ export class TasksRepository {
         sql`(SELECT count(*) FROM ${tasks} AS a JOIN json_each(${expected}) AS e ON a.id = json_extract(e.value, '$.id') AND a.revision = json_extract(e.value, '$.revision') WHERE a.owner_user_id = ${owner} AND a.deleted_at IS NULL) = ${guard.ancestors.length}`,
       );
     }
-    const [row] = await this.database
-      .use()
-      .update(tasks)
-      .set({ ...patch, revision: sql`${tasks.revision} + 1` })
-      .where(and(...conditions))
-      .returning();
-    return row;
+    return and(...conditions);
   }
 }
