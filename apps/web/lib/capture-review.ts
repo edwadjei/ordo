@@ -50,7 +50,7 @@ export function startReview(
         ? suggested.projectId
         : undefined;
   return {
-    summary: s.summary,
+    summary: s.summary ?? '',
     tasks: s.tasks.map((task) => ({
       ...task,
       selected: true,

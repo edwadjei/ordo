@@ -1,6 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { CaptureRun } from '@ordo/client/capture';
+import type { CaptureRun, SuggestedTask } from '@ordo/client/capture';
+const task = (
+  fields: Partial<SuggestedTask> & { key: string; title: string },
+): SuggestedTask => ({
+  dueDate: null,
+  dueTime: null,
+  followUpDate: null,
+  followUpTime: null,
+  priority: null,
+  responsiblePerson: null,
+  waitingOn: null,
+  isFollowUp: false,
+  ...fields,
+});
+const runBase = {
+  noteRevision: 1,
+  workspaceId: 'w-mtn',
+  projectId: null,
+  errorCode: null,
+  usage: null,
+  saved: null,
+  createdAt: '2026-10-29T00:00:00Z',
+  updatedAt: '2026-10-29T00:00:00Z',
+};
+
 import {
   editTask,
   mergeTasks,
@@ -14,34 +38,35 @@ import {
 /** What a fake model returns for a fictional MTN meeting transcript. */
 function run(confidence: 'high' | 'low' = 'high'): CaptureRun {
   return {
+    ...runBase,
     id: 'run-1',
     noteId: 'note-1',
     status: 'ready',
-    provider: 'fake',
+    provider: 'workers_ai',
     model: 'fake-1',
     suggestions: {
       summary: 'UAT readiness and the SIM FAQ.',
       tasks: [
-        {
+        task({
           key: 't1',
           title: 'Send QA the test scope',
           dueDate: '2026-10-31',
           isFollowUp: false,
-        },
-        {
+        }),
+        task({
           key: 't2',
           title: 'Draft the SIM FAQ',
           priority: 'high',
           isFollowUp: false,
-        },
-        {
+        }),
+        task({
           key: 't3',
           title: 'Check readiness with QA',
           followUpDate: '2026-10-30',
           followUpTime: '10:00',
           waitingOn: 'Kofi',
           isFollowUp: true,
-        },
+        }),
       ],
       drafts: [
         {

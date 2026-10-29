@@ -40,7 +40,7 @@ function useSummaries(notes: Note[], enabled: boolean) {
     for (const id of ids.split(',').slice(0, 20))
       api
         .noteCaptureRuns(id, control.signal)
-        .then(({ runs }) => {
+        .then((runs) => {
           const latest = runs
             .filter((run: CaptureRun) => run.suggestions?.summary)
             .sort((a, b) =>
@@ -49,7 +49,7 @@ function useSummaries(notes: Note[], enabled: boolean) {
           if (latest)
             setSummaries((current) => ({
               ...current,
-              [id]: latest.suggestions!.summary,
+              [id]: latest.suggestions!.summary!,
             }));
         })
         .catch(() => {});
@@ -220,7 +220,16 @@ export function DraftsList({
         },
         control.signal,
       )
-      .then(({ drafts }) => setDrafts(drafts))
+      .then((drafts) =>
+        // Newest first from the API; kept to this project here too.
+        setDrafts(
+          drafts.filter(
+            (draft) =>
+              (!projectId || draft.projectId === projectId) &&
+              (!workspaceId || draft.workspaceId === workspaceId),
+          ),
+        ),
+      )
       .catch((cause) => {
         if (!control.signal.aborted) setError((cause as Error).message);
       });

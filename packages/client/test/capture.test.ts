@@ -1,7 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createClient, RequestError } from '../src/index.ts';
-import type { CaptureRun, Suggestions } from '../src/capture.ts';
+import type { CaptureRun, SuggestedTask, Suggestions } from '../src/capture.ts';
+const task = (
+  fields: Partial<SuggestedTask> & { key: string; title: string },
+): SuggestedTask => ({
+  dueDate: null,
+  dueTime: null,
+  followUpDate: null,
+  followUpTime: null,
+  priority: null,
+  responsiblePerson: null,
+  waitingOn: null,
+  isFollowUp: false,
+  ...fields,
+});
+const runBase = {
+  noteRevision: 1,
+  workspaceId: 'w-mtn',
+  projectId: null,
+  errorCode: null,
+  usage: null,
+  saved: null,
+  createdAt: '2026-10-29T00:00:00Z',
+  updatedAt: '2026-10-29T00:00:00Z',
+};
 
 /** A fake API whose "model" returns fixed suggestions, or is unavailable. */
 function fakeApi(model: 'ok' | 'unavailable' | 'invalid' = 'ok') {
@@ -12,13 +35,13 @@ function fakeApi(model: 'ok' | 'unavailable' | 'invalid' = 'ok') {
   const suggestions: Suggestions = {
     summary: 'UAT readiness check-in.',
     tasks: [
-      { key: 't1', title: 'Send QA the test scope', isFollowUp: false },
-      {
+      task({ key: 't1', title: 'Send QA the test scope', isFollowUp: false }),
+      task({
         key: 't2',
         title: 'Check readiness with QA',
         isFollowUp: true,
         followUpDate: '2026-10-30',
-      },
+      }),
     ],
     drafts: [
       {
@@ -49,6 +72,7 @@ function fakeApi(model: 'ok' | 'unavailable' | 'invalid' = 'ok') {
     let match = path.match(/^\/notes\/([^/]+)\/process$/);
     if (match && method === 'POST') {
       const run: CaptureRun = {
+        ...runBase,
         id: `run-${runs.size + 1}`,
         noteId: match[1],
         status:
@@ -57,7 +81,7 @@ function fakeApi(model: 'ok' | 'unavailable' | 'invalid' = 'ok') {
             : model === 'unavailable'
               ? 'pending'
               : 'failed',
-        provider: 'fake',
+        provider: 'workers_ai',
         model: 'fake-1',
         suggestions: model === 'ok' ? suggestions : null,
         errorCode:
@@ -184,13 +208,13 @@ test('drafts list by project, and Mark used patches usedAt with the revision', a
     );
   });
   await client.drafts({ projectId: 'p 1' });
-  await client.markDraftUsed('d1', 2, new Date('2026-10-29T12:00:00Z'));
+  await client.markDraftUsed('d1', 2);
   assert.deepEqual(sent, [
     { url: '/api/drafts?projectId=p+1', method: undefined, body: undefined },
     {
       url: '/api/drafts/d1',
       method: 'PATCH',
-      body: { usedAt: '2026-10-29T12:00:00.000Z', expectedRevision: 2 },
+      body: { used: true, expectedRevision: 2 },
     },
   ]);
 });

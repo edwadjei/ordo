@@ -4,10 +4,9 @@ import type { CaptureRunStatus, TaskOrigin } from '@ordo/client/capture';
 /** Notes made from a recording, an email or a transcript: Ordo's conversations. */
 export const conversationSources = ['recording', 'email', 'transcript'];
 
-export const taskOrigin = (task: Task): TaskOrigin =>
-  (task as Task & { origin?: TaskOrigin }).origin ?? 'manual';
+export const taskOrigin = (task: Task): TaskOrigin => task.origin ?? 'manual';
 export const taskSourceNote = (task: Task): string | null =>
-  (task as Task & { sourceNoteId?: string | null }).sourceNoteId ?? null;
+  task.sourceNoteId ?? null;
 /** The latest capture run's status for a note, when the API reports it. */
 export const noteCaptureStatus = (note: Note): CaptureRunStatus | null =>
   (note as Note & { latestCaptureStatus?: CaptureRunStatus | null })
@@ -52,8 +51,8 @@ export function draftText(draft: {
   return head.length ? `${head.join('\n')}\n\n${draft.body}` : draft.body;
 }
 
-export const projectAliases = (project: object): string[] =>
-  (project as { aliases?: string[] | null }).aliases ?? [];
+export const projectAliases = (project: { aliases?: string[] | null }) =>
+  project.aliases ?? [];
 /** Comma-separated other names: trimmed, de-duplicated, at most 10 of 1–60 characters. */
 export function parseAliases(value: string) {
   const seen = new Set<string>();

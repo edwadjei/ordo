@@ -64,7 +64,7 @@ export function AiSettingsSection({
   }, []);
   const hasKey =
     provider === 'openai'
-      ? saved?.hasOpenAiKey
+      ? saved?.hasOpenaiKey
       : provider === 'anthropic'
         ? saved?.hasAnthropicKey
         : false;
@@ -77,15 +77,21 @@ export function AiSettingsSection({
     setError('');
     setMessage('');
     try {
+      const key = apiKey.trim();
       const result = await api.saveAiSettings({
         textProvider: provider,
-        ...(provider !== 'workers_ai' && (removeApiKey || apiKey.trim())
-          ? { keyProvider: provider as 'openai' | 'anthropic' }
-          : {}),
-        ...(removeApiKey
-          ? { removeApiKey: true }
-          : apiKey.trim()
-            ? { apiKey: apiKey.trim() }
+        ...(provider === 'openai'
+          ? removeApiKey
+            ? { removeOpenaiKey: true }
+            : key
+              ? { openaiKey: key }
+              : {}
+          : provider === 'anthropic'
+            ? removeApiKey
+              ? { removeAnthropicKey: true }
+              : key
+                ? { anthropicKey: key }
+                : {}
             : {}),
       });
       if (!active.current) return;

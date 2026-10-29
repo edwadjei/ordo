@@ -246,7 +246,7 @@ export function createClient(
     captureRun: (id: string, signal?: AbortSignal) =>
       request<CaptureRun>(`/capture-runs/${id}`, { signal }),
     noteCaptureRuns: (noteId: string, signal?: AbortSignal) =>
-      request<{ runs: CaptureRun[] }>(`/notes/${noteId}/capture-runs`, {
+      request<CaptureRun[]>(`/notes/${noteId}/capture-runs`, {
         signal,
       }),
     /** Saves the reviewed suggestions in one batch; a second save of a run is refused. */
@@ -269,21 +269,19 @@ export function createClient(
           string,
         ][],
       ).toString();
-      return request<{ drafts: Draft[] }>(
-        `/drafts${query ? `?${query}` : ''}`,
-        { signal },
-      );
+      return request<Draft[]>(`/drafts${query ? `?${query}` : ''}`, { signal });
     },
     updateDraft: (
       id: string,
-      data: Partial<
-        Pick<Draft, 'to' | 'subject' | 'body' | 'usedAt' | 'kind'>
-      > & { expectedRevision: number },
+      data: Partial<Pick<Draft, 'to' | 'subject' | 'body' | 'kind'>> & {
+        used?: boolean;
+        expectedRevision: number;
+      },
     ) => send<Draft>(`/drafts/${id}`, 'PATCH', data),
     /** Records that a draft was used elsewhere. Ordo never sends drafts. */
-    markDraftUsed: (id: string, revision: number, at = new Date()) =>
+    markDraftUsed: (id: string, revision: number) =>
       send<Draft>(`/drafts/${id}`, 'PATCH', {
-        usedAt: at.toISOString(),
+        used: true,
         expectedRevision: revision,
       }),
     archiveDraft: (id: string, revision: number) =>
