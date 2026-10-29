@@ -18,6 +18,10 @@ NotesService owns scoped text notes, not AI summaries. A note always belongs to 
 
 The service decides revision behavior; `notes.repository.ts` executes owner-scoped queries; the thin controller parses the shared schemas. Note archive is a soft deletion and returns a tombstone. No other domain writes normal note edits directly.
 
+## Archived scopes and links
+
+`GET /v1/notes` leaves out notes whose workspace or project is archived, unless `?includeArchived=1`; `/v1/home` always does. A note can be linked to tasks by hand (see the tasks note). Deleting its workspace or project permanently deletes it with its links and capture runs, and tasks and drafts elsewhere that were saved from it lose their `sourceNoteId`.
+
 ## Scope boundaries
 
 Note bodies are data and do not authorize AI processing, tool calls, or access to other workspaces. Attachments, source-linked AI summaries, incremental sync, and multidevice offline note merge are not implemented by this foundation.

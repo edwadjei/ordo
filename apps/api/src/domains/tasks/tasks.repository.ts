@@ -4,6 +4,7 @@ import {
   asc,
   eq,
   insertWhere,
+  notInArchivedScope,
   isNull,
   sql,
   tables,
@@ -38,12 +39,19 @@ export interface TaskSaveGuard {
 export class TasksRepository {
   constructor(private readonly database: DatabaseAdapter) {}
 
-  list(owner: string) {
+  /** Active tasks; those in an archived workspace or project only on request. */
+  list(owner: string, includeArchived = false) {
     return this.database
       .use()
       .select()
       .from(tasks)
-      .where(and(eq(tasks.ownerUserId, owner), isNull(tasks.deletedAt)))
+      .where(
+        and(
+          eq(tasks.ownerUserId, owner),
+          isNull(tasks.deletedAt),
+          includeArchived ? undefined : notInArchivedScope('tasks'),
+        ),
+      )
       .orderBy(asc(tasks.createdAt), asc(tasks.id));
   }
 

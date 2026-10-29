@@ -30,10 +30,28 @@ export function ftsQuery(input: string) {
 
 export class SearchRepository {
   constructor(private readonly database: DatabaseAdapter) {}
-  async search(owner: string, query: string): Promise<SearchResult[]> {
+  async search(
+    owner: string,
+    query: string,
+    includeArchived = false,
+  ): Promise<SearchResult[]> {
     const match = ftsQuery(query);
     if (!match) return [];
     const db = this.database.use();
+    // Items in an archived workspace or project, and archived projects,
+    // are found only when asked for.
+    const live = (alias: 't' | 'n') =>
+      includeArchived
+        ? sql``
+        : sql.raw(
+            ` AND NOT EXISTS (SELECT 1 FROM workspaces AS aw WHERE aw.id = ${alias}.workspace_id AND aw.archived_at IS NOT NULL)` +
+              ` AND NOT EXISTS (SELECT 1 FROM projects AS ap WHERE ap.id = ${alias}.project_id AND ap.archived_at IS NOT NULL)`,
+          );
+    const liveProject = includeArchived
+      ? sql``
+      : sql.raw(
+          ` AND p.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM workspaces AS aw WHERE aw.id = p.workspace_id AND aw.archived_at IS NOT NULL)`,
+        );
     // bm25() is lower for better matches. Archived rows stay indexed but are
     // excluded here; every query is scoped to the owner.
     const [taskRows, noteRows, projectRows] = await db.batch([
@@ -41,19 +59,19 @@ export class SearchRepository {
         SELECT t.id AS id, t.title AS title, substr(t.description, 1, 220) AS excerpt,
                t.workspace_id AS workspaceId, t.project_id AS projectId, bm25(tasks_fts) AS rank
           FROM tasks_fts JOIN tasks AS t ON t.rowid = tasks_fts.rowid
-         WHERE tasks_fts MATCH ${match} AND t.owner_user_id = ${owner} AND t.deleted_at IS NULL
+         WHERE tasks_fts MATCH ${match} AND t.owner_user_id = ${owner} AND t.deleted_at IS NULL${live('t')}
          ORDER BY rank, t.id LIMIT ${LIMIT}`),
       db.all<Row>(sql`
         SELECT n.id AS id, n.title AS title, substr(n.body, 1, 220) AS excerpt,
                n.workspace_id AS workspaceId, n.project_id AS projectId, bm25(notes_fts) AS rank
           FROM notes_fts JOIN notes AS n ON n.rowid = notes_fts.rowid
-         WHERE notes_fts MATCH ${match} AND n.owner_user_id = ${owner} AND n.deleted_at IS NULL
+         WHERE notes_fts MATCH ${match} AND n.owner_user_id = ${owner} AND n.deleted_at IS NULL${live('n')}
          ORDER BY rank, n.id LIMIT ${LIMIT}`),
       db.all<Row>(sql`
         SELECT p.id AS id, p.name AS title, substr(p.description, 1, 220) AS excerpt,
                p.workspace_id AS workspaceId, p.id AS projectId, bm25(projects_fts) AS rank
           FROM projects_fts JOIN projects AS p ON p.rowid = projects_fts.rowid
-         WHERE projects_fts MATCH ${match} AND p.owner_user_id = ${owner}
+         WHERE projects_fts MATCH ${match} AND p.owner_user_id = ${owner}${liveProject}
          ORDER BY rank, p.id LIMIT ${LIMIT}`),
     ]);
     return [

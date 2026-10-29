@@ -41,7 +41,11 @@ export class DraftsService {
   /** Active drafts, newest first, optionally of one workspace and/or project. */
   async list(
     owner: string,
-    filter: { workspaceId?: string; projectId?: string } = {},
+    filter: {
+      workspaceId?: string;
+      projectId?: string;
+      includeArchived?: boolean;
+    } = {},
   ) {
     return (await this.repository.list(owner, filter)).map(publicDraft);
   }

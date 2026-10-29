@@ -30,6 +30,17 @@ Due and follow-up dates are date-only strings, not arbitrary midnight timestamps
 
 `responsiblePerson` and `waitingOn` are plain-text names: trimmed, at most 80 characters, an empty string becomes `null`. They are never resolved to accounts and grant nothing. `waitingOn` says who a Waiting task is waiting on; it does not change Waiting On membership, which remains `status: waiting`. Both names are included in task search. Reminders are in-app view calculations only; the service schedules nothing.
 
+## Related items and links
+
+`GET /v1/tasks/:id/related` returns `{ sourceNote, linkedNotes, captureTasks, drafts }` in one D1 batch (the `related` domain):
+- the note the task was saved from;
+- notes linked to the task by hand;
+- up to 20 other tasks (as `TaskSummary`, without description) and up to 20 drafts saved from the same note.
+
+Notes come as `NoteSummary`. Archived items, and items in an archived workspace or project, are left out unless `?includeArchived=1`.
+
+`POST /v1/tasks/:id/links` with `{ noteId }` links one of the owner's active notes to one of their active tasks: `201` with `{ taskId, noteId, createdAt }`, `200` with the existing link for a repeat, `404` when either side is missing or another owner's. `DELETE /v1/tasks/:id/links/:noteId` is `204`, then `404`. Archiving either side keeps a link; deleting either side permanently removes it.
+
 ## Current limits
 
 Archive tombstones are returned by the mutation and omitted from refreshed snapshots. There is no incremental sync feed yet. Background reminders, automated task extraction, cross-workspace moves with descendant/source orchestration, and bulk actions are separate capabilities, not hidden behavior in this service.
