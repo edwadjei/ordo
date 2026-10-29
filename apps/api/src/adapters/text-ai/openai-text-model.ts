@@ -5,7 +5,14 @@ import {
 import { providerHttpFailure } from './failures.js';
 import { timeout } from './workers-ai-text-model.js';
 
-export const openAiTextModel = 'gpt-6-astra';
+/**
+ * GPT-6.1 Sol ($2 / $10 per million tokens): OpenAI's current mid-priced
+ * model with Structured Outputs, on the account's own key. GPT-6 Astra, at
+ * five times the price, is not needed for extraction.
+ */
+export const openAiTextModel = 'gpt-6.1-sol';
+/** Reasoning tokens count against this cap; only tokens used are billed. */
+const maxCompletionTokens = 16000;
 
 /** OpenAI Chat Completions with strict Structured Outputs, on the account's own key. */
 export class OpenAiTextModel extends TextModel {
@@ -34,7 +41,7 @@ export class OpenAiTextModel extends TextModel {
           body: JSON.stringify({
             model: openAiTextModel,
             reasoning_effort: 'low',
-            max_completion_tokens: request.maxOutputTokens,
+            max_completion_tokens: maxCompletionTokens,
             messages: [
               { role: 'system', content: request.system },
               { role: 'user', content: request.prompt },

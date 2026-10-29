@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk';
 import {
   TextModel,
   type TextModelRequest,
@@ -7,35 +6,53 @@ import { ApiFailure } from '../../platform/http/api-failure.js';
 import { providerHttpFailure } from './failures.js';
 import { timeout } from './workers-ai-text-model.js';
 
-export const anthropicTextModel = 'claude-opus-5-5';
+/**
+ * Claude Sonnet 5.5 ($2 / $10 per million tokens) on the account's own key.
+ * Extraction does not need Opus. Thinking cannot be turned off on this
+ * model, so it runs adaptive at low effort.
+ */
+export const anthropicTextModel = 'claude-sonnet-5-5';
+/** Thinking tokens count against this cap; only tokens used are billed. */
+const maxTokens = 16000;
+
+interface MessageResponse {
+  content?: { type: string; text?: string }[];
+  stop_reason?: string;
+  usage?: { input_tokens?: number; output_tokens?: number };
+}
 
 /**
- * Claude through the Anthropic SDK on the account's own key, with structured
- * outputs (`output_config.format`) and low effort for a short extraction. A
- * refused request is re-run server-side on Anthropic's recommended fallback
- * model (`fallbacks: "default"`).
+ * The Messages API over fetch, like the OpenAI adapter, so the Worker carries
+ * no SDK. Structured outputs (`output_config.format`) at low effort; a refused
+ * request is re-run server-side on Anthropic's recommended fallback model
+ * (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`).
  */
 export class AnthropicTextModel extends TextModel {
   readonly provider = 'anthropic' as const;
   readonly model = anthropicTextModel;
   readonly maxInputCharacters = 100000;
-  private readonly client: Anthropic;
   constructor(
-    apiKey: string,
+    private readonly apiKey: string,
     // Called unbound: Workers reject the global fetch called as a method.
-    transport: typeof fetch = (input, init) => fetch(input, init),
+    private readonly transport: typeof fetch = (input, init) =>
+      fetch(input, init),
   ) {
     super();
-    this.client = new Anthropic({ apiKey, fetch: transport, maxRetries: 0 });
   }
   async generate(request: TextModelRequest) {
-    let message: Anthropic.Beta.BetaMessage;
+    let response: Response;
     try {
-      message = await this.client.beta.messages.create(
-        {
+      response = await this.transport('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'server-side-fallback-2026-07-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
           model: anthropicTextModel,
-          max_tokens: request.maxOutputTokens,
-          betas: ['server-side-fallback-2026-07-01'],
+          max_tokens: maxTokens,
           fallbacks: 'default',
           system: request.system,
           messages: [{ role: 'user', content: request.prompt }],
@@ -43,30 +60,29 @@ export class AnthropicTextModel extends TextModel {
             effort: 'low',
             format: { type: 'json_schema', schema: request.schema },
           },
-        },
-        { signal: timeout(request.signal) },
-      );
-    } catch (error) {
-      if (error instanceof Anthropic.APIError && error.status)
-        throw providerHttpFailure('Anthropic', error.status);
+        }),
+        signal: timeout(request.signal),
+        redirect: 'error',
+      });
+    } catch {
       throw new Error('Anthropic could not be reached.');
     }
+    if (!response.ok) throw providerHttpFailure('Anthropic', response.status);
+    const message = (await response.json()) as MessageResponse;
     if (message.stop_reason === 'refusal')
       throw new ApiFailure(
         422,
         'AI_REFUSED',
         'The AI declined to process this capture.',
       );
-    const text = message.content.find(
-      (block): block is Anthropic.Beta.BetaTextBlock => block.type === 'text',
-    );
-    if (!text || message.stop_reason === 'max_tokens')
+    const text = message.content?.find((block) => block.type === 'text')?.text;
+    if (typeof text !== 'string' || message.stop_reason === 'max_tokens')
       throw new Error('Anthropic returned incomplete suggestions.');
     return {
-      output: JSON.parse(text.text),
+      output: JSON.parse(text),
       usage: {
-        inputTokens: message.usage.input_tokens,
-        outputTokens: message.usage.output_tokens,
+        inputTokens: message.usage?.input_tokens ?? null,
+        outputTokens: message.usage?.output_tokens ?? null,
         neurons: null,
       },
     };

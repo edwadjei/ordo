@@ -884,3 +884,78 @@ test('drafts list newest first, filtered by workspace and project', async (t) =>
   for (const query of ['?workspaceId=nope', '?other=1'])
     assert.equal((await call('GET', `/v1/drafts${query}`)).statusCode, 400);
 });
+
+test('the largest save the review screen allows fits; only the save route takes it', async (t) => {
+  const { process, call, damsyn } = await setup(t);
+  const run = (await process()).json();
+  // 10 drafts of 20,000 three-byte characters: about 600,000 bytes.
+  const draft = {
+    kind: 'email',
+    to: null,
+    subject: null,
+    body: '€'.repeat(20000),
+  };
+  const task = { ...run.suggestions.tasks[0], title: '€'.repeat(200) };
+  const body = {
+    workspaceId: damsyn.id,
+    tasks: Array(50).fill(task),
+    drafts: Array(10).fill(draft),
+  };
+  assert.ok(Buffer.byteLength(JSON.stringify(body)) > 600_000);
+  const saved = await call('POST', `/v1/capture-runs/${run.id}/save`, body, {
+    'idempotency-key': randomUUID(),
+  });
+  assert.equal(saved.statusCode, 201, saved.body.slice(0, 200));
+  assert.equal(saved.json().drafts.length, 10);
+  assert.equal(saved.json().tasks.length, 50);
+  const tooLarge = await call(
+    'POST',
+    `/v1/capture-runs/${run.id}/save`,
+    { ...body, padding: 'x'.repeat(100_000) },
+    { 'idempotency-key': randomUUID() },
+  );
+  assert.equal(tooLarge.statusCode, 413);
+  // Other routes keep the 150,000-byte limit.
+  const draft413 = await call('POST', '/v1/drafts', {
+    workspaceId: damsyn.id,
+    kind: 'email',
+    body: 'x',
+    padding: '€'.repeat(60000),
+  });
+  assert.equal(draft413.statusCode, 413);
+});
+
+test('a full 100,000-character note body fits in any script, on create and edit', async (t) => {
+  const { ok, call } = await setup(t);
+  // Three-byte characters: about 300,000 bytes, beyond the default limit.
+  const body = '€'.repeat(100000);
+  assert.ok(
+    Buffer.byteLength(JSON.stringify({ title: 'Long', body })) > 300_000,
+  );
+  const note = await ok('POST', '/v1/notes', { title: 'Long', body });
+  assert.equal(note.body.length, 100000);
+  const edited = await ok('PATCH', `/v1/notes/${note.id}`, {
+    body: '中'.repeat(100000),
+    expectedRevision: 1,
+  });
+  assert.equal(edited.body, '中'.repeat(100000));
+  // One character over is the schema's 400; far over is the byte limit's 413.
+  assert.equal(
+    (
+      await call('POST', '/v1/notes', {
+        title: 'Over',
+        body: '€'.repeat(100001),
+      })
+    ).statusCode,
+    400,
+  );
+  assert.equal(
+    (
+      await call('POST', '/v1/notes', {
+        title: 'Far over',
+        body: '€'.repeat(160000),
+      })
+    ).statusCode,
+    413,
+  );
+});

@@ -122,6 +122,9 @@ test('OpenAI: strict structured outputs with the account key; HTTP errors mapped
     'Bearer sk-fictional',
   );
   const body = JSON.parse(seen[0].init.body as string);
+  assert.equal(body.model, 'gpt-6.1-sol');
+  assert.equal(body.reasoning_effort, 'low');
+  assert.equal(body.max_completion_tokens, 16000);
   assert.equal(body.response_format.json_schema.strict, true);
   assert.deepEqual(
     body.response_format.json_schema.schema,
@@ -157,7 +160,7 @@ test('Anthropic: structured outputs, low effort and default fallbacks; refusals 
       id: 'msg_fictional',
       type: 'message',
       role: 'assistant',
-      model: 'claude-opus-5-5',
+      model: 'claude-sonnet-5-5',
       content: [{ type: 'text', text: JSON.stringify(reply) }],
       stop_reason: 'end_turn',
       stop_sequence: null,
@@ -186,7 +189,8 @@ test('Anthropic: structured outputs, low effort and default fallbacks; refusals 
     call.headers.get('anthropic-beta') ?? '',
     /server-side-fallback-2026-07-01/,
   );
-  assert.equal(call.body.model, 'claude-opus-5-5');
+  assert.equal(call.body.model, 'claude-sonnet-5-5');
+  assert.equal(call.body.max_tokens, 16000);
   assert.equal(call.body.fallbacks, 'default');
   assert.equal(call.body.system, request.system);
   assert.deepEqual(call.body.output_config, {

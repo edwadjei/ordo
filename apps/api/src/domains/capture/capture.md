@@ -29,19 +29,23 @@ Suggestions are validated twice: against the model reply schema, then against th
 
 `POST /v1/capture-runs/:id/save` with an `Idempotency-Key` header and `{ workspaceId, projectId?, tasks, drafts }`, holding the person's edited items. An item may carry its own `workspaceId`/`projectId` (reassigned on the review screen); otherwise it takes the save's scope. Every scope is checked like any other write.
 
+The save route alone accepts a JSON body of up to 650,000 bytes (other routes keep 150,000), so the largest save the review screen allows (50 tasks and 10 drafts of 20,000 characters, even at three bytes a character) always fits.
+
 One D1 `batch()` moves the run from `ready` to `saved` under this request's random claim, then inserts the tasks and drafts only if that claim is the one stored. Two saves at once create one set of items. A retry with the same key and body returns the first result (`200`); the same key with a different body is `409 IDEMPOTENCY_CONFLICT`; any other save of a saved run is `409 RUN_ALREADY_SAVED`; a run that is not `ready` is `409 RUN_NOT_READY`.
 
 Saved tasks have `origin: "capture"` and `sourceNoteId` set to the note; only this route sets `capture`. Notes report their newest run's status as `latestCaptureStatus` in note lists, reads and `/v1/home` (the Inbox's "Not processed" marker), one indexed lookup inside the notes query. A suggestion marked as a follow-up with someone to wait on is saved with `status: "waiting"`. Completing or archiving a task never touches its source note.
 
 ## Providers
 
+Each model id is one constant in its adapter under `apps/api/src/adapters/text-ai/`. An own key pays per call, so the own-key defaults are each provider's current mid-priced model, not its most capable one. Their reasoning or thinking tokens count against a 16,000-token output cap; only tokens used are billed.
+
 The account's choice lives in the [AI settings](../ai-settings/ai-settings.md) domain. Adapters sit behind the `TextModel` capability (`capabilities/text-model.contract.ts`):
 
 | Provider | Model | Notes |
 |---|---|---|
-| Workers AI (default) | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | JSON mode through the `AI` binding; 24,000-token context; 26,668 neurons per million input tokens and 204,805 per million output tokens |
-| OpenAI (own key) | `gpt-6-astra` | Chat Completions with strict Structured Outputs, low reasoning effort; uses the account's one OpenAI key, shared with transcription |
-| Anthropic (own key) | `claude-opus-5-5` | Anthropic SDK, structured outputs (`output_config.format`), low effort, `fallbacks: "default"` |
+| Workers AI (default) | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (`workersAiTextModel`) | JSON mode through the `AI` binding; 24,000-token context; 26,668 neurons per million input tokens and 204,805 per million output tokens |
+| OpenAI (own key) | `gpt-6.1-sol` (`openAiTextModel`) | $2 / $10 per million tokens; Chat Completions with strict Structured Outputs, low reasoning effort; uses the account's one OpenAI key, shared with transcription |
+| Anthropic (own key) | `claude-sonnet-5-5` (`anthropicTextModel`) | $2 / $10 per million tokens; Messages API over fetch (no SDK), structured outputs (`output_config.format`), adaptive thinking at low effort, `fallbacks: "default"` |
 
 For local development, `ORDO_FAKE_TEXT_AI=on` replaces every provider with a deterministic fake model (see `docs/LOCAL-DEVELOPMENT.md`, "AI capture without real AI").
 
