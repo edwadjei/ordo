@@ -389,7 +389,13 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
 }
-export interface Task extends TaskInput {
+export interface Task extends Omit<TaskInput, 'origin' | 'sourceNoteId'> {
+  /**
+   * Always returned by the API (`"manual"` and `null` by default); optional
+   * only so data a client cached before these fields existed still fits.
+   */
+  origin?: TaskOrigin;
+  sourceNoteId?: string | null;
   id: string;
   revision: number;
   completedAt: string | null;
