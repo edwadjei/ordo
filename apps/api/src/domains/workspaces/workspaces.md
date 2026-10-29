@@ -43,7 +43,7 @@ A task or draft filed elsewhere but saved from a deleted note is kept: it loses 
 
 ## Transaction boundary
 
-`workspaces.service.ts` owns revision checks. Workspace and project updates are `UPDATE … WHERE revision = ?` (check-on-save); a save that loses a race returns `409 REVISION_CONFLICT`. Tasks and notes call `validateScope()` before their write. A project never changes workspace, so that read stays true unless the workspace or project is deleted permanently in between, and then the write fails on the composite foreign keys that backstop containment in the database. Repositories execute the actual scoped queries; they do not move children or infer destinations.
+`workspaces.service.ts` owns revision checks. Workspace and project updates are `UPDATE … WHERE revision = ?` (check-on-save); a save that loses a race returns `409 REVISION_CONFLICT`. Tasks and notes call `validateScope()` before their write. A project never changes workspace, so that read stays true unless the workspace or project is deleted permanently in between, and then the write fails on the composite foreign keys that backstop containment in the database. Nothing is written, and the client gets `409 SCOPE_DELETED`, as for any write that loses a race with a permanent delete. Repositories execute the actual scoped queries; they do not move children or infer destinations.
 
 ## On Cloudflare
 

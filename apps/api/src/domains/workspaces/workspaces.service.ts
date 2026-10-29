@@ -182,7 +182,7 @@ export class WorkspacesService {
    * A project never changes workspace, so this read stays true until the
    * save unless the workspace or project is deleted permanently in between;
    * then the save fails on the composite foreign keys, which enforce the
-   * same ownership in the database.
+   * same ownership in the database, and the client gets 409 SCOPE_DELETED.
    */
   async validateScope(owner: string, scope: WorkspaceScope) {
     if (scope.workspaceId && scope.projectId) {
