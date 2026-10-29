@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import {
   AlertCircle,
   Check,
@@ -12,6 +13,16 @@ import { saveLatest } from '@ordo/client/autosave';
 import { noteSourceLabel, savedAtLabel } from '../lib/views';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
+
+// The editor and its Markdown parser load only when a note opens.
+const RichNoteBody = dynamic(() => import('./rich-note'), {
+  ssr: false,
+  loading: () => (
+    <p className="muted small" role="status">
+      Opening the editor…
+    </p>
+  ),
+});
 
 type SaveState = 'saved' | 'unsaved' | 'saving' | 'offline' | 'error';
 export function NoteEditor({
@@ -196,18 +207,11 @@ export function NoteEditor({
           maxLength={200}
         />
       </label>
-      <label>
-        Note
-        <textarea
-          autoFocus
-          data-autofocus
-          className="note-body"
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          readOnly={readOnly && state === 'saved'}
-          placeholder="Write freely. You can organize it later."
-        />
-      </label>
+      <RichNoteBody
+        value={body}
+        onChange={setBody}
+        readOnly={readOnly && state === 'saved'}
+      />
       {error && (
         <p className="error" role="alert">
           {error} Your current text has been preserved in this editor. Copy it
@@ -245,7 +249,8 @@ export function NoteEditor({
         )}
       </button>
       <p className="privacy-note">
-        Plain-text note · Saves automatically when you pause typing.
+        Headings, lists, checklists, bold, italic and links, saved as plain
+        Markdown text · Saves automatically when you pause typing.
         <br />
         Typed notes aren’t sent to any AI service. Voice notes are transcribed
         by the provider chosen in Settings, and the recording isn’t kept.

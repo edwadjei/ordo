@@ -5,6 +5,7 @@ import {
   initials,
   nameProblem,
   noteSourceLabel,
+  notePreview,
   profileName,
 } from '../lib/views.ts';
 
@@ -52,4 +53,14 @@ test('note sources are labelled except ordinary typed notes', () => {
   assert.equal(noteSourceLabel('email'), 'From an email');
   assert.equal(noteSourceLabel('transcript'), 'From a transcript');
   assert.equal(noteSourceLabel('recording'), 'From a recording');
+});
+
+test('note cards preview Markdown without its marks', () => {
+  assert.equal(
+    notePreview(
+      '## Plan\n- [x] **Book** venue\n- [ ] call [Kofi](https://example.test)\n1. _soon_\nkeep snake_case',
+    ),
+    'Plan · ☑ Book venue · ☐ call Kofi · soon · keep snake_case',
+  );
+  assert.equal(notePreview('plain text note'), 'plain text note');
 });

@@ -45,6 +45,7 @@ import {
   defaultTimezone,
   favoritesFirst,
   noteSourceLabel,
+  notePreview,
   followUpOverdue,
   greeting,
   initials,
@@ -169,7 +170,7 @@ export function WorkspaceApp() {
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, []);
-  useEffect(() => registerServiceWorker(), []);
+  useEffect(() => registerServiceWorker(() => import('./rich-note')), []);
   const readOnlyRef = useRef(work.readOnly);
   readOnlyRef.current = work.readOnly;
   const online: Record<string, string> = {
@@ -1134,7 +1135,8 @@ export function WorkspaceApp() {
                           <FileText size={17} />
                           <h3>{note.title}</h3>
                           <p>
-                            {note.body || 'A little space for your thoughts…'}
+                            {notePreview(note.body) ||
+                              'A little space for your thoughts…'}
                           </p>
                           <small>
                             {new Date(note.updatedAt).toLocaleDateString(

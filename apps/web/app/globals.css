@@ -1171,7 +1171,8 @@ svg {
   background: var(--soft);
   color: var(--muted);
 }
-.note-body {
+.note-body,
+.dialog textarea.note-body {
   min-height: 45dvh;
 }
 .privacy-note {
@@ -2745,4 +2746,133 @@ fieldset:disabled select {
   .project-nav-row .favorite-toggle:not(.is-favorite) {
     opacity: 1;
   }
+}
+/* Rich notes: a Markdown toolbar for writing, formatted text for reading. */
+.rich-note {
+  margin: 18px 0 0;
+}
+.rich-note-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 34px;
+  margin-bottom: 8px;
+}
+.format-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--soft);
+}
+.format-tools button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  border-radius: 6px;
+  background: none;
+  color: light-dark(#5b666e, #d3dbe3);
+}
+.format-tools button:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+.mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.sr-only-label {
+  display: block !important;
+  margin: 0 !important;
+}
+.markdown-view {
+  min-height: 200px;
+  padding: 12px 14px;
+  border: 1px solid light-dark(#dfe5e9, #38434f);
+  border-radius: 7px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.markdown-view > :first-child {
+  margin-top: 0;
+}
+.markdown-view > :last-child {
+  margin-bottom: 0;
+}
+.markdown-view h3,
+.markdown-view h4,
+.markdown-view h5 {
+  margin: 16px 0 6px;
+  font-family: var(--font);
+  font-weight: 600;
+  line-height: 1.35;
+}
+.markdown-view h3 {
+  font-size: 17px;
+}
+.markdown-view h4 {
+  font-size: 15px;
+}
+.markdown-view h5 {
+  font-size: 13px;
+}
+.markdown-view p {
+  margin: 0 0 10px;
+}
+.markdown-view ul,
+.markdown-view ol {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+.markdown-view ul.checklist {
+  list-style: none;
+  padding-left: 0;
+}
+.markdown-view li.depth-1 {
+  margin-left: 18px;
+}
+.markdown-view li.depth-2 {
+  margin-left: 36px;
+}
+.markdown-view li.depth-3 {
+  margin-left: 54px;
+}
+.markdown-view a {
+  color: light-dark(#a24a12, #ffae73);
+  text-underline-offset: 3px;
+}
+.dialog .markdown-view .task-item label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 3px 0;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.dialog .markdown-view .task-item input {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 4px 0 0;
+  padding: 0;
+  flex-shrink: 0;
+  accent-color: var(--brand-orange);
+}
+.markdown-view .task-item.is-checked span {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.markdown-view.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

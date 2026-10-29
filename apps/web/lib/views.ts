@@ -460,3 +460,27 @@ export function noteSourceLabel(source: string | null | undefined) {
   if (!source || source === 'manual') return '';
   return noteSourceLabels[source as keyof typeof noteSourceLabels] || '';
 }
+
+/**
+ * A short plain preview of a Markdown note for cards, without loading the
+ * note editor's parser: list, heading and checklist marks, emphasis and link
+ * syntax are dropped.
+ */
+export function notePreview(body: string, max = 220) {
+  return body
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^\s*#{1,3}\s+/, '')
+        .replace(/^\s*(?:[-*+]|\d{1,9}[.)])\s+\[[xX]\]\s+/, '☑ ')
+        .replace(/^\s*(?:[-*+]|\d{1,9}[.)])\s+\[ \]\s+/, '☐ ')
+        .replace(/^\s*(?:[-*+]|\d{1,9}[.)])\s+/, '')
+        .replace(/\[([^\]\n]+)\]\([^)\s]+\)/g, '$1')
+        .replace(/(\*\*|__)(\S(?:.*?\S)?)\1/g, '$2')
+        .replace(/(^|[^\w*])[*_](\S(?:[^*_]*?\S)?)[*_](?![\w*])/g, '$1$2')
+        .trim(),
+    )
+    .filter(Boolean)
+    .join(' · ')
+    .slice(0, max);
+}
