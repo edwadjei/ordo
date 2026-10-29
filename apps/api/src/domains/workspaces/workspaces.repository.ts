@@ -63,6 +63,51 @@ export class WorkspacesRepository {
     return row;
   }
 
+  /** A workspace and a project in one D1 batch; each undefined if not the owner's. */
+  async findScope(owner: string, workspaceId: string, projectId: string) {
+    const db = this.database.use();
+    const [[workspace], [project]] = await db.batch([
+      db
+        .select()
+        .from(workspaces)
+        .where(
+          and(
+            eq(workspaces.id, workspaceId),
+            eq(workspaces.ownerUserId, owner),
+          ),
+        ),
+      db
+        .select()
+        .from(projects)
+        .where(
+          and(eq(projects.id, projectId), eq(projects.ownerUserId, owner)),
+        ),
+    ]);
+    return { workspace, project };
+  }
+
+  /**
+   * A workspace and its projects in one D1 batch: one round trip instead of
+   * two. The workspace is undefined when it is not the owner's.
+   */
+  async workspaceWithProjects(owner: string, id: string) {
+    const db = this.database.use();
+    const [[workspace], list] = await db.batch([
+      db
+        .select()
+        .from(workspaces)
+        .where(and(eq(workspaces.id, id), eq(workspaces.ownerUserId, owner))),
+      db
+        .select()
+        .from(projects)
+        .where(
+          and(eq(projects.ownerUserId, owner), eq(projects.workspaceId, id)),
+        )
+        .orderBy(asc(projects.name), asc(projects.id)),
+    ]);
+    return { workspace, projects: list };
+  }
+
   listProjects(owner: string, workspaceId?: string) {
     return this.database
       .use()

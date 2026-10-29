@@ -103,6 +103,23 @@ export class WorkspacesService {
    * enforce the same ownership in the database.
    */
   async validateScope(owner: string, scope: WorkspaceScope) {
+    if (scope.workspaceId && scope.projectId) {
+      // Both in one D1 batch: one round trip, the same checks in order.
+      const { workspace, project } = await this.repository.findScope(
+        owner,
+        scope.workspaceId,
+        scope.projectId,
+      );
+      if (!workspace) fail(404, 'NOT_FOUND', 'Workspace not found.');
+      if (!project) fail(404, 'NOT_FOUND', 'Project not found.');
+      if (project.workspaceId !== scope.workspaceId)
+        fail(
+          400,
+          'SCOPE_MISMATCH',
+          'The project must belong to the selected workspace.',
+        );
+      return;
+    }
     if (scope.workspaceId)
       await this.requireWorkspace(owner, scope.workspaceId);
     if (scope.projectId) {
@@ -114,6 +131,33 @@ export class WorkspacesService {
           'The project must belong to the selected workspace.',
         );
     }
+  }
+
+  /**
+   * `validateScope` for a workspace-and-project destination, returning the
+   * workspace and all its projects from one batched read. Same errors:
+   * 404 for a workspace or project that is not the owner's, 400
+   * SCOPE_MISMATCH for a project of another workspace.
+   */
+  async scopeWithProjects(
+    owner: string,
+    scope: { workspaceId: string; projectId: string | null },
+  ) {
+    const { workspace, projects } = await this.repository.workspaceWithProjects(
+      owner,
+      scope.workspaceId,
+    );
+    if (!workspace) fail(404, 'NOT_FOUND', 'Workspace not found.');
+    // Only a project outside this workspace needs a second look, to say why.
+    if (
+      scope.projectId &&
+      !projects.some((project) => project.id === scope.projectId)
+    )
+      await this.validateScope(owner, scope);
+    return {
+      workspace: publicRecord(workspace),
+      projects: projects.map(publicRecord),
+    };
   }
 
   private async requireWorkspace(owner: string, id: string) {

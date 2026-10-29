@@ -38,6 +38,12 @@ export class NotesService {
     return publicNote(await this.requireNote(owner, id));
   }
 
+  /** A note's text for processing, without building its preview. */
+  async text(owner: string, id: string) {
+    const { title, body, source, revision } = await this.requireNote(owner, id);
+    return { title, body, source, revision };
+  }
+
   async create(owner: string, input: NoteInput) {
     await this.workspaces.validateScope(owner, input);
     return publicNote(

@@ -256,7 +256,8 @@ function sampleValue(name: string): unknown {
     aliases: '[]',
     favorite: 0,
     email: 'warm-up@example.invalid',
-    timezone: 'UTC',
+    // The default timezone, so a real account's first capture finds it ready.
+    timezone: 'Africa/Accra',
     title: 'Warm-up',
     name: 'Warm-up',
     body: 'Warm-up.',

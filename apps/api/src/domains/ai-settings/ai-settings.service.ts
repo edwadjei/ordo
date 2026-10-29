@@ -9,7 +9,7 @@ import type {
   TextModelProviders,
 } from '../../capabilities/text-model.contract.js';
 import type { SecretCipher } from '../../capabilities/secret-cipher.contract.js';
-import { fail } from '../../platform/http/api-failure.js';
+import { ApiFailure, fail } from '../../platform/http/api-failure.js';
 import type { AudioSettingsService } from '../audio-settings/audio-settings.service.js';
 import type {
   AiSettingsChanges,
@@ -93,12 +93,32 @@ export class AiSettingsService {
   }
 
   /**
-   * The account's chosen text model. A missing binding or key is a 503 (the
-   * capture is kept as `pending`), never a different provider.
+   * The account's chosen provider and its text model, from one read of the
+   * settings. A missing binding or key is a 503 `unavailable` (the capture
+   * is kept as `pending`), never a different provider.
    */
-  async resolve(owner: string): Promise<TextModel> {
+  async choose(
+    owner: string,
+  ): Promise<
+    | { provider: TextProvider; model: TextModel; unavailable?: undefined }
+    | { provider: TextProvider; model?: undefined; unavailable: ApiFailure }
+  > {
     const row = await this.repository.find(owner);
     const provider: TextProvider = row?.textProvider ?? defaultTextProvider;
+    try {
+      return { provider, model: await this.model(owner, provider, row) };
+    } catch (error) {
+      if (error instanceof ApiFailure && error.status === 503)
+        return { provider, unavailable: error };
+      throw error;
+    }
+  }
+
+  private async model(
+    owner: string,
+    provider: TextProvider,
+    row: Awaited<ReturnType<AiSettingsRepository['find']>>,
+  ): Promise<TextModel> {
     if (provider === 'workers_ai') {
       if (!this.providers.workersAiAvailable())
         fail(
