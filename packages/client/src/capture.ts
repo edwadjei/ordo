@@ -56,15 +56,17 @@ export interface AiSettings {
   textProvider: TextProvider;
   workersAiAvailable: boolean;
   /** One OpenAI key per account, shared with transcription. */
-  hasOpenaiKey: boolean;
+  hasOpenAiKey: boolean;
   hasAnthropicKey: boolean;
   configured: boolean;
 }
-/** `PATCH /v1/settings/ai`: each key is saved or removed for its own provider. */
+/**
+ * `PATCH /v1/settings/ai`: apiKey/removeApiKey apply to keyProvider, or to
+ * textProvider when it is omitted. The OpenAI key is shared with transcription.
+ */
 export interface AiSettingsInput {
   textProvider?: TextProvider;
-  openaiKey?: string;
-  anthropicKey?: string;
-  removeOpenaiKey?: boolean;
-  removeAnthropicKey?: boolean;
+  apiKey?: string;
+  removeApiKey?: boolean;
+  keyProvider?: 'openai' | 'anthropic';
 }
