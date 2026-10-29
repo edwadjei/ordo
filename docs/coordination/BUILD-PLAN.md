@@ -6,7 +6,7 @@
 
 **Method:** coordinated-development. The coordinator writes briefs and checks PRs; specialists build in PRs; Edward approves.
 
-**Implementation status:** Ordo runs locally as one Cloudflare Worker under `wrangler dev` on a local D1 database (check-on-save writes, code-only sign-in, FTS5 search), serving the static web export; Workers AI Whisper transcribes by default and has been verified on Edward's Cloudflare account. Nothing is deployed; hosted staging is Phase 3.
+**Implementation status:** Ordo is hosted as one Cloudflare Worker, `ordo`, at https://ordo.edward-dejaysblog.workers.dev on the Workers Free plan, with the D1 database `ordo` (check-on-save writes, code-only sign-in, FTS5 search) and Workers AI Whisper transcription. Locally, `npm run dev` runs the same Worker under `wrangler dev` on a local D1 copy.
 
 ## Working choices
 

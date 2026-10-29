@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ordo · Architecture</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --color-paper: #f5f5f5;
+        --color-ink: #2d3142;
+        --color-muted: #4f5d75;
+        --font-sans: 'Geist', system-ui, sans-serif;
+        --font-serif: 'Instrument Serif', serif;
+        --font-mono: 'Geist Mono', ui-monospace, monospace;
+      }
+      body {
+        font-family: var(--font-sans);
+        background: var(--color-paper);
+        color: var(--color-ink);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3rem 1rem;
+      }
+      .frame {
+        max-width: 960px;
+        width: 100%;
+      }
+      .eyebrow {
+        font-family: var(--font-mono);
+        font-size: 0.66rem;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--color-muted);
+        margin-bottom: 0.5rem;
+      }
+      h1 {
+        font-family: var(--font-serif);
+        font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+        font-weight: 400;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        margin-bottom: 1.5rem;
+      }
+      .scroll {
+        overflow-x: auto;
+      }
+      svg {
+        width: 100%;
+        min-width: 832px;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <p class="eyebrow">Architecture · 29 October 2026</p>
+      <h1>Ordo, hosted on Cloudflare</h1>
+      <div class="scroll">
+        <svg
+          viewBox="0 0 832 620"
+          xmlns="http://www.w3.org/2000/svg"
+          role="img"
+          aria-labelledby="ordo-architecture-title ordo-architecture-desc"
+        >
+          <title id="ordo-architecture-title">Ordo, hosted on Cloudflare</title>
+          <desc id="ordo-architecture-desc">
+            The browser reaches one Cloudflare Worker that serves the web app
+            and API, which uses D1, Workers AI and Worker secrets inside
+            Cloudflare, and calls Gatekeeper for sign-in codes and optionally
+            OpenAI.
+          </desc>
+          <defs>
+            <pattern
+              id="dots"
+              width="22"
+              height="22"
+              patternUnits="userSpaceOnUse"
+            >
+              <circle cx="1" cy="1" r="0.9" fill="rgba(45,49,66,0.10)" />
+            </pattern>
+            <marker
+              id="arrow"
+              markerWidth="8"
+              markerHeight="6"
+              refX="7"
+              refY="3"
+              orient="auto"
+            >
+              <polygon points="0 0, 8 3, 0 6" fill="#4f5d75" />
+            </marker>
+            <marker
+              id="arrow-link"
+              markerWidth="8"
+              markerHeight="6"
+              refX="7"
+              refY="3"
+              orient="auto"
+            >
+              <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8" />
+            </marker>
+          </defs>
+
+          <rect width="100%" height="100%" fill="#f5f5f5" />
+          <rect width="100%" height="100%" fill="url(#dots)" opacity="0.55" />
+
+          <!-- Zone: Cloudflare -->
+          <rect
+            x="232"
+            y="64"
+            width="560"
+            height="352"
+            rx="8"
+            fill="rgba(45,49,66,0.02)"
+            stroke="rgba(45,49,66,0.10)"
+            stroke-width="0.8"
+          />
+          <rect x="412" y="68" width="200" height="12" rx="2" fill="#f5f5f5" />
+          <text
+            x="512"
+            y="77"
+            fill="#5a6580"
+            font-size="7"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.14em"
+          >
+            CLOUDFLARE · FREE PLAN · $0/MONTH
+          </text>
+
+          <!-- Arrows -->
+          <line
+            x1="184"
+            y1="232"
+            x2="280"
+            y2="232"
+            stroke="#2e5aa8"
+            stroke-width="1.2"
+            marker-end="url(#arrow-link)"
+          />
+          <line
+            x1="280"
+            y1="256"
+            x2="184"
+            y2="256"
+            stroke="#4f5d75"
+            stroke-width="1"
+            stroke-dasharray="4,3"
+            marker-end="url(#arrow)"
+          />
+
+          <path
+            d="M 456,224 H 520 Q 528,224 528,216 V 136 Q 528,128 536,128 H 600"
+            fill="none"
+            stroke="#4f5d75"
+            stroke-width="1.2"
+            marker-end="url(#arrow)"
+          />
+          <line
+            x1="456"
+            y1="240"
+            x2="600"
+            y2="240"
+            stroke="#4f5d75"
+            stroke-width="1.2"
+            marker-end="url(#arrow)"
+          />
+          <path
+            d="M 456,256 H 520 Q 528,256 528,264 V 344 Q 528,352 536,352 H 600"
+            fill="none"
+            stroke="#4f5d75"
+            stroke-width="1.2"
+            marker-end="url(#arrow)"
+          />
+
+          <line
+            x1="340"
+            y1="272"
+            x2="340"
+            y2="464"
+            stroke="#2e5aa8"
+            stroke-width="1.2"
+            marker-end="url(#arrow-link)"
+          />
+          <path
+            d="M 396,272 V 432 Q 396,440 404,440 H 536 Q 544,440 544,448 V 464"
+            fill="none"
+            stroke="#4f5d75"
+            stroke-width="1"
+            stroke-dasharray="4,3"
+            marker-end="url(#arrow)"
+          />
+
+          <!-- Arrow labels -->
+          <rect x="196" y="212" width="40" height="12" rx="2" fill="#f5f5f5" />
+          <text
+            x="216"
+            y="221"
+            fill="#2e5aa8"
+            font-size="8"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            HTTPS
+          </text>
+          <rect x="192" y="264" width="80" height="12" rx="2" fill="#f5f5f5" />
+          <text
+            x="232"
+            y="273"
+            fill="#4f5d75"
+            font-size="8"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            PAGES · JSON
+          </text>
+
+          <rect x="548" y="110" width="32" height="12" rx="2" fill="#f5f5f5" />
+          <text
+            x="564"
+            y="119"
+            fill="#4f5d75"
+            font-size="8"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            SQL
+          </text>
+          <rect x="540" y="222" width="44" height="12" rx="2" fill="#f5f5f5" />
+          <text
+            x="562"
+            y="231"
+            fill="#4f5d75"
+            font-size="8"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            AUDIO
+          </text>
+          <rect x="544" y="334" width="40" height="12" rx="2" fill="#f5f5f5" />
+          <text
+            x="564"
+            y="343"
+            fill="#4f5d75"
+            font-size="8"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            READ
+          </text>
+
+          <rect x="288" y="360" width="44" height="12" rx="2" fill="#f5f5f5" />
+          <text
+            x="310"
+            y="369"
+            fill="#2e5aa8"
+            font-size="8"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            CODES
+          </text>
+          <rect x="428" y="422" width="88" height="12" rx="2" fill="#f5f5f5" />
+          <text
+            x="472"
+            y="431"
+            fill="#4f5d75"
+            font-size="8"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            OPTIONAL KEY
+          </text>
+
+          <!-- Node: Browser (input) -->
+          <rect x="40" y="208" width="144" height="64" rx="6" fill="#f5f5f5" />
+          <rect
+            x="40"
+            y="208"
+            width="144"
+            height="64"
+            rx="6"
+            fill="rgba(79,93,117,0.10)"
+            stroke="#5a6580"
+            stroke-width="1"
+          />
+          <rect
+            x="48"
+            y="216"
+            width="32"
+            height="12"
+            rx="2"
+            fill="transparent"
+            stroke="rgba(90,101,128,0.50)"
+            stroke-width="0.8"
+          />
+          <text
+            x="64"
+            y="225"
+            fill="#5a6580"
+            font-size="7"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            YOU
+          </text>
+          <text
+            x="112"
+            y="244"
+            fill="#2d3142"
+            font-size="12"
+            font-weight="600"
+            font-family="'Geist', sans-serif"
+            text-anchor="middle"
+          >
+            Your browser
+          </text>
+          <text
+            x="112"
+            y="260"
+            fill="#4f5d75"
+            font-size="9"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+          >
+            Mac · phone
+          </text>
+
+          <!-- Node: Worker (focal) -->
+          <rect x="280" y="208" width="176" height="64" rx="6" fill="#f5f5f5" />
+          <rect
+            x="280"
+            y="208"
+            width="176"
+            height="64"
+            rx="6"
+            fill="rgba(191,69,32,0.08)"
+            stroke="#bf4520"
+            stroke-width="1"
+          />
+          <rect
+            x="288"
+            y="216"
+            width="36"
+            height="12"
+            rx="2"
+            fill="transparent"
+            stroke="rgba(191,69,32,0.50)"
+            stroke-width="0.8"
+          />
+          <text
+            x="306"
+            y="225"
+            fill="#bf4520"
+            font-size="7"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            EDGE
+          </text>
+          <text
+            x="368"
+            y="244"
+            fill="#2d3142"
+            font-size="12"
+            font-weight="600"
+            font-family="'Geist', sans-serif"
+            text-anchor="middle"
+          >
+            Worker “ordo”
+          </text>
+          <text
+            x="368"
+            y="260"
+            fill="#4f5d75"
+            font-size="9"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+          >
+            web app · Hono API /api
+          </text>
+
+          <!-- Node: D1 (store) -->
+          <rect x="600" y="96" width="160" height="64" rx="6" fill="#f5f5f5" />
+          <rect
+            x="600"
+            y="96"
+            width="160"
+            height="64"
+            rx="6"
+            fill="rgba(45,49,66,0.05)"
+            stroke="#4f5d75"
+            stroke-width="1"
+          />
+          <rect
+            x="608"
+            y="104"
+            width="24"
+            height="12"
+            rx="2"
+            fill="transparent"
+            stroke="rgba(79,93,117,0.50)"
+            stroke-width="0.8"
+          />
+          <text
+            x="620"
+            y="113"
+            fill="#4f5d75"
+            font-size="7"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            DB
+          </text>
+          <text
+            x="680"
+            y="132"
+            fill="#2d3142"
+            font-size="12"
+            font-weight="600"
+            font-family="'Geist', sans-serif"
+            text-anchor="middle"
+          >
+            D1 database
+          </text>
+          <text
+            x="680"
+            y="148"
+            fill="#4f5d75"
+            font-size="9"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+          >
+            ordo · WEUR · FTS5
+          </text>
+
+          <!-- Node: Workers AI -->
+          <rect x="600" y="208" width="160" height="64" rx="6" fill="#f5f5f5" />
+          <rect
+            x="600"
+            y="208"
+            width="160"
+            height="64"
+            rx="6"
+            fill="#ffffff"
+            stroke="#2d3142"
+            stroke-width="1"
+          />
+          <rect
+            x="608"
+            y="216"
+            width="24"
+            height="12"
+            rx="2"
+            fill="transparent"
+            stroke="rgba(45,49,66,0.40)"
+            stroke-width="0.8"
+          />
+          <text
+            x="620"
+            y="225"
+            fill="#2d3142"
+            font-size="7"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            AI
+          </text>
+          <text
+            x="680"
+            y="244"
+            fill="#2d3142"
+            font-size="12"
+            font-weight="600"
+            font-family="'Geist', sans-serif"
+            text-anchor="middle"
+          >
+            Workers AI
+          </text>
+          <text
+            x="680"
+            y="260"
+            fill="#4f5d75"
+            font-size="9"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+          >
+            Whisper transcription
+          </text>
+
+          <!-- Node: Worker secrets -->
+          <rect x="600" y="320" width="160" height="64" rx="6" fill="#f5f5f5" />
+          <rect
+            x="600"
+            y="320"
+            width="160"
+            height="64"
+            rx="6"
+            fill="#ffffff"
+            stroke="#2d3142"
+            stroke-width="1"
+          />
+          <rect
+            x="608"
+            y="328"
+            width="28"
+            height="12"
+            rx="2"
+            fill="transparent"
+            stroke="rgba(45,49,66,0.40)"
+            stroke-width="0.8"
+          />
+          <text
+            x="622"
+            y="337"
+            fill="#2d3142"
+            font-size="7"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            KEY
+          </text>
+          <text
+            x="680"
+            y="356"
+            fill="#2d3142"
+            font-size="12"
+            font-weight="600"
+            font-family="'Geist', sans-serif"
+            text-anchor="middle"
+          >
+            Worker secrets
+          </text>
+          <text
+            x="680"
+            y="372"
+            fill="#4f5d75"
+            font-size="9"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+          >
+            4 keys · never in Git
+          </text>
+
+          <!-- Node: Gatekeeper (external) -->
+          <rect x="264" y="464" width="152" height="64" rx="6" fill="#f5f5f5" />
+          <rect
+            x="264"
+            y="464"
+            width="152"
+            height="64"
+            rx="6"
+            fill="rgba(45,49,66,0.03)"
+            stroke="rgba(45,49,66,0.30)"
+            stroke-width="1"
+          />
+          <rect
+            x="272"
+            y="472"
+            width="28"
+            height="12"
+            rx="2"
+            fill="transparent"
+            stroke="rgba(45,49,66,0.30)"
+            stroke-width="0.8"
+          />
+          <text
+            x="286"
+            y="481"
+            fill="#4f5d75"
+            font-size="7"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            EXT
+          </text>
+          <text
+            x="340"
+            y="500"
+            fill="#2d3142"
+            font-size="12"
+            font-weight="600"
+            font-family="'Geist', sans-serif"
+            text-anchor="middle"
+          >
+            Gatekeeper
+          </text>
+          <text
+            x="340"
+            y="516"
+            fill="#4f5d75"
+            font-size="9"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+          >
+            email + SMS codes
+          </text>
+
+          <!-- Node: OpenAI (optional) -->
+          <rect x="472" y="464" width="144" height="64" rx="6" fill="#f5f5f5" />
+          <rect
+            x="472"
+            y="464"
+            width="144"
+            height="64"
+            rx="6"
+            fill="rgba(45,49,66,0.02)"
+            stroke="rgba(45,49,66,0.20)"
+            stroke-width="1"
+            stroke-dasharray="4,3"
+          />
+          <rect
+            x="480"
+            y="472"
+            width="28"
+            height="12"
+            rx="2"
+            fill="transparent"
+            stroke="rgba(45,49,66,0.30)"
+            stroke-width="0.8"
+          />
+          <text
+            x="494"
+            y="481"
+            fill="#4f5d75"
+            font-size="7"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            OPT
+          </text>
+          <text
+            x="544"
+            y="500"
+            fill="#2d3142"
+            font-size="12"
+            font-weight="600"
+            font-family="'Geist', sans-serif"
+            text-anchor="middle"
+          >
+            OpenAI
+          </text>
+          <text
+            x="544"
+            y="516"
+            fill="#4f5d75"
+            font-size="9"
+            font-family="'Geist Mono', monospace"
+            text-anchor="middle"
+          >
+            transcribe · own key
+          </text>
+
+          <!-- Legend strip -->
+          <line
+            x1="40"
+            y1="552"
+            x2="792"
+            y2="552"
+            stroke="rgba(45,49,66,0.10)"
+            stroke-width="0.8"
+          />
+          <text
+            x="40"
+            y="568"
+            fill="#4f5d75"
+            font-size="8"
+            font-family="'Geist Mono', monospace"
+            letter-spacing="0.18em"
+          >
+            LEGEND
+          </text>
+
+          <rect
+            x="40"
+            y="584"
+            width="14"
+            height="10"
+            rx="2"
+            fill="rgba(191,69,32,0.08)"
+            stroke="#bf4520"
+            stroke-width="1"
+          />
+          <text
+            x="60"
+            y="592"
+            fill="#4f5d75"
+            font-size="8.5"
+            font-family="'Geist', sans-serif"
+          >
+            Focal
+          </text>
+          <rect
+            x="104"
+            y="584"
+            width="14"
+            height="10"
+            rx="2"
+            fill="#ffffff"
+            stroke="#2d3142"
+            stroke-width="1"
+          />
+          <text
+            x="124"
+            y="592"
+            fill="#4f5d75"
+            font-size="8.5"
+            font-family="'Geist', sans-serif"
+          >
+            Service
+          </text>
+          <rect
+            x="176"
+            y="584"
+            width="14"
+            height="10"
+            rx="2"
+            fill="rgba(45,49,66,0.05)"
+            stroke="#4f5d75"
+            stroke-width="1"
+          />
+          <text
+            x="196"
+            y="592"
+            fill="#4f5d75"
+            font-size="8.5"
+            font-family="'Geist', sans-serif"
+          >
+            Store
+          </text>
+          <rect
+            x="240"
+            y="584"
+            width="14"
+            height="10"
+            rx="2"
+            fill="rgba(79,93,117,0.10)"
+            stroke="#5a6580"
+            stroke-width="1"
+          />
+          <text
+            x="260"
+            y="592"
+            fill="#4f5d75"
+            font-size="8.5"
+            font-family="'Geist', sans-serif"
+          >
+            You
+          </text>
+          <rect
+            x="296"
+            y="584"
+            width="14"
+            height="10"
+            rx="2"
+            fill="rgba(45,49,66,0.03)"
+            stroke="rgba(45,49,66,0.30)"
+            stroke-width="1"
+          />
+          <text
+            x="316"
+            y="592"
+            fill="#4f5d75"
+            font-size="8.5"
+            font-family="'Geist', sans-serif"
+          >
+            Outside Cloudflare
+          </text>
+          <rect
+            x="412"
+            y="584"
+            width="14"
+            height="10"
+            rx="2"
+            fill="rgba(45,49,66,0.02)"
+            stroke="rgba(45,49,66,0.20)"
+            stroke-width="1"
+            stroke-dasharray="4,3"
+          />
+          <text
+            x="432"
+            y="592"
+            fill="#4f5d75"
+            font-size="8.5"
+            font-family="'Geist', sans-serif"
+          >
+            Optional
+          </text>
+          <line
+            x1="488"
+            y1="590"
+            x2="516"
+            y2="590"
+            stroke="#2e5aa8"
+            stroke-width="1.2"
+            marker-end="url(#arrow-link)"
+          />
+          <text
+            x="524"
+            y="592"
+            fill="#4f5d75"
+            font-size="8.5"
+            font-family="'Geist', sans-serif"
+          >
+            HTTPS call
+          </text>
+          <line
+            x1="584"
+            y1="590"
+            x2="612"
+            y2="590"
+            stroke="#4f5d75"
+            stroke-width="1.2"
+            marker-end="url(#arrow)"
+          />
+          <text
+            x="620"
+            y="592"
+            fill="#4f5d75"
+            font-size="8.5"
+            font-family="'Geist', sans-serif"
+          >
+            Binding
+          </text>
+          <line
+            x1="672"
+            y1="590"
+            x2="700"
+            y2="590"
+            stroke="#4f5d75"
+            stroke-width="1"
+            stroke-dasharray="4,3"
+            marker-end="url(#arrow)"
+          />
+          <text
+            x="708"
+            y="592"
+            fill="#4f5d75"
+            font-size="8.5"
+            font-family="'Geist', sans-serif"
+          >
+            Return / optional
+          </text>
+        </svg>
+      </div>
+    </div>
+  </body>
+</html>

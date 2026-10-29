@@ -4,7 +4,7 @@
 
 **Owner:** Edward Adjei.
 
-**State:** Everyday web core runs locally on Cloudflare's stack (Worker, D1, Workers AI). Next: hosted staging (Phase 3) on Edward's Cloudflare account.
+**State:** Ordo is hosted on Cloudflare's Free plan as one Worker, `ordo`, at https://ordo.edward-dejaysblog.workers.dev, with D1 and Workers AI. Only Edward signs in there for now.
 
 ## Platforms
 
@@ -16,6 +16,7 @@ Edward's confirmed delivery order is **Ordo Web (responsive) → Ordo for iOS (u
 |---|---|
 | [Product requirements](PRODUCT.md) | User journeys, scope, UX constraints, and MVP acceptance scenarios |
 | [Technical architecture](TECHNICAL.md) | Ordo on Cloudflare: stack, free-plan budget, data model, check-on-save, search, sign-in, REST/MCP contracts, and privacy |
+| [Architecture diagram](diagrams/ordo-architecture.html) | What runs where today: the Worker, D1, Workers AI, secrets, and the outside services |
 | [Implementation approach](IMPLEMENTATION-APPROACH.md) | Ordo-specific interpretation, trade-offs, dependencies, and open decisions |
 | [Delivery ledger](PLAN.md) | Phase status, deliverables, and completion evidence |
 | [Engineering method](engineering-method.md) | How a requirement becomes reviewed, verified code |

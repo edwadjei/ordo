@@ -2,6 +2,8 @@
 // never reuse this renderer for imported transcripts or other user content.
 // Adapted from the local Unwrap docs site's navigation and reading layout.
 import {
+  copyFileSync,
+  existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -62,7 +64,18 @@ const pages = files.map((source) => {
     markdown,
   };
 });
-const targets = new Map(pages.map((page) => [page.source, page.destination]));
+// Self-contained HTML diagrams under docs/diagrams are copied as they are, so
+// Markdown can link to them like any other page.
+const diagramDirectory = path.join(docs, 'diagrams');
+const diagrams = existsSync(diagramDirectory)
+  ? readdirSync(diagramDirectory)
+      .filter((name) => name.endsWith('.html'))
+      .map((name) => path.posix.join('diagrams', name))
+  : [];
+const targets = new Map([
+  ...pages.map((page) => [page.source, page.destination]),
+  ...diagrams.map((diagram) => [diagram, diagram]),
+]);
 const css = readFileSync(
   path.join(root, 'scripts/docs-assets/docs.css'),
   'utf8',
@@ -70,6 +83,10 @@ const css = readFileSync(
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
 writeFileSync(path.join(output, 'docs.css'), css);
+for (const diagram of diagrams) {
+  mkdirSync(path.join(output, path.dirname(diagram)), { recursive: true });
+  copyFileSync(path.join(docs, diagram), path.join(output, diagram));
+}
 
 for (const page of pages) {
   const local = (target) =>

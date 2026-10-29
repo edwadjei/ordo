@@ -1,25 +1,25 @@
 # Ordo coordinator handoff
 
-**Updated:** 27 October 2026.
+**Updated:** 29 October 2026.
 
 **Owner and commit identity:** Edward Adjei, `edwadjei <edd.net49@gmail.com>`. No AI attribution in commits or PR descriptions.
 
 **Repository:** `git@github.com:edwadjei/ordo.git`, local clone `/Users/edwadjei/projects/ordo`.
 
-**Main:** `e96df57` (#13 on Edward's word, 29 October 2026). Rollback point for the last merge: `ff4a567`.
+**Main:** `dc1a049` (#20 on Edward's word, 29 October 2026). Rollback point for the last merge: `fe2fb83`.
 
 ## Current work
 
 | Order | Work | State |
 |---|---|---|
-| 1 | Hosting documentation on `edw/ordo-cloudflare-platform-docs`: [technical architecture](../TECHNICAL.md), [Cloudflare platform spec](../specs/02-cloudflare-platform.md), [Phase 1 brief](CLOUDFLARE-PHASE-1-BRIEF.md), decisions, plan, and guides | In progress; PR to `main` for Edward's review |
-| 2 | Cloudflare Phase 1: Hono port, Web Crypto adapters, web static export (about five PRs) | Ready to brief once the docs PR is merged |
-| 3 | Cloudflare Phase 2: D1 | Briefed after Phase 1 merges |
-| 4 | Cloudflare Phase 3: hosted staging | Needs Edward's approval for account access and each deploy |
+| 1 | Hosting documentation (#4) | Merged |
+| 2 | Cloudflare Phase 1: Hono port, Web Crypto adapters, web static export (#9) | Merged |
+| 3 | Cloudflare Phase 2: D1 and the Worker (#11), then Workers AI transcription (#12) | Merged |
+| 4 | Cloudflare Phase 3: hosted release on the Worker `ordo` (#18–#20) | Live since 29 October 2026; signed-in check on the hosted address in progress, on Edward's word in the Cloudflare session |
 
 Edward chose Cloudflare Workers (Free plan) with D1 on 27 October 2026 ("aligned"; "I don't want to pay $5"); see C25–C27 in the [decision register](DECISIONS.md).
 
-**Implementation status:** the API runs as a Cloudflare Worker on a local D1 database under `wrangler dev`, with code-only sign-in, check-on-save and FTS5 search (Phase 2, pending merge). The web app runs on Next.js dev proxying `/api` and builds as a static export the Worker serves. Nothing is deployed; hosted staging is Phase 3.
+**Implementation status:** Ordo is hosted as the Worker `ordo` at https://ordo.edward-dejaysblog.workers.dev with D1 and Workers AI (29 October 2026; [release record](../PLAN.md#release-record), [architecture diagram](../diagrams/ordo-architecture.html)). Locally, the Worker runs under `wrangler dev` on a local D1 copy, and Next.js dev proxies `/api` to it.
 
 ## Specialist sessions
 
