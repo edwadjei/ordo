@@ -4,16 +4,26 @@ import { Mic, Square } from 'lucide-react';
 import { RequestError, type AudioSettings } from '@ordo/client';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
+import {
+  recorderDestination,
+  transcriptionFailure,
+} from '../lib/transcription';
 const MAX_BYTES = 20 * 1024 * 1024;
 export function Recorder({
   onClose,
   onNote,
+  onSettings,
   transcription,
+  unavailableReason,
   provider,
 }: {
   onClose: () => void;
   onNote: (id: string) => Promise<void>;
+  /** Opens Settings in place of this dialog. */
+  onSettings?: () => void;
   transcription: boolean;
+  /** Why transcription can't run with the saved choice, in plain words. */
+  unavailableReason?: string | null;
   provider: AudioSettings['provider'];
 }) {
   const recorder = useRef<MediaRecorder | null>(null);
@@ -33,6 +43,8 @@ export function Recorder({
   const [supported, setSupported] = useState(false);
   const [secure, setSecure] = useState(true);
   const [available, setAvailable] = useState(transcription);
+  // Set when the server says recording again would fail the same way.
+  const [blocked, setBlocked] = useState(false);
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [transcribing, setTranscribing] = useState(false);
   useEffect(() => {
@@ -84,17 +96,11 @@ export function Recorder({
       if (active.current) setText(result.transcript);
     } catch (cause) {
       if (active.current) {
-        if (
-          cause instanceof RequestError &&
-          cause.code === 'FEATURE_UNAVAILABLE'
-        )
-          setAvailable(false);
-        setError(
-          cause instanceof RequestError &&
-            cause.code === 'AUDIO_SETTINGS_CHANGED'
-            ? 'Your transcription settings changed. The audio was discarded. Check Settings and record again.'
-            : 'Could not transcribe this recording. The audio has been discarded. Please record again.',
+        const failure = transcriptionFailure(
+          cause instanceof RequestError ? cause : null,
         );
+        if (failure.blocked) setBlocked(true);
+        setError(failure.message);
       }
     } finally {
       // No audio is retained for playback, retries, or later uploads.
@@ -106,7 +112,7 @@ export function Recorder({
     }
   }
   async function start() {
-    if (!available || !secure || !supported) return;
+    if (!available || blocked || !secure || !supported) return;
     if (
       text &&
       !savedNote &&
@@ -223,13 +229,11 @@ export function Recorder({
   return (
     <Dialog title="A thought, out loud." onClose={close}>
       <div className="recorder" aria-busy={busy}>
-        <p className="muted small">
-          {selectedProvider === 'local_whisper'
-            ? 'Local Whisper on this Mac / server'
-            : 'OpenAI — audio is sent to OpenAI to transcribe'}
-        </p>
+        <p className="muted small">{recorderDestination(selectedProvider)}</p>
         {!available ? (
-          <p className="muted">Voice transcription · Coming soon.</p>
+          <p className="muted">
+            {unavailableReason || 'Voice transcription · Coming soon.'}
+          </p>
         ) : !secure ? (
           <p className="muted">Recording needs a secure connection.</p>
         ) : (
@@ -258,7 +262,14 @@ export function Recorder({
           <div className="form-actions">
             <button
               className="primary"
-              disabled={busy || starting || !available || !secure || !supported}
+              disabled={
+                busy ||
+                starting ||
+                blocked ||
+                !available ||
+                !secure ||
+                !supported
+              }
               onClick={() => void start()}
             >
               <Mic size={15} />
@@ -268,6 +279,20 @@ export function Recorder({
                   ? 'Record another'
                   : 'Start recording'}
             </button>
+            {(!available || blocked) && onSettings && (
+              <button
+                className="secondary"
+                disabled={busy}
+                onClick={() => {
+                  discard.current = true;
+                  parts.current = [];
+                  request.current?.abort();
+                  onSettings();
+                }}
+              >
+                Open Settings
+              </button>
+            )}
           </div>
         )}
         {transcribing && (

@@ -123,7 +123,9 @@ No locks, interactive transactions, or Durable Objects.
 ### Transcription
 
 - Audio is never stored (C20). Bytes exist in memory only while the provider request runs.
-- Hosted Ordo uses the account's own OpenAI key. Local Whisper remains a local-Mac development option and is reported as unavailable on the hosted Worker. Workers AI Whisper is an open option for Edward.
+- Ordo transcribes with **Workers AI Whisper** (`@cf/openai/whisper-large-v3-turbo`) through the Worker's `AI` binding. It is free within the daily allowance of 10,000 neurons (about 214 audio minutes at 46.63 neurons per minute); on the Free plan, use beyond that fails until 00:00 UTC and is never billed, and the user sees a clear message.
+- An account-owned OpenAI key (`gpt-4o-mini-transcribe`, $0.003 per minute, billed to that key) is an optional provider chosen in Settings. Ordo never switches provider silently.
+- Workers AI always runs on Cloudflare, so local development without an account transcribes only with a saved OpenAI key. **Implementation status:** today's code supports OpenAI only; the [Workers AI transcription brief](../coordination/WORKERS-AI-TRANSCRIPTION-BRIEF.md) delivers the rest.
 
 ### Read consistency
 
@@ -168,7 +170,7 @@ Phase 2 provides a one-time import so Edward's local content moves to D1:
 - `npm test` passes with the Hono app and Web Crypto adapters; no Fastify dependency remains.
 - `npm run dev` still starts web and API locally on the existing database; the signed-in browser journeys in the verification record still pass.
 - `apps/web` builds with `output: 'export'`; the exported site, served next to the API, signs in and saves a task using same-origin `/api`.
-- Secret-cipher and transcription capabilities are flagged so a Worker without local Whisper reports it unavailable instead of failing.
+- Secret-cipher and transcription capabilities are flagged so a server without a usable transcription provider reports it unavailable instead of failing.
 
 ### Phase 2 — D1
 
@@ -198,7 +200,6 @@ Phase 2 provides a one-time import so Edward's local content moves to D1:
 
 ## Open questions for Edward
 
-1. **Workers AI Whisper:** use it as the hosted default transcriber (per-request Workers AI allowance on the Free plan) or keep account-owned OpenAI only?
-2. **Queues on the Free plan:** confirm availability when AI workers start; fall back to cron triggers if not.
-3. **Domain name:** use the `*.workers.dev` subdomain for now, or register a domain (~$10/year)?
-4. **Mobile token design:** token lifetime, refresh behaviour, and a sign-out-everywhere control before the Expo client starts.
+1. **Queues on the Free plan:** confirm availability when AI workers start; fall back to cron triggers if not.
+2. **Domain name:** use the `*.workers.dev` subdomain for now, or register a domain (~$10/year)?
+3. **Mobile token design:** token lifetime, refresh behaviour, and a sign-out-everywhere control before the Expo client starts.

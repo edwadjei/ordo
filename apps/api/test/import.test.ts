@@ -70,6 +70,20 @@ test('transform: ISO timestamps, 0/1 booleans, kept IDs and revisions, no passwo
     ).encrypted_api_key,
     'v1.x',
   );
+  // Local Whisper no longer exists: old exports become Workers AI.
+  for (const [provider, expected] of [
+    ['local_whisper', 'workers_ai'],
+    [undefined, 'workers_ai'],
+    ['openai', 'openai'],
+  ])
+    assert.equal(
+      transform(
+        'audio_settings',
+        { owner_user_id: 'u', provider },
+        { keepProviderKeys: false },
+      ).provider,
+      expected,
+    );
   assert.deepEqual(
     orderTasks([
       { id: 'c', parent_id: 'b' },

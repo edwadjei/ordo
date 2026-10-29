@@ -58,7 +58,7 @@ Ordo runs as **one Cloudflare Worker on the Workers Free plan**. The same Worker
 | Mobile | **Expo (React Native) for iOS and Android** | Shared native codebase; same API; token sign-in |
 | Editor | **Tiptap** | Restrained rich text, loaded only on editing screens |
 | AI text | **Provider abstraction for OpenAI and Anthropic** | Account-owned keys and model switching |
-| Transcription | **Account-owned OpenAI key** (hosted); local Whisper on a developer's Mac only | Audio is never stored; Workers AI Whisper is an open option |
+| Transcription | **Workers AI Whisper** (`whisper-large-v3-turbo`) by default; account-owned OpenAI key optional | Free within the daily Workers AI allowance; audio is never stored |
 | Background work | **Cloudflare Queues / cron** when AI workers arrive | No Redis, BullMQ, or separate worker host |
 | Agent access | **REST endpoints + MCP server** over the same authorized services | Works with scripts and compatible AI clients |
 
@@ -268,7 +268,7 @@ User capture (text / live audio)
 ### Input handling
 
 - **Text / pasted email:** store exact source and metadata; allow immediate manual save.
-- **Audio:** record with visible state and explicit permission; the bytes exist only in memory while a transcription request runs, then are cleared. Hosted transcription uses the account's own OpenAI key. Local Whisper is a developer option on a Mac only. Workers AI Whisper is an open option.
+- **Audio:** record with visible state and explicit permission; the bytes exist only in memory while a transcription request runs, then are cleared. Transcription uses Workers AI Whisper by default (free within the daily allowance) or the account's own OpenAI key when chosen in Settings.
 - **Files:** not stored by Ordo. Transcript import will accept text and process it as a capture.
 - **Large inputs:** chunk and summarize asynchronously while preserving provenance; never drop names or dates silently.
 

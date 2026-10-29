@@ -25,12 +25,20 @@
       "migrations_dir": "../../packages/db/migrations",
     },
   ],
+  // Workers AI Whisper for transcription. The AI binding has no local
+  // simulator: it always runs on Cloudflare and needs an account, even under
+  // `wrangler dev`. `npm run dev` therefore runs `wrangler dev --local`
+  // (remote bindings disabled), so it starts without a Cloudflare login. The
+  // binding still appears there but cannot reach Cloudflare, so development
+  // leaves it unused (ORDO_WORKERS_AI, off by default when ORDO_ENV is
+  // development) and Workers AI reports unavailable; a saved OpenAI key works.
+  "ai": { "binding": "AI", "remote": true },
   "dev": {
     "ip": "127.0.0.1",
     "port": 8788,
   },
   // Secrets come from .dev.vars locally (see .dev.vars.example) and from
   // Worker secrets when hosted: OTP_HMAC_KEY, ORDO_CREDENTIAL_KEY,
-  // GATEKEEPER_API_KEY, GATEKEEPER_API_URL.
+  // GATEKEEPER_API_KEY, GATEKEEPER_API_URL; plain var ORDO_WORKERS_AI.
   "observability": { "enabled": true },
 }

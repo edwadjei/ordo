@@ -1,3 +1,4 @@
+import type { AudioProvider } from '@ordo/core';
 import { isoNow } from '../../platform/time/iso-now.js';
 import {
   DatabaseAdapter,
@@ -22,7 +23,7 @@ export class AudioSettingsRepository {
    */
   async save(
     owner: string,
-    provider: 'local_whisper' | 'openai',
+    provider: AudioProvider,
     encryptedApiKey: string | null | undefined,
   ) {
     await this.database

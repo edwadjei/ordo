@@ -66,6 +66,7 @@ import { Dialog } from './dialog';
 import { TaskDetail } from './task-detail';
 import { NoteEditor } from './note-editor';
 import { Recorder } from './recorder';
+import { defaultProvider, unavailableReason } from '../lib/transcription';
 import { AudioSettingsDialog } from './audio-settings';
 const viewNames: Record<View, string> = {
   day: 'My Day',
@@ -630,8 +631,7 @@ export function WorkspaceApp() {
             !data.notes.length && (
               <div className="voice-onboarding">
                 <span>
-                  Want to capture a thought by voice? Choose local Whisper or
-                  your own provider.
+                  Want to capture a thought by voice? Turn it on in Settings.
                 </span>
                 <button
                   className="text-button"
@@ -652,8 +652,14 @@ export function WorkspaceApp() {
                 },
                 {
                   title: 'Record',
-                  hint: audioReady ? 'A thought, out loud' : 'Coming soon',
-                  unavailable: !audioReady,
+                  // Settings not loaded yet (or failed): nothing to offer.
+                  // Loaded but not ready: the recorder explains what to set up.
+                  hint: audioReady
+                    ? 'A thought, out loud'
+                    : audioSettings
+                      ? 'Set up in Settings'
+                      : 'Coming soon',
+                  unavailable: !audioSettings,
                   icon: Mic,
                   action: () => setModal('record'),
                 },
@@ -1149,8 +1155,10 @@ export function WorkspaceApp() {
         <Recorder
           key={data.user.id}
           transcription={audioReady}
-          provider={audioSettings?.provider || 'local_whisper'}
+          unavailableReason={unavailableReason(audioSettings)}
+          provider={audioSettings?.provider || defaultProvider}
           onClose={() => setModal(null)}
+          onSettings={() => setModal('settings')}
           onNote={async (id) => {
             await work.refresh();
             setModal(null);

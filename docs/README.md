@@ -29,6 +29,7 @@ Edward's confirmed delivery order is **Ordo Web (responsive) → Ordo for iOS (u
 | [Active build plan](coordination/BUILD-PLAN.md) | Current working choices, allocation, and verification sequence |
 | [Cloudflare Phase 1 brief](coordination/CLOUDFLARE-PHASE-1-BRIEF.md) | Standalone backend and web specialist briefs for the Hono port and static export |
 | [Cloudflare Phase 2 brief](coordination/CLOUDFLARE-PHASE-2-BRIEF.md) | D1, check-on-save, code-only sign-in, Worker under `wrangler dev`, local data import |
+| [Workers AI transcription brief](coordination/WORKERS-AI-TRANSCRIPTION-BRIEF.md) | Workers AI Whisper as the default transcriber, OpenAI optional |
 | [Everyday views brief](coordination/EVERYDAY-VIEWS-BRIEF.md) | Shared contract and scope for distinct views, task times, and people |
 | [Verification evidence](coordination/VERIFICATION.md) | Actual checks, browser journeys, screenshots, and unverified release work |
 | [Web specialist brief](coordination/WEB-FOUNDATION-BRIEF.md) | Completed responsive web foundation scope and white-background design direction |
@@ -56,4 +57,4 @@ Keep setup commands runnable as written. Document environment variable and Worke
 
 From the repository root, run `npm ci` then `npm run docs`. Open `docs/html/index.html`. The output is generated and ignored by Git. The builder reads only reviewed repository Markdown; it is not an upload renderer for user-supplied content. It renders all Markdown under `docs/`, including nested specs and coordination records, so new documents appear automatically.
 
-Voice provider setup: [Audio setup](AUDIO-SETUP.md) covers local Whisper, per-account online keys, transient audio, and phone requirements.
+Voice provider setup: [Audio setup](AUDIO-SETUP.md) covers Workers AI Whisper (the default), the optional account-owned OpenAI key, transient audio, and phone requirements.

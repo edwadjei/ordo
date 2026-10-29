@@ -1,12 +1,15 @@
+import { defaultAudioProvider, type AudioProvider } from '@ordo/core';
 import type { AudioProviders } from '../../capabilities/audio-providers.contract.js';
 import type { SecretCipher } from '../../capabilities/secret-cipher.contract.js';
 import { fail } from '../../platform/http/api-failure.js';
 import type { AudioSettingsRepository } from './audio-settings.repository.js';
 export interface AudioSettingsInput {
-  provider: 'local_whisper' | 'openai';
+  provider: AudioProvider;
   apiKey?: string;
   removeApiKey?: boolean;
 }
+const workersAiUnavailableMessage =
+  "Cloudflare transcription isn't available on this server. Add an OpenAI key in Settings to transcribe here.";
 export class AudioSettingsService {
   private testing = new Set<string>();
   constructor(
@@ -14,34 +17,39 @@ export class AudioSettingsService {
     private readonly providers: AudioProviders,
     private readonly cipher: SecretCipher,
   ) {}
-  localAvailable() {
-    return this.providers.localAvailable();
+  /** Whether the Worker has its Workers AI (`AI`) binding. */
+  workersAiAvailable() {
+    return this.providers.workersAiAvailable();
   }
   /**
-   * Provider availability for this runtime. Local Whisper is available only
-   * when its loopback health check succeeds; an account's own OpenAI key
-   * needs credential storage (the secret cipher) to be configured.
+   * Provider availability for this runtime. Workers AI needs the `AI`
+   * binding; an account's own OpenAI key needs credential storage (the
+   * secret cipher) to be configured.
    */
   async capabilities() {
-    const [localWhisper, credentialStorage] = await Promise.all([
-      this.localAvailable(),
-      this.cipher.configured(),
-    ]);
+    const credentialStorage = await this.cipher.configured();
     return {
-      transcriptionProviders: { localWhisper, openai: credentialStorage },
+      transcriptionProviders: {
+        workersAi: this.workersAiAvailable(),
+        openai: credentialStorage,
+      },
       credentialStorage,
     };
   }
+  /** Whether this account has an OpenAI key saved (selected or not). */
+  async hasSavedKey(owner: string) {
+    return Boolean((await this.repository.find(owner))?.encryptedApiKey);
+  }
   async status(owner: string) {
     const row = await this.repository.find(owner),
-      localAvailable = await this.localAvailable(),
-      provider = row?.provider ?? 'local_whisper',
+      workersAiAvailable = this.workersAiAvailable(),
+      provider = row?.provider ?? defaultAudioProvider,
       hasApiKey = Boolean(row?.encryptedApiKey);
     return {
       provider,
-      localAvailable,
+      workersAiAvailable,
       hasApiKey,
-      configured: provider === 'local_whisper' ? localAvailable : hasApiKey,
+      configured: provider === 'workers_ai' ? workersAiAvailable : hasApiKey,
     };
   }
   async update(owner: string, input: AudioSettingsInput) {
@@ -70,20 +78,32 @@ export class AudioSettingsService {
     );
     return this.status(owner);
   }
-  async resolve(owner: string, expectedProvider?: 'local_whisper' | 'openai') {
+  /**
+   * The account's chosen transcriber. Never falls back from one provider to
+   * the other: a missing binding or key is reported, not substituted.
+   */
+  async resolve(owner: string, expectedProvider?: AudioProvider) {
     const row = await this.repository.find(owner);
-    const selected = row?.provider ?? 'local_whisper';
+    const selected = row?.provider ?? defaultAudioProvider;
     if (!expectedProvider || selected !== expectedProvider)
       fail(
         409,
         'AUDIO_SETTINGS_CHANGED',
         'Audio provider changed. Review Settings and record again.',
       );
-    if ((row?.provider ?? 'local_whisper') === 'local_whisper')
-      return (await this.localAvailable()) ? this.providers.local() : undefined;
-    if (!row?.encryptedApiKey) return undefined;
+    if (selected === 'workers_ai') {
+      if (!this.workersAiAvailable())
+        fail(503, 'WORKERS_AI_UNAVAILABLE', workersAiUnavailableMessage);
+      return this.providers.workersAi();
+    }
+    if (!row?.encryptedApiKey)
+      return fail(
+        503,
+        'FEATURE_UNAVAILABLE',
+        'Add your OpenAI key in Settings to transcribe.',
+      );
     try {
-      return this.providers.cloud(
+      return this.providers.openAi(
         await this.cipher.decrypt(owner, row.encryptedApiKey),
       );
     } catch {
@@ -104,19 +124,20 @@ export class AudioSettingsService {
     this.testing.add(owner);
     try {
       const row = await this.repository.find(owner);
-      if ((row?.provider ?? 'local_whisper') === 'local_whisper') {
-        const ok = await this.localAvailable();
+      if ((row?.provider ?? defaultAudioProvider) === 'workers_ai') {
+        // Readiness only: a test inference would spend the daily allowance.
+        const ok = this.workersAiAvailable();
         return {
           ok,
           message: ok
-            ? 'Local Whisper is ready on this server.'
-            : 'Local Whisper is not running or the decoder is unavailable.',
+            ? 'Cloudflare transcription is ready on this server.'
+            : workersAiUnavailableMessage,
         };
       }
       if (!row?.encryptedApiKey)
         return { ok: false, message: 'Add your API key first.' };
       try {
-        const ok = await this.providers.testCloud(
+        const ok = await this.providers.testOpenAi(
           await this.cipher.decrypt(owner, row.encryptedApiKey),
         );
         return {

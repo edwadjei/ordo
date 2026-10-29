@@ -51,7 +51,15 @@ export function createRequestSecurity(
         );
       }
     }
-    if (publicPaths.has(pathname)) return;
+    if (publicPaths.has(pathname)) {
+      // Capabilities are public, but a signed-in caller also learns whether
+      // its own saved OpenAI key makes transcription available.
+      const token =
+        pathname === '/v1/capabilities' ? readSession(request) : null;
+      if (token)
+        request.actor = await options.authenticator.resolveSession(token);
+      return;
+    }
     const token = readSession(request);
     if (!token) fail(401, 'UNAUTHORIZED', 'Sign in to continue.');
     request.actor = await options.authenticator.resolveSession(token);

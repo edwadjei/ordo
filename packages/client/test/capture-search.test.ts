@@ -14,14 +14,14 @@ test('audio uses raw bytes, actual MIME type, account precondition, and cancella
     assert.equal(init?.signal, control.signal);
     assert.equal(
       new Headers(init?.headers).get('X-Ordo-Audio-Provider'),
-      'local_whisper',
+      'workers_ai',
     );
     assert.equal(init?.credentials, 'include');
     return Response.json({ transcript: 'A transient voice thought.' });
   });
   client.setAccount('owner');
   assert.equal(
-    (await client.transcribeAudio(audio, control.signal, 'local_whisper'))
+    (await client.transcribeAudio(audio, control.signal, 'workers_ai'))
       .transcript,
     'A transient voice thought.',
   );
@@ -99,7 +99,7 @@ test('account-scoped reads carry the displayed owner while discovery remains unt
   await client.transcribeAudio(
     new Blob(['audio'], { type: 'audio/webm' }),
     undefined,
-    'local_whisper',
+    'workers_ai',
   );
   await client.home();
   await client.me();
@@ -135,7 +135,7 @@ test('account mismatch invalidates current UI but a stale response cannot invali
   const stale = client.transcribeAudio(
     new Blob(['audio'], { type: 'audio/mp4' }),
     undefined,
-    'local_whisper',
+    'workers_ai',
   );
   client.setAccount('bob');
   release!();
@@ -165,7 +165,7 @@ test('audio provider settings are owner-scoped, cancellable, and key payload is 
         ? { ok: true, message: 'Fixture connection checked.' }
         : {
             provider: 'openai',
-            localAvailable: true,
+            workersAiAvailable: true,
             hasApiKey: true,
             configured: true,
           },
@@ -188,7 +188,7 @@ test('audio provider settings are owner-scoped, cancellable, and key payload is 
 });
 
 test('transcription preserves the visible provider snapshot and rejects changed settings without fallback', async () => {
-  let visibleProvider: 'local_whisper' | 'openai' = 'local_whisper';
+  let visibleProvider: 'workers_ai' | 'openai' = 'workers_ai';
   const headers: Headers[] = [];
   let release: (() => void) | undefined;
   const client = createClient('/api', async (_url, init) => {
@@ -217,6 +217,30 @@ test('transcription preserves the visible provider snapshot and rejects changed 
       cause instanceof RequestError && cause.code === 'AUDIO_SETTINGS_CHANGED',
   );
   assert.equal(headers.length, 1);
-  assert.equal(headers[0].get('X-Ordo-Audio-Provider'), 'local_whisper');
+  assert.equal(headers[0].get('X-Ordo-Audio-Provider'), 'workers_ai');
   assert.equal(visibleProvider, 'openai');
+});
+
+test('transcription failures keep the server status, code and plain message', async () => {
+  const message =
+    "Today's free transcription is used up; it resets at midnight UTC, or add an OpenAI key in Settings.";
+  const client = createClient('/api', async () =>
+    Response.json(
+      { error: { code: 'TRANSCRIPTION_ALLOWANCE_USED', message } },
+      { status: 429 },
+    ),
+  );
+  client.setAccount('alice');
+  await assert.rejects(
+    client.transcribeAudio(
+      new Blob(['audio'], { type: 'audio/webm' }),
+      undefined,
+      'workers_ai',
+    ),
+    (cause: unknown) =>
+      cause instanceof RequestError &&
+      cause.status === 429 &&
+      cause.code === 'TRANSCRIPTION_ALLOWANCE_USED' &&
+      cause.message === message,
+  );
 });
