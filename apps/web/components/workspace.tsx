@@ -872,6 +872,10 @@ export function WorkspaceApp() {
                 aside={
                   view === 'project' && project ? (
                     <span className="project-aside">
+                      <ByAgent
+                        item={project}
+                        className="by-agent header-by-agent"
+                      />
                       <FavoriteToggle
                         name={project.name}
                         favorite={!!project.favorite}
@@ -895,6 +899,10 @@ export function WorkspaceApp() {
                     </span>
                   ) : view === 'workspace' && workspace ? (
                     <span className="project-aside">
+                      <ByAgent
+                        item={workspace}
+                        className="by-agent header-by-agent"
+                      />
                       <button
                         type="button"
                         className="favorite-toggle"
@@ -1778,6 +1786,14 @@ export function WorkspaceApp() {
             onOpenNote={(id) => {
               setModal(null);
               setSelectedNote(id);
+            }}
+            onOpenPlace={(type, id) => {
+              setModal(null);
+              if (type === 'workspace') navigate('workspace', id);
+              else {
+                const p = data.projects.find((item) => item.id === id);
+                if (p) navigate('project', p.workspaceId, p.id);
+              }
             }}
           />
         )}
