@@ -25,10 +25,13 @@ import {
   NotebookPen,
   LoaderCircle,
   Settings,
+  Star,
+  UserRound,
 } from 'lucide-react';
 import type {
   AudioSettings,
   HomeSnapshot,
+  Project,
   Task,
   TaskInput,
   SearchResult,
@@ -40,8 +43,12 @@ import {
   daySections,
   daySummary,
   defaultTimezone,
+  favoritesFirst,
+  noteSourceLabel,
   followUpOverdue,
   greeting,
+  initials,
+  profileName,
   upcomingGroups,
   visibleTasks,
   waitingTasks,
@@ -68,9 +75,12 @@ import { NoteEditor } from './note-editor';
 import { Recorder } from './recorder';
 import { defaultProvider, unavailableReason } from '../lib/transcription';
 import { registerServiceWorker } from '../lib/service-worker';
+import { ImportDialog } from './import-dialog';
+import { NameSettings } from './name-settings';
 import { AudioSettingsDialog } from './audio-settings';
 import {
   ComingSoonTab,
+  FavoriteToggle,
   ProjectActions,
   ProjectOverview,
   ProjectTabs,
@@ -138,6 +148,7 @@ export function WorkspaceApp() {
     [query, setQuery] = useState(''),
     [busy, setBusy] = useState(false),
     [taskBusy, setTaskBusy] = useState<string[]>([]),
+    [favoriteBusy, setFavoriteBusy] = useState<string[]>([]),
     [upcomingDate, setUpcomingDate] = useState('');
   const composerRef = useRef<HTMLInputElement>(null);
   const timezone = data?.user.timezone || defaultTimezone;
@@ -248,6 +259,21 @@ export function WorkspaceApp() {
       work.setMessage((error as Error).message);
     } finally {
       setTaskBusy((ids) => ids.filter((id) => id !== task.id));
+    }
+  }
+  async function toggleFavorite(item: Project) {
+    if (needsConnection('Changing favourites')) return;
+    setFavoriteBusy((ids) => [...ids, item.id]);
+    try {
+      await api.updateProject(item.id, {
+        favorite: !item.favorite,
+        expectedRevision: item.revision,
+      });
+      await work.refresh();
+    } catch (error) {
+      work.setMessage((error as Error).message);
+    } finally {
+      setFavoriteBusy((ids) => ids.filter((id) => id !== item.id));
     }
   }
   async function quickNote() {
@@ -530,24 +556,35 @@ export function WorkspaceApp() {
                       onChange={(event) => setProjectFilter(event.target.value)}
                     />
                   </label>
-                  {data.projects
-                    .filter(
+                  {favoritesFirst(
+                    data.projects.filter(
                       (p) =>
                         p.workspaceId === item.id &&
                         p.name
                           .toLowerCase()
                           .includes(projectFilter.toLowerCase()),
-                    )
-                    .map((p) => (
+                    ),
+                  ).map((p) => (
+                    <div
+                      key={p.id}
+                      className={`project-nav-row ${projectId === p.id ? 'active' : ''}`}
+                    >
                       <button
-                        key={p.id}
                         className={`project-nav-item ${projectId === p.id ? 'active' : ''}`}
+                        aria-current={projectId === p.id ? 'page' : undefined}
                         onClick={() => navigate('project', item.id, p.id)}
                       >
                         <span className="project-bullet" />
                         {p.name}
                       </button>
-                    ))}
+                      <FavoriteToggle
+                        name={p.name}
+                        favorite={!!p.favorite}
+                        busy={favoriteBusy.includes(p.id)}
+                        onToggle={() => void toggleFavorite(p)}
+                      />
+                    </div>
+                  ))}
                   <button
                     className="project-nav-item add-project"
                     onClick={() => openModal('project')}
@@ -580,16 +617,13 @@ export function WorkspaceApp() {
             <span>Settings</span>
           </button>
           <div className="profile">
-            <span className="avatar">
-              {data.user.displayName
-                .split(' ')
-                .map((n) => n[0])
-                .slice(0, 2)
-                .join('')
-                .toUpperCase()}
+            <span className="avatar" aria-hidden="true">
+              {initials(data.user.displayName) || (
+                <UserRound size={15} strokeWidth={1.7} />
+              )}
             </span>
             <div>
-              <strong>{data.user.displayName}</strong>
+              <strong>{profileName(data.user.displayName)}</strong>
               <small>Personal workspace</small>
             </div>
             <button
@@ -660,7 +694,22 @@ export function WorkspaceApp() {
               count={header.count}
               countLabel={header.countLabel}
               purpose={header.purpose}
-              aside={scopeSelect}
+              aside={
+                view === 'project' && project ? (
+                  <>
+                    <FavoriteToggle
+                      className="with-label"
+                      name={project.name}
+                      favorite={!!project.favorite}
+                      busy={favoriteBusy.includes(project.id)}
+                      onToggle={() => void toggleFavorite(project)}
+                    />
+                    {scopeSelect}
+                  </>
+                ) : (
+                  scopeSelect
+                )
+              }
             />
           )}
           {view === 'day' && <CountChips counts={counts} onOpen={openCount} />}
@@ -746,10 +795,9 @@ export function WorkspaceApp() {
                 },
                 {
                   title: 'Upload Transcript',
-                  hint: 'Coming soon',
-                  unavailable: true,
+                  hint: 'Or paste an email',
                   icon: Upload,
-                  action: () => {},
+                  action: () => openModal('upload'),
                 },
                 {
                   title: 'AI Capture',
@@ -1093,6 +1141,8 @@ export function WorkspaceApp() {
                             {new Date(note.updatedAt).toLocaleDateString(
                               'en-GB',
                             )}
+                            {noteSourceLabel(note.source) &&
+                              ` · ${noteSourceLabel(note.source)}`}
                           </small>
                         </button>
                       ))
@@ -1217,11 +1267,12 @@ export function WorkspaceApp() {
               <div className="section-heading">
                 <h2>Pick up where you left off</h2>
               </div>
-              {data.projects
-                .filter(
+              {favoritesFirst(
+                data.projects.filter(
                   (item) =>
                     !activeWorkspace || item.workspaceId === activeWorkspace,
-                )
+                ),
+              )
                 .slice(0, 3)
                 .map((item) => (
                   <button
@@ -1232,7 +1283,16 @@ export function WorkspaceApp() {
                     }
                   >
                     <span>
-                      <Folder size={15} />
+                      {item.favorite ? (
+                        <Star
+                          size={15}
+                          fill="currentColor"
+                          className="favorite-mark"
+                          aria-label="Favourite"
+                        />
+                      ) : (
+                        <Folder size={15} />
+                      )}
                       {item.name}
                       <ArrowUpRight size={13} />
                     </span>
@@ -1285,6 +1345,7 @@ export function WorkspaceApp() {
         <AudioSettingsDialog
           key={data.user.id}
           initial={audioSettings}
+          profile={<NameSettings user={data.user} onSaved={work.refresh} />}
           onClose={() => setModal(null)}
           onChange={(settings) =>
             setAudioConfig({ ownerId: data.user.id, settings })
@@ -1304,6 +1365,21 @@ export function WorkspaceApp() {
           onNote={async (id) => {
             await work.refresh();
             setModal(null);
+            setSelectedNote(id);
+          }}
+        />
+      )}
+      {(modal === 'upload' || modal === 'email') && (
+        <ImportDialog
+          key={data.user.id}
+          data={data}
+          initialKind={modal === 'email' ? 'email' : 'transcript'}
+          workspaceId={activeWorkspace}
+          projectId={projectId}
+          onClose={() => setModal(null)}
+          onSaved={async (id) => {
+            setModal(null);
+            await work.refresh().catch(() => {});
             setSelectedNote(id);
           }}
         />

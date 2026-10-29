@@ -2,6 +2,7 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
 import {
   AlertTriangle,
+  Star,
   Clock3,
   FileText,
   Mic,
@@ -10,7 +11,7 @@ import {
   Upload,
 } from 'lucide-react';
 import type { HomeSnapshot, Note, Task } from '@ordo/client';
-import { projectOverview, type Clock } from '../lib/views';
+import { noteSourceLabel, projectOverview, type Clock } from '../lib/views';
 import { Empty, Section } from './task-views';
 
 export const projectTabs = [
@@ -243,10 +244,12 @@ export function ProjectOverview({
 }
 
 function noteMeta(note: Note) {
-  return new Date(note.updatedAt).toLocaleDateString('en-GB', {
+  const date = new Date(note.updatedAt).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
   });
+  const source = noteSourceLabel(note.source);
+  return source ? `${date} · ${source}` : date;
 }
 
 export function ComingSoonTab({ kind }: { kind: 'conversations' | 'drafts' }) {
@@ -260,5 +263,39 @@ export function ComingSoonTab({ kind }: { kind: 'conversations' | 'drafts' }) {
           : 'Drafts will hold emails and messages you prepare for this project. Ordo will never send them for you.'
       }
     />
+  );
+}
+
+/** A star that favourites a project; favourites sort first everywhere. */
+export function FavoriteToggle({
+  name,
+  favorite,
+  busy,
+  onToggle,
+  className = '',
+}: {
+  name: string;
+  favorite: boolean;
+  busy?: boolean;
+  onToggle: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={`favorite-toggle ${favorite ? 'is-favorite' : ''} ${className}`}
+      aria-pressed={favorite}
+      aria-label={favorite ? `Unfavourite ${name}` : `Favourite ${name}`}
+      title={favorite ? 'Favourite · click to remove' : 'Add to favourites'}
+      disabled={busy}
+      onClick={onToggle}
+    >
+      <Star
+        size={13}
+        strokeWidth={1.8}
+        fill={favorite ? 'currentColor' : 'none'}
+        aria-hidden="true"
+      />
+    </button>
   );
 }

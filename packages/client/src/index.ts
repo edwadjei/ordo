@@ -55,6 +55,9 @@ export interface SearchResult {
 }
 export type TaskChanges = Partial<TaskInput> & { expectedRevision: number };
 export type NoteChanges = Partial<NoteInput> & { expectedRevision: number };
+export type ProjectChanges = Partial<
+  Pick<Project, 'name' | 'description' | 'favorite'>
+> & { expectedRevision: number };
 export function createClient(
   base = '/api',
   transport: typeof fetch = fetch,
@@ -66,13 +69,16 @@ export function createClient(
     route: string,
     options: RequestInit = {},
   ): Promise<T> {
-    const authenticatedRequest = ![
-      '/auth/otp/request',
-      '/auth/otp/verify',
-      '/auth/me',
-      '/home',
-      '/capabilities',
-    ].includes(route);
+    // Reads that work before an account is known; every write (including
+    // PATCH /auth/me, setting your name) carries the account guard.
+    const authenticatedRequest =
+      !['/auth/otp/request', '/auth/otp/verify', '/capabilities'].includes(
+        route,
+      ) &&
+      !(
+        ['/auth/me', '/home'].includes(route) &&
+        (options.method || 'GET') === 'GET'
+      );
     const requestAccount = accountId;
     const bookmark = bookmarks.get(requestAccount);
     const response = await transport(`${base}${route}`, {
@@ -173,6 +179,9 @@ export function createClient(
       }),
     home: () => request<HomeSnapshot>('/home'),
     me: () => request<{ user: User }>('/auth/me'),
+    /** Sets or clears (null or empty) the signed-in account's name. */
+    updateMe: (data: { displayName: string | null }) =>
+      send<{ user: User }>('/auth/me', 'PATCH', data),
     logout: async () => {
       const signingOut = accountId;
       try {
@@ -188,7 +197,10 @@ export function createClient(
       name: string;
       workspaceId: string;
       description?: string;
+      favorite?: boolean;
     }) => send<Project>('/projects', 'POST', data),
+    updateProject: (id: string, data: ProjectChanges) =>
+      send<Project>(`/projects/${id}`, 'PATCH', data),
     createTask: (
       data: Partial<TaskInput> & { title: string },
       key: string = requestId(),

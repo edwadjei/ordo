@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { RequestError, type Note } from '@ordo/client';
 import { saveLatest } from '@ordo/client/autosave';
-import { savedAtLabel } from '../lib/views';
+import { noteSourceLabel, savedAtLabel } from '../lib/views';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
 
@@ -183,6 +183,9 @@ export function NoteEditor({
             </>
           )}
         </div>
+      )}
+      {noteSourceLabel(note.source) && (
+        <p className="note-source">{noteSourceLabel(note.source)}</p>
       )}
       <label>
         Title

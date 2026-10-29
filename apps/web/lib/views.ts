@@ -1,4 +1,5 @@
 import type { HomeSnapshot, Task } from '@ordo/client';
+import { looksLikeContact as looksLikeContactForApi } from '@ordo/core';
 export type View =
   'day' | 'inbox' | 'upcoming' | 'waiting' | 'workspace' | 'project';
 export const defaultTimezone = 'Africa/Accra';
@@ -52,6 +53,18 @@ export function looksLikeContact(value: string) {
   const text = value.trim();
   return text.includes('@') || /^\+?[\d\s().-]{6,}$/.test(text);
 }
+/**
+ * Why a name can't be saved, in plain words, or '' when it can. Matches the
+ * API's rule (`cleanDisplayName`): up to 80 characters, never a phone number
+ * or email. Empty is allowed and clears the name.
+ */
+export function nameProblem(value: string) {
+  const text = value.trim();
+  if (text.length > 80) return 'Keep your name to 80 characters or fewer.';
+  if (looksLikeContactForApi(text))
+    return 'Use a name, not a phone number or email address.';
+  return '';
+}
 /** The API's default name for phone accounts that gave none; not a real name. */
 const placeholderNames = new Set(['ordo member']);
 
@@ -65,6 +78,21 @@ export function firstName(displayName: string | null | undefined) {
   )
     return '';
   return text.split(/\s+/)[0];
+}
+/** Up to two initials of a real name for the avatar, or '' to show no letters. */
+export function initials(displayName: string | null | undefined) {
+  if (!firstName(displayName)) return '';
+  return displayName!
+    .trim()
+    .split(/\s+/)
+    .map((word) => [...word][0] || '')
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+/** The name shown beside the avatar, never contact details. */
+export function profileName(displayName: string | null | undefined) {
+  return firstName(displayName) ? displayName!.trim() : 'Your account';
 }
 export function greeting(hour: number, displayName?: string | null) {
   const part =
@@ -405,4 +433,30 @@ export function projectOverview(
     notes,
     recentNotes: notes.slice(0, limits.notes),
   };
+}
+
+/** Favourite projects first; otherwise the order the API returned them in. */
+export function favoritesFirst<T extends { favorite?: boolean }>(
+  projects: T[],
+) {
+  return projects
+    .map((project, index) => ({ project, index }))
+    .sort(
+      (a, b) =>
+        Number(!!b.project.favorite) - Number(!!a.project.favorite) ||
+        a.index - b.index,
+    )
+    .map((item) => item.project);
+}
+
+export const noteSourceLabels = {
+  manual: 'Typed note',
+  recording: 'From a recording',
+  email: 'From an email',
+  transcript: 'From a transcript',
+} as const;
+/** Where a note came from, for its card and editor; '' for an ordinary typed note. */
+export function noteSourceLabel(source: string | null | undefined) {
+  if (!source || source === 'manual') return '';
+  return noteSourceLabels[source as keyof typeof noteSourceLabels] || '';
 }

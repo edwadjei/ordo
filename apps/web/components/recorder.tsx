@@ -222,6 +222,7 @@ export function Recorder({
           body: text,
           workspaceId,
           projectId,
+          source: 'recording',
         });
         id = note.id;
         if (active.current) setSavedNote(id);
