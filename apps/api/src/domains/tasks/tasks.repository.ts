@@ -12,7 +12,7 @@ import {
   type TaskRecord,
 } from '../../adapters/database/database.adapter.js';
 
-const { tasks, idempotencyKeys } = tables;
+const { tasks, idempotencyKeys, notes } = tables;
 
 /** An ancestor as read for a hierarchy check; its revision guards the save. */
 export interface Ancestor {
@@ -78,6 +78,16 @@ export class TasksRepository {
       )
       SELECT id, revision, parentId, workspaceId, projectId, deletedAt, depth
         FROM chain ORDER BY depth LIMIT ${limit + 1}`);
+  }
+
+  /** Whether the owner has this note, archived or not (a task's source). */
+  async noteExists(owner: string, id: string) {
+    const [row] = await this.database
+      .use()
+      .select({ id: notes.id })
+      .from(notes)
+      .where(and(eq(notes.id, id), eq(notes.ownerUserId, owner)));
+    return Boolean(row);
   }
 
   async hasActiveChildren(owner: string, parentId: string) {

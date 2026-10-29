@@ -21,6 +21,9 @@ import {
   otpChallenges,
   audioSettings,
   authThrottle,
+  drafts,
+  captureRuns,
+  aiSettings,
   type Database,
 } from '@ordo/db';
 
@@ -36,6 +39,9 @@ export const tables = {
   otpChallenges,
   audioSettings,
   authThrottle,
+  drafts,
+  captureRuns,
+  aiSettings,
 };
 export type { Database };
 export type UserRecord = typeof users.$inferSelect;
@@ -43,6 +49,10 @@ export type WorkspaceRecord = typeof workspaces.$inferSelect;
 export type ProjectRecord = typeof projects.$inferSelect;
 export type TaskRecord = typeof tasks.$inferSelect;
 export type NoteRecord = typeof notes.$inferSelect;
+export type DraftRecord = typeof drafts.$inferSelect;
+export type CaptureRunRecord = typeof captureRuns.$inferSelect;
+export type NewDraft = typeof drafts.$inferInsert;
+export type NewCaptureRun = typeof captureRuns.$inferInsert;
 export type NewUser = typeof users.$inferInsert;
 export type NewWorkspace = typeof workspaces.$inferInsert;
 export type NewProject = typeof projects.$inferInsert;

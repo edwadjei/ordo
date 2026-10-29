@@ -13,6 +13,12 @@ import {
   createAudioSettingsModule,
   type AudioSettingsOptions,
 } from './domains/audio-settings/audio-settings.module.js';
+import {
+  createAiSettingsModule,
+  type AiSettingsOptions,
+} from './domains/ai-settings/ai-settings.module.js';
+import { createDraftsModule } from './domains/drafts/drafts.module.js';
+import { createCaptureModule } from './domains/capture/capture.module.js';
 import type { OtpDelivery } from './capabilities/otp-delivery.contract.js';
 import { createSearchModule } from './domains/search/search.module.js';
 import {
@@ -34,6 +40,8 @@ export interface AppOptions {
   signInThrottle?: boolean;
   transcriptions?: TranscriptionOptions;
   audioSettings?: AudioSettingsOptions;
+  /** Text AI for capture; tests pass fake providers. */
+  aiSettings?: AiSettingsOptions;
 }
 
 /**
@@ -61,6 +69,18 @@ export function buildApp(options: AppOptions) {
   const audioSettings = createAudioSettingsModule(
     database,
     options.audioSettings,
+  );
+  const aiSettings = createAiSettingsModule(database, options.aiSettings);
+  const drafts = createDraftsModule(
+    database,
+    workspaces.service,
+    notes.service,
+  );
+  const capture = createCaptureModule(
+    database,
+    notes.service,
+    workspaces.service,
+    aiSettings.service,
   );
   const transcriptions = createTranscriptionsModule(
     options.transcriptions,
@@ -92,7 +112,11 @@ export function buildApp(options: AppOptions) {
       otp: { email: deliveryAvailable, sms: deliveryAvailable },
       recording: transcriptionReady,
       transcription: transcriptionReady,
-      aiCapture: false,
+      // Signed in: whether the account's chosen provider can run now.
+      // Signed out: whether the built-in provider exists on this server.
+      aiCapture: request.actor
+        ? await aiSettings.service.usable(request.actor.id)
+        : aiSettings.service.workersAiAvailable(),
       transcriptImport: false,
       transcriptionProviders: audio.transcriptionProviders,
       credentialStorage: audio.credentialStorage,
@@ -108,6 +132,9 @@ export function buildApp(options: AppOptions) {
     search,
     transcriptions,
     audioSettings,
+    aiSettings,
+    drafts,
+    capture,
   ])
     module.register(http);
   return createHonoHost(http);

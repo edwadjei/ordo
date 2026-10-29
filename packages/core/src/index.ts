@@ -39,18 +39,32 @@ export const workspaceInput = z
       .default('#577664'),
   })
   .strict();
+// Alternative names an AI capture may match to the project (0005).
+const projectAliases = z
+  .array(z.string().trim().min(1).max(60))
+  .max(10)
+  .refine(
+    (list) => new Set(list.map((a) => a.toLowerCase())).size === list.length,
+    {
+      message: 'Aliases must be different from each other.',
+    },
+  );
 export const projectInput = z
   .object({
     name,
     workspaceId: id,
     description: z.string().max(5000).default(''),
     favorite: z.boolean().default(false),
+    aliases: projectAliases.default([]),
   })
   .strict();
 export const scopeInput = z.object({
   workspaceId: id.nullable().default(null),
   projectId: id.nullable().default(null),
 });
+/** Where a task came from: typed by hand, saved from an AI capture, or (later) an agent. */
+export const taskOrigins = ['manual', 'capture', 'agent'] as const;
+export type TaskOrigin = (typeof taskOrigins)[number];
 export const taskInput = scopeInput
   .extend({
     title: name,
@@ -64,6 +78,9 @@ export const taskInput = scopeInput
     responsiblePerson: personName.nullable().default(null),
     waitingOn: personName.nullable().default(null),
     parentId: id.nullable().default(null),
+    // Provenance (0005): set on create only, never changed by a patch.
+    origin: z.enum(taskOrigins).default('manual'),
+    sourceNoteId: id.nullable().default(null),
   })
   .strict();
 // Update schemas deliberately omit creation defaults: omitted fields must remain unchanged.
@@ -133,6 +150,7 @@ export const projectPatch = z
     name: name.optional(),
     description: z.string().max(5000).optional(),
     favorite: z.boolean().optional(),
+    aliases: projectAliases.optional(),
     expectedRevision: z.number().int().positive(),
   })
   .strict();
@@ -145,6 +163,203 @@ export const projectPatch = z
 export const audioProviders = ['workers_ai', 'openai'] as const;
 export type AudioProvider = (typeof audioProviders)[number];
 export const defaultAudioProvider: AudioProvider = 'workers_ai';
+
+// ---------------------------------------------------------------------------
+// AI capture (release slice 2). See apps/api/src/domains/capture/capture.md.
+
+/**
+ * Text-AI providers an account can choose. `workers_ai` (the Worker's `AI`
+ * binding) is the default; `openai` and `anthropic` use the account's own key.
+ */
+export const textProviders = ['workers_ai', 'openai', 'anthropic'] as const;
+export type TextProvider = (typeof textProviders)[number];
+export const defaultTextProvider: TextProvider = 'workers_ai';
+
+const providerKey = z
+  .string()
+  .trim()
+  .min(16)
+  .max(512)
+  .regex(/^[A-Za-z0-9_-]+$/);
+/** `PATCH /v1/settings/ai`. A key is saved for its own provider. */
+export const aiSettingsPatch = z
+  .object({
+    textProvider: z.enum(textProviders).optional(),
+    openaiKey: providerKey.optional(),
+    anthropicKey: providerKey.optional(),
+    removeOpenaiKey: z.boolean().optional(),
+    removeAnthropicKey: z.boolean().optional(),
+  })
+  .strict();
+
+export const draftKinds = ['email', 'message'] as const;
+export type DraftKind = (typeof draftKinds)[number];
+const draftTo = z
+  .string()
+  .trim()
+  .max(200)
+  .transform((v) => (v === '' ? null : v));
+const draftSubject = z
+  .string()
+  .trim()
+  .max(200)
+  .transform((v) => (v === '' ? null : v));
+const draftBody = z.string().max(20000);
+/** `POST /v1/drafts`. Drafts are never sent by Ordo. */
+export const draftInput = z
+  .object({
+    workspaceId: id,
+    projectId: id.nullable().default(null),
+    sourceNoteId: id.nullable().default(null),
+    kind: z.enum(draftKinds),
+    to: draftTo.nullable().default(null),
+    subject: draftSubject.nullable().default(null),
+    body: draftBody,
+  })
+  .strict();
+/** `PATCH /v1/drafts/:id`; `used: true` marks it used, `false` clears that. */
+export const draftPatch = z
+  .object({
+    workspaceId: id.optional(),
+    projectId: id.nullable().optional(),
+    kind: z.enum(draftKinds).optional(),
+    to: draftTo.nullable().optional(),
+    subject: draftSubject.nullable().optional(),
+    body: draftBody.optional(),
+    used: z.boolean().optional(),
+    expectedRevision: z.number().int().positive(),
+  })
+  .strict();
+
+/** `POST /v1/notes/:id/process`: which workspace's project names the AI may see. */
+export const captureProcessInput = z
+  .object({ workspaceId: id, projectId: id.nullable().default(null) })
+  .strict();
+
+export const captureRunStatuses = [
+  'ready',
+  'failed',
+  'pending',
+  'saved',
+] as const;
+export type CaptureRunStatus = (typeof captureRunStatuses)[number];
+export const captureLimits = {
+  tasks: 50,
+  drafts: 10,
+  summary: 4000,
+  reason: 300,
+} as const;
+
+const optionalText = (max: number) =>
+  z.string().trim().max(max).nullable().default(null);
+/** A task as suggested by the AI. `key` is unique within one run. */
+export const suggestedTask = z
+  .object({
+    key: z.string().min(1).max(40),
+    title: name,
+    dueDate: dateOnly.nullable().default(null),
+    dueTime: timeOfDay.nullable().default(null),
+    followUpDate: dateOnly.nullable().default(null),
+    followUpTime: timeOfDay.nullable().default(null),
+    priority: z.enum(priorities).nullable().default(null),
+    responsiblePerson: personName.nullable().default(null),
+    waitingOn: personName.nullable().default(null),
+    isFollowUp: z.boolean().default(false),
+  })
+  .strict();
+export const suggestedDraft = z
+  .object({
+    key: z.string().min(1).max(40),
+    kind: z.enum(draftKinds),
+    to: draftTo.nullable().default(null),
+    subject: draftSubject.nullable().default(null),
+    body: draftBody.min(1),
+  })
+  .strict();
+/** Validated suggestions of a `ready` run. Invalid model output is a failed run. */
+export const captureSuggestions = z
+  .object({
+    summary: optionalText(captureLimits.summary),
+    tasks: z.array(suggestedTask).max(captureLimits.tasks),
+    drafts: z.array(suggestedDraft).max(captureLimits.drafts),
+    destination: z
+      .object({
+        workspaceId: id,
+        projectId: id.nullable(),
+        confidence: z.enum(['high', 'low']),
+        reason: z.string().trim().max(captureLimits.reason),
+      })
+      .strict(),
+  })
+  .strict();
+export type CaptureSuggestions = z.infer<typeof captureSuggestions>;
+
+/** An edited task on save; its own scope overrides the save's. */
+const savedTask = suggestedTask
+  .omit({ key: true })
+  .extend({
+    key: z.string().min(1).max(40).optional(),
+    workspaceId: id.optional(),
+    projectId: id.nullable().optional(),
+  })
+  .strict();
+const savedDraft = suggestedDraft
+  .omit({ key: true })
+  .extend({
+    key: z.string().min(1).max(40).optional(),
+    workspaceId: id.optional(),
+    projectId: id.nullable().optional(),
+  })
+  .strict();
+/** `POST /v1/capture-runs/:id/save` (with an `Idempotency-Key` header). */
+export const captureSaveInput = z
+  .object({
+    workspaceId: id,
+    projectId: id.nullable().default(null),
+    tasks: z.array(savedTask).max(captureLimits.tasks).default([]),
+    drafts: z.array(savedDraft).max(captureLimits.drafts).default([]),
+  })
+  .strict()
+  .refine((value) => value.tasks.length + value.drafts.length > 0, {
+    message: 'Choose at least one task or draft to save.',
+  });
+
+export interface CaptureRun {
+  id: string;
+  noteId: string;
+  noteRevision: number;
+  workspaceId: string;
+  projectId: string | null;
+  status: CaptureRunStatus;
+  provider: TextProvider;
+  model: string | null;
+  suggestions: CaptureSuggestions | null;
+  errorCode: string | null;
+  usage: {
+    inputTokens: number | null;
+    outputTokens: number | null;
+    /** Workers AI only: the estimated neurons this run spent. */
+    neurons: number | null;
+  } | null;
+  /** Ids created by the save; null until the run is saved. */
+  saved: { taskIds: string[]; draftIds: string[] } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface Draft {
+  id: string;
+  workspaceId: string;
+  projectId: string | null;
+  sourceNoteId: string | null;
+  kind: DraftKind;
+  to: string | null;
+  subject: string | null;
+  body: string;
+  usedAt: string | null;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export type TaskInput = z.infer<typeof taskInput>;
 export type NoteInput = z.infer<typeof noteInput>;
@@ -169,11 +384,18 @@ export interface Project {
   description: string;
   workspaceId: string;
   favorite: boolean;
+  aliases: string[];
   revision: number;
   createdAt: string;
   updatedAt: string;
 }
-export interface Task extends TaskInput {
+export interface Task extends Omit<TaskInput, 'origin' | 'sourceNoteId'> {
+  /**
+   * Always returned by the API (`"manual"` and `null` by default); optional
+   * only so data a client cached before these fields existed still fits.
+   */
+  origin?: TaskOrigin;
+  sourceNoteId?: string | null;
   id: string;
   revision: number;
   completedAt: string | null;
