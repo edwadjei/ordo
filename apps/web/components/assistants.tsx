@@ -67,6 +67,36 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
+/** A read-only value with its own label and a Copy button beside it. */
+function CopyField({
+  id,
+  label,
+  value,
+  copyLabel,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  copyLabel: string;
+}) {
+  return (
+    <div className="copy-block">
+      <label htmlFor={id}>{label}</label>
+      <div className="copy-field">
+        <input
+          id={id}
+          readOnly
+          value={value}
+          onFocus={(event) => event.target.select()}
+          spellCheck={false}
+          autoComplete="off"
+        />
+        <CopyButton text={value} label={copyLabel} />
+      </div>
+    </div>
+  );
+}
+
 /**
  * Settings › Connected assistants: access keys for AI assistants that use
  * Ordo through MCP or the API. A new key is shown once, here, and kept only
@@ -126,35 +156,18 @@ export function AssistantsDialog({
             {shown.name}” until you revoke it.
           </span>
         </p>
-        <label>
-          Access key for {shown.name}
-          <div className="copy-field">
-            <input
-              readOnly
-              value={shown.token}
-              onFocus={(event) => event.target.select()}
-              spellCheck={false}
-              autoComplete="off"
-            />
-            <CopyButton text={shown.token} label="Copy the key" />
-          </div>
-        </label>
-        <label>
-          Connect Claude Code (run this in a terminal)
-          <div className="copy-field">
-            <input
-              readOnly
-              value={connectCommand(origin, shown.token)}
-              onFocus={(event) => event.target.select()}
-              spellCheck={false}
-              autoComplete="off"
-            />
-            <CopyButton
-              text={connectCommand(origin, shown.token)}
-              label="Copy the connect command"
-            />
-          </div>
-        </label>
+        <CopyField
+          id="new-key"
+          label={`Access key for ${shown.name}`}
+          value={shown.token}
+          copyLabel="Copy the key"
+        />
+        <CopyField
+          id="new-key-command"
+          label="Connect Claude Code (run this in a terminal)"
+          value={connectCommand(origin, shown.token)}
+          copyLabel="Copy the connect command"
+        />
         <div className="form-actions">
           <button className="primary" onClick={() => setShown(null)}>
             I’ve copied it
@@ -172,26 +185,18 @@ export function AssistantsDialog({
         settings, and everything they do is listed under Activity.
       </p>
       <section className="assistants-connect" aria-label="How to connect">
-        <label>
-          MCP address
-          <div className="copy-field">
-            <input readOnly value={mcpAddress(origin)} />
-            <CopyButton
-              text={mcpAddress(origin)}
-              label="Copy the MCP address"
-            />
-          </div>
-        </label>
-        <label>
-          Connect Claude Code
-          <div className="copy-field">
-            <input readOnly value={connectCommand(origin)} />
-            <CopyButton
-              text={connectCommand(origin)}
-              label="Copy the connect command"
-            />
-          </div>
-        </label>
+        <CopyField
+          id="mcp-address"
+          label="MCP address"
+          value={mcpAddress(origin)}
+          copyLabel="Copy the MCP address"
+        />
+        <CopyField
+          id="connect-command"
+          label="Connect Claude Code"
+          value={connectCommand(origin)}
+          copyLabel="Copy the connect command"
+        />
         <p className="field-hint">
           Replace PASTE_YOUR_KEY_HERE with a key. A new key’s screen gives you
           the command with the key already in it.

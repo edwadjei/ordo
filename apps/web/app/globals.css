@@ -3508,3 +3508,10 @@ fieldset:disabled select {
   gap: 4px;
   color: light-dark(#5b5aa8, #a9a8f0);
 }
+.dialog .copy-block {
+  margin: 18px 0;
+}
+.dialog .copy-block > label {
+  display: block;
+  margin: 0 0 7px;
+}
