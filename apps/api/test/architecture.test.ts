@@ -244,10 +244,12 @@ test('no Node crypto anywhere, and the Worker bundle uses only node:async_hooks 
         `${file.relative} imports Node crypto; use the Web Crypto adapters`,
       );
       if (dependency.specifier.startsWith('node:') && !dependency.typeOnly)
-        assert.equal(
-          `${file.relative} -> ${dependency.specifier}`,
-          'adapters/database/database.adapter.ts -> node:async_hooks',
-          'Only the request-scoped database uses Node (AsyncLocalStorage, nodejs_als)',
+        assert.ok(
+          [
+            'adapters/database/database.adapter.ts -> node:async_hooks',
+            'platform/identifiers/random.ts -> node:async_hooks',
+          ].includes(`${file.relative} -> ${dependency.specifier}`),
+          'Only the request-scoped database and the warm-up randomness scope use Node (AsyncLocalStorage, nodejs_als)',
         );
     }
 });

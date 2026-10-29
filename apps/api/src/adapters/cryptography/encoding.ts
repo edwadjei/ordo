@@ -1,6 +1,7 @@
 // Runtime-neutral byte encodings for the Web Crypto adapters. They use only
 // globals that Node 22 and Cloudflare Workers both provide (TextEncoder, btoa,
 // atob), so no adapter needs Node's Buffer.
+import { fillRandom } from '../../platform/identifiers/random.js';
 
 /** The global Web Crypto key type, without pulling in DOM typings. */
 export type WebCryptoKey = Awaited<ReturnType<typeof crypto.subtle.importKey>>;
@@ -42,7 +43,7 @@ export function fromBase64(value: string) {
 }
 
 export function randomBytes(length: number) {
-  return crypto.getRandomValues(new Uint8Array(length));
+  return fillRandom(new Uint8Array(length));
 }
 
 export async function sha256Hex(content: string) {

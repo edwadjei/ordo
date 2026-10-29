@@ -1,6 +1,11 @@
 import { isoNow } from '../../platform/time/iso-now.js';
 import type { z } from 'zod';
-import type { NoteInput, notePatch } from '@ordo/core';
+import {
+  noteBodyLength,
+  notePreview,
+  type NoteInput,
+  type notePatch,
+} from '@ordo/core';
 import { fail } from '../../platform/http/api-failure.js';
 import { publicRecord } from '../../platform/http/response.js';
 import {
@@ -10,6 +15,15 @@ import {
 import { newId } from '../../platform/identifiers/new-id.js';
 import type { WorkspacesService } from '../workspaces/workspaces.service.js';
 import { NotesRepository } from './notes.repository.js';
+
+/** A whole note: its body plus the same `preview` and `bodyLength` lists carry. */
+function publicNote<T extends { ownerUserId: string; body: string }>(row: T) {
+  return {
+    ...publicRecord(row),
+    preview: notePreview(row.body),
+    bodyLength: noteBodyLength(row.body),
+  };
+}
 
 export class NotesService {
   constructor(
@@ -21,12 +35,12 @@ export class NotesService {
     return (await this.repository.list(owner)).map(publicRecord);
   }
   async get(owner: string, id: string) {
-    return publicRecord(await this.requireNote(owner, id));
+    return publicNote(await this.requireNote(owner, id));
   }
 
   async create(owner: string, input: NoteInput) {
     await this.workspaces.validateScope(owner, input);
-    return publicRecord(
+    return publicNote(
       await this.repository.insert({
         id: newId(),
         ownerUserId: owner,
@@ -44,7 +58,7 @@ export class NotesService {
       ...patch,
       updatedAt: isoNow(),
     });
-    return publicRecord(saved ?? revisionConflict());
+    return publicNote(saved ?? revisionConflict());
   }
 
   async archive(owner: string, id: string, expectedRevision: number) {
@@ -55,7 +69,7 @@ export class NotesService {
       deletedAt: now,
       updatedAt: now,
     });
-    return publicRecord(saved ?? revisionConflict());
+    return publicNote(saved ?? revisionConflict());
   }
 
   private async requireNote(owner: string, id: string) {
