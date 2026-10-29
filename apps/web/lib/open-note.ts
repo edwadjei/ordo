@@ -1,4 +1,4 @@
-import type { Note } from '@ordo/client';
+import type { Note, NoteSummary } from '@ordo/client';
 import type { CachedNote } from '@ordo/client/note-bodies';
 
 export type OpenedNote =
@@ -24,7 +24,7 @@ export async function openNote({
   fetchNote,
   cached,
 }: {
-  listed: Note;
+  listed: NoteSummary;
   offline: boolean;
   fetchNote: () => Promise<Note>;
   cached: () => CachedNote | null;

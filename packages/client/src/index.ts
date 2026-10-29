@@ -311,6 +311,7 @@ export type {
   HomeSnapshot,
   Task,
   Note,
+  NoteSummary,
   Workspace,
   Project,
   User,

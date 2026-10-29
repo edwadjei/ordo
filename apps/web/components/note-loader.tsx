@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, type ComponentProps } from 'react';
 import { CloudOff, LoaderCircle, RotateCw } from 'lucide-react';
-import type { Note } from '@ordo/client';
+import type { NoteSummary } from '@ordo/client';
 import { cacheNote, cachedNote } from '@ordo/client/note-bodies';
 import { api } from '../lib/workspace';
 import { openNote, type OpenedNote } from '../lib/open-note';
@@ -23,7 +23,7 @@ export function NoteLoader({
   offline,
   ...editor
 }: {
-  listed: Note;
+  listed: NoteSummary;
   ownerId: string;
   offline: boolean;
 } & Omit<ComponentProps<typeof NoteEditor>, 'note' | 'onRemoteSaved'>) {

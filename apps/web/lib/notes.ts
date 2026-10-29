@@ -13,10 +13,13 @@ type Listed = Pick<Note, 'id'> & {
 
 export const listPreview = (note: Listed) => note.preview ?? note.body ?? '';
 export const noteLength = (note: Listed) =>
-  note.bodyLength ?? note.body?.length ?? 0;
+  note.bodyLength ?? (note.body === undefined ? 0 : [...note.body].length);
+/** Characters as the API counts them: code points, so an emoji is one. */
+const codePoints = (text: string) => [...text].length;
 /** True when the list only has the start of the note. */
 export const previewIsPartial = (note: Listed) =>
-  noteLength(note) > listPreview(note).length;
+  noteLength(note) > codePoints(listPreview(note));
 /** A note from a list counts as loaded only when it carries its whole body. */
 export const hasFullBody = (note: Listed): note is Listed & { body: string } =>
-  typeof note.body === 'string' && note.body.length === noteLength(note);
+  typeof note.body === 'string' &&
+  (note.bodyLength === undefined || codePoints(note.body) === note.bodyLength);

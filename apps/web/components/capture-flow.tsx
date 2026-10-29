@@ -15,7 +15,7 @@ import {
   RequestError,
   requestId,
   type HomeSnapshot,
-  type Note,
+  type NoteSummary,
 } from '@ordo/client';
 import type { CaptureRun, CaptureSaveResult } from '@ordo/client/capture';
 import { api } from '../lib/workspace';
@@ -58,7 +58,7 @@ export function CaptureFlow({
   onOpenDrafts,
 }: {
   data: HomeSnapshot;
-  note: Note;
+  note: NoteSummary;
   onClose: () => void;
   onSaved: () => Promise<unknown>;
   onOpenTask: (id: string) => void;

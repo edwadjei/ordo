@@ -29,3 +29,13 @@ test('snapshots saved before the change (body, no preview) still read', () => {
   assert.equal(noteLength(old), 15);
   assert.equal(hasFullBody(old), true);
 });
+
+test('lengths are counted in code points, as the API counts them', () => {
+  const body = '🎉 Launch'; // 8 code points, 9 UTF-16 units
+  assert.equal(
+    previewIsPartial({ id: 'n', preview: body, bodyLength: 8 }),
+    false,
+  );
+  assert.equal(hasFullBody({ id: 'n', body, bodyLength: 8 }), true);
+  assert.equal(noteLength({ id: 'n', body }), 8);
+});
