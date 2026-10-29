@@ -178,3 +178,42 @@ Live site `https://ordo.edward-dejaysblog.workers.dev`, Worker version `b503fb99
 
 Most signed-in routes are over the 10 ms limit and well over target. Cloudflare let every request finish in this light use, but heavier use risks `Exceeded CPU` errors. This goes to the API specialist with these numbers. Static pages do not run the Worker.
 
+## Hosted AI capture and the CPU fix — 29 October 2026
+
+Live site `https://ordo.edward-dejaysblog.workers.dev`, Worker version `e870f486-f40c-4a24-9127-ce617d4b7767` (`main` at `25a51fe`). Release details are in the [delivery ledger](../PLAN.md#release-record).
+
+**Signed in** (agent driving Edward's existing session in the built-in browser; test items sit in the "Hosting check (delete me)" workspace):
+
+| Check | Result |
+|---|---|
+| AI Capture on My Day | Enabled ("Turn a capture into tasks") |
+| Paste a short fictional transcript, save it as a note in project Check A | Saved with source `transcript` |
+| Process with AI (one real Workers AI run, Edward's OK) | Review in about 20 seconds: a summary, 1 task ("Send Check A budget draft", due Friday 30 October, responsible Ama), 1 follow-up (waiting on Lakeside, responsible Kofi), 1 email draft to Kofi |
+| Review and save selected (draft left out) | "Created 2 tasks and 0 drafts, linked to this capture" |
+| Provenance | Both tasks have `origin: capture` and `sourceNoteId` set to the transcript note; the follow-up has status `waiting` |
+| Notes on `/home` | Previews only, no `body` field |
+| Open a note | `GET /api/notes/:id` returns the full body |
+| Tasks and notes: create, edit; search; reload | All 2xx, 10 rounds |
+| Transcription (recording), email notes, sign-in again | Not checked. Sign-in was not repeated because it sends a real code; `otp/request` and `otp/verify` have release 1 numbers only |
+
+**CPU per request** (`wrangler tail`, milliseconds; Free plan limit 10 ms). `tail` dropped some invocations, so counts are lower than the requests sent. Every logged request completed with outcome `ok`. The first request after the deploy (`GET /api/health`) used 6 ms; the first `/api/home` on a new isolate used 10–12 ms.
+
+| Route | Release 2 median / max | Release 3 requests | Release 3 median | Release 3 max |
+|---|---|---|---|---|
+| `GET /api/auth/me` | 3 / 6 | 9 | 1 | 6 |
+| `GET /api/home` | 12 / 18 | 15 | 7 | 14 |
+| `GET /api/search` | 10 / 10 | 3 | 5 | 7 |
+| `GET /api/notes/:id` | — | 6 | 4 | 4 |
+| `GET /api/settings/audio` | 7 / 53 | 2 | 3 | 3 |
+| `GET /api/settings/ai` | — | 2 | 8 | 9 |
+| `POST /api/tasks` | 26 / 26 | 6 | 8.5 | 13 |
+| `PATCH /api/tasks/:id` | 16.5 / 22 | 8 | 7.5 | 14 |
+| `POST /api/notes` | 21 / 21 | 5 | 8 | 9 |
+| `PATCH /api/notes/:id` | 14 / 14 | 5 | 9 | 11 |
+| `POST /api/notes/:id/process` | — | 1 | 19 | 19 |
+| `POST /api/capture-runs/:id/save` | — | 1 | 31 | 31 |
+| `POST /api/auth/otp/request` | 35 (release 1) | not measured | — | — |
+| `POST /api/auth/otp/verify` | 19 (release 1) | not measured | — | — |
+
+The fix roughly halves CPU: medians for reads and everyday writes are now under 10 ms, though maximums still reach 11–14 ms. Processing a capture (19 ms) and saving one (31 ms) are over the limit, and sign-in was 19–35 ms when last measured. These go back to the API specialist.
+
