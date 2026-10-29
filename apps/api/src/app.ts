@@ -20,6 +20,8 @@ import {
 import { createDraftsModule } from './domains/drafts/drafts.module.js';
 import { createCaptureModule } from './domains/capture/capture.module.js';
 import { createRelatedModule } from './domains/related/related.module.js';
+import { createAgentAccessModule } from './domains/agent-access/agent-access.module.js';
+import { createMcpModule } from './domains/mcp/mcp.module.js';
 import type { OtpDelivery } from './capabilities/otp-delivery.contract.js';
 import { createSearchModule } from './domains/search/search.module.js';
 import {
@@ -92,6 +94,7 @@ export function composeApp(options: AppOptions) {
     workspaces.service,
     aiSettings.service,
   );
+  const agentAccess = createAgentAccessModule(database, options.otpHmacKey);
   const transcriptions = createTranscriptionsModule(
     options.transcriptions,
     audioSettings.service,
@@ -103,8 +106,11 @@ export function composeApp(options: AppOptions) {
       throttle:
         options.signInThrottle === false ? undefined : identity.throttle,
       trustedOrigins: options.trustedOrigins,
+      agents: agentAccess.service,
     }),
   );
+  // Logs what each agent access token did (REST; MCP logs per tool).
+  http.after(agentAccess.service.afterHook);
   registerHealth(http);
   http.get('/v1/capabilities', async (request) => {
     const deliveryAvailable = options.otpDelivery.available();
@@ -146,6 +152,17 @@ export function composeApp(options: AppOptions) {
     drafts,
     capture,
     createRelatedModule(database),
+    agentAccess,
+    createMcpModule(
+      {
+        tasks: tasks.service,
+        notes: notes.service,
+        workspaces: workspaces.service,
+        search: search.service,
+        home: home.service,
+      },
+      agentAccess.service,
+    ),
   ])
     module.register(http);
   return http;

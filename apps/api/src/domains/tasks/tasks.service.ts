@@ -57,7 +57,16 @@ export class TasksService {
     return publicRecord(await this.requireTask(owner, id));
   }
 
-  async create(owner: string, input: TaskInput, key: string) {
+  /**
+   * `createdByTokenId` is set when an agent access token makes the request:
+   * the task's origin is then `agent`. Clients can never set either.
+   */
+  async create(
+    owner: string,
+    input: TaskInput,
+    key: string,
+    createdByTokenId: string | null = null,
+  ) {
     const fingerprint = await this.hasher.digest(JSON.stringify(input));
     const previous = await this.retried(owner, key, fingerprint);
     if (previous) return previous;
@@ -77,6 +86,9 @@ export class TasksService {
           id,
           ownerUserId: owner,
           ...input,
+          ...(createdByTokenId
+            ? { origin: 'agent' as const, createdByTokenId }
+            : {}),
           completedAt: input.status === 'done' ? isoNow() : null,
         },
         { id: newId(), key, fingerprint },
