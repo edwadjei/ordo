@@ -83,14 +83,15 @@ export class CaptureService {
     signal?: AbortSignal,
   ) {
     const owner = user.id;
-    const note = await this.notes.get(owner, noteId);
+    // Each read is one D1 round trip, and every round trip costs Worker CPU
+    // in the binding: the note, the scope with its projects, the AI choice.
+    const note = await this.notes.text(owner, noteId);
     if (!note.body.trim())
       fail(400, 'CAPTURE_EMPTY', 'This capture has no text to process.');
-    await this.workspaces.validateScope(owner, input);
-    const [workspace, projects] = await Promise.all([
-      this.workspaces.getWorkspace(owner, input.workspaceId),
-      this.workspaces.listProjects(owner, input.workspaceId),
-    ]);
+    const { workspace, projects } = await this.workspaces.scopeWithProjects(
+      owner,
+      input,
+    );
     const base = {
       id: newId(),
       ownerUserId: owner,
@@ -99,22 +100,18 @@ export class CaptureService {
       workspaceId: input.workspaceId,
       projectId: input.projectId,
     };
-    const settings = await this.ai.status(owner);
-    let model: TextModel;
-    try {
-      model = await this.ai.resolve(owner);
-    } catch (error) {
-      if (!isUnavailable(error)) throw error;
+    const choice = await this.ai.choose(owner);
+    if (!choice.model)
       return publicRun(
         await this.repository.insert({
           ...base,
           status: 'pending',
-          provider: settings.textProvider,
+          provider: choice.provider,
           model: null,
-          errorCode: error.code,
+          errorCode: choice.unavailable.code,
         }),
       );
-    }
+    const model: TextModel = choice.model;
     if (note.body.length > model.maxInputCharacters)
       fail(
         413,
@@ -279,9 +276,12 @@ export class CaptureService {
       draftRows,
     );
     // Another save won between the read and the batch.
-    if (saved.saveClaim !== claim)
-      return this.savedBefore(owner, saved, key, fingerprint);
-    return { ...(await this.result(owner, saved)), created: true };
+    if (saved.run.saveClaim !== claim)
+      return this.savedBefore(owner, saved.run, key, fingerprint);
+    return {
+      ...this.shape(saved.run, saved.tasks, saved.drafts),
+      created: true,
+    };
   }
 
   private async savedBefore(
@@ -301,12 +301,22 @@ export class CaptureService {
     return { ...(await this.result(owner, run)), created: false };
   }
 
+  /** A saved run's result, read again (a retry of an earlier save). */
   private async result(owner: string, run: CaptureRunRecord) {
     const ids = run.savedResult ?? { taskIds: [], draftIds: [] };
     const [tasks, drafts] = await Promise.all([
       this.repository.tasksByIds(owner, ids.taskIds),
       this.repository.draftsByIds(owner, ids.draftIds),
     ]);
+    return this.shape(run, tasks, drafts);
+  }
+
+  private shape(
+    run: CaptureRunRecord,
+    tasks: TaskRecord[],
+    drafts: DraftRecord[],
+  ) {
+    const ids = run.savedResult ?? { taskIds: [], draftIds: [] };
     // In the order they were saved (they share one timestamp).
     const inOrder = <T extends { id: string }>(rows: T[], order: string[]) =>
       [...rows].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));

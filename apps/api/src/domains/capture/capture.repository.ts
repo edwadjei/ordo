@@ -7,7 +7,9 @@ import {
   sql,
   tables,
   type CaptureRunRecord,
+  type DraftRecord,
   type NewCaptureRun,
+  type TaskRecord,
 } from '../../adapters/database/database.adapter.js';
 
 const { captureRuns, tasks, drafts } = tables;
@@ -58,7 +60,9 @@ export class CaptureRepository {
    * from `ready` to `saved` under this request's random claim, and the tasks
    * and drafts are inserted only if that claim is the one stored. A run that
    * was already saved, or a concurrent save that won, leaves everything as it
-   * was. Returns the run as it stands after the batch.
+   * was. Returns the run as it stands after the batch, with the tasks and
+   * drafts this save created (read in the same batch, so no further round
+   * trip; empty when another save won).
    */
   async save(
     owner: string,
@@ -72,7 +76,11 @@ export class CaptureRepository {
     },
     taskRows: SavedRow[],
     draftRows: SavedRow[],
-  ): Promise<CaptureRunRecord> {
+  ): Promise<{
+    run: CaptureRunRecord;
+    tasks: TaskRecord[];
+    drafts: DraftRecord[];
+  }> {
     const db = this.database.use();
     const won = sql`EXISTS (SELECT 1 FROM ${captureRuns} WHERE id = ${id} AND save_claim = ${claim.claim})`;
     const statements = [
@@ -99,15 +107,23 @@ export class CaptureRepository {
         ? [db.run(insertWhere(drafts, draftRows, won))]
         : []),
       db.select().from(captureRuns).where(eq(captureRuns.id, id)),
+      this.tasksByIds(owner, claim.result.taskIds),
+      this.draftsByIds(owner, claim.result.draftIds),
     ] as const;
     const results = await db.batch(
       statements as unknown as Parameters<typeof db.batch>[0],
     );
-    return (results.at(-1) as CaptureRunRecord[])[0];
+    const [run] = results.at(-3) as CaptureRunRecord[];
+    const claimed = run.saveClaim === claim.claim;
+    return {
+      run,
+      tasks: claimed ? (results.at(-2) as TaskRecord[]) : [],
+      drafts: claimed ? (results.at(-1) as DraftRecord[]) : [],
+    };
   }
 
+  /** The tasks with these ids (a query, to run alone or in a batch). */
   tasksByIds(owner: string, ids: string[]) {
-    if (!ids.length) return Promise.resolve([]);
     return this.database
       .use()
       .select()
@@ -122,7 +138,6 @@ export class CaptureRepository {
   }
 
   draftsByIds(owner: string, ids: string[]) {
-    if (!ids.length) return Promise.resolve([]);
     return this.database
       .use()
       .select()

@@ -23,6 +23,7 @@
  * compiles functions on first use, so cold requests cost several times more.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import {
   copyFileSync,
   existsSync,
@@ -52,11 +53,79 @@ const WARMUP = 5;
 
 interface Seed {
   cookie: string;
+  owner: string;
   workspaceIds: string[];
   projectIds: string[];
   taskIds: string[];
   noteIds: string[];
+  /** Transcripts of about 2,000 and 10,000 words, for capture processing. */
+  longNotes: { words2k: string; words10k: string };
 }
+
+/**
+ * The size of a real Workers AI reply (the first hosted run returned 526
+ * output tokens): a summary, five tasks and an email draft. The binding
+ * stub below returns it as a JSON string, so the Worker parses it.
+ */
+const modelReply = JSON.stringify({
+  summary:
+    'The team reviewed the website relaunch and hiring. The homepage copy still needs approval, the hosting quote is pending from Yaw, and a job description is due. A review meeting is planned for the 14th.',
+  tasks: [
+    [
+      'Send the homepage copy to Ama for approval',
+      '2026-10-30',
+      null,
+      null,
+      null,
+    ],
+    ['Follow up with Yaw on the hosting quote', null, null, null, 'Yaw'],
+    [
+      'Draft the job description for the frontend developer role',
+      '2026-11-04',
+      null,
+      'Kofi',
+      null,
+    ],
+    [
+      'Email the design agency for the final logo files',
+      '2026-10-29',
+      null,
+      null,
+      null,
+    ],
+    [
+      'Book a review meeting for the site relaunch',
+      '2026-11-14',
+      '10:00',
+      null,
+      null,
+    ],
+  ].map(([title, dueDate, dueTime, responsiblePerson, waitingOn]) => ({
+    title,
+    dueDate,
+    dueTime,
+    followUpDate: waitingOn ? '2026-11-02' : null,
+    followUpTime: null,
+    priority: dueTime ? 'high' : null,
+    responsiblePerson,
+    waitingOn,
+    isFollowUp: Boolean(waitingOn),
+  })),
+  drafts: [
+    {
+      kind: 'email',
+      to: 'the design agency',
+      subject: 'Final logo files',
+      body: 'Hi,\n\nThank you for all your work on our new logo. We are very happy with how it turned out. Could you please send us the final logo files in all the formats you prepared, including the vector versions for print and the PNG versions for the web? It would help us finish the homepage before the relaunch.\n\nThanks again,',
+    },
+  ],
+  destination: {
+    projectRef: 'p1',
+    confidence: 'high',
+    reason: 'Names the site relaunch.',
+  },
+});
+const OTP_KEY = '0f'.repeat(32);
 
 // --- The Worker under test ------------------------------------------------
 type WorkerModule = {
@@ -75,10 +144,16 @@ async function loadWorker(databasePath: string) {
     DB: sqlite,
     ASSETS: { fetch: () => new Response('asset') },
     ORDO_ENV: 'development',
-    ORDO_FAKE_TEXT_AI: 'on',
-    ORDO_WORKERS_AI: 'off',
+    ORDO_WORKERS_AI: 'on',
+    // Workers AI as the hosted Worker uses it, answered locally: no call.
+    AI: {
+      run: async () => ({
+        response: modelReply,
+        usage: { prompt_tokens: 3000, completion_tokens: 526 },
+      }),
+    },
     TRUSTED_ORIGINS: origin,
-    OTP_HMAC_KEY: '0f'.repeat(32),
+    OTP_HMAC_KEY: OTP_KEY,
     ORDO_CREDENTIAL_KEY: '1e'.repeat(32),
     GATEKEEPER_API_KEY: 'fictional',
     GATEKEEPER_API_URL: 'https://gatekeeper.example.test',
@@ -177,19 +252,35 @@ async function seed() {
     throw new Error(`Sign-in failed: ${verified.text}`);
   const cookie = verified.headers.getSetCookie()[0].split(';')[0];
   const owner = JSON.parse(verified.text).user.id as string;
-  const words =
+  const vocabulary =
     'launch vendor pricing review checklist venue supplier contract budget meeting follow agenda design rollout timeline'.split(
       ' ',
     );
   const text = (length: number, seed: number) => {
     let out = '';
     for (let i = 0; out.length < length; i++)
-      out += `${words[(seed * 7 + i * 13) % words.length]}${i % 12 === 11 ? '.\n' : ' '}`;
+      out += `${vocabulary[(seed * 7 + i * 13) % vocabulary.length]}${i % 12 === 11 ? '.\n' : ' '}`;
     return out.slice(0, length);
   };
   const id = () => crypto.randomUUID();
+  // Spoken English averages under five letters a word, so 10,000 words
+  // fit Workers AI's 64,000 characters, as a real transcript would.
+  const speech =
+    'we need to send the new copy to Ama by Friday and then ask Kofi about the quote for the site so that the team can plan the launch next week with the agency'.split(
+      ' ',
+    );
+  const words = (count: number, seed: number) => {
+    const out: string[] = [];
+    for (let i = 0; i < count; i++) {
+      out.push(speech[(seed * 7 + i * 13) % speech.length]);
+      if (i % 14 === 13) out[out.length - 1] += '.\n';
+    }
+    return out.join(' ');
+  };
   const seedData: Seed = {
     cookie,
+    owner,
+    longNotes: { words2k: id(), words10k: id() },
     workspaceIds: Array.from({ length: sizes.workspaces }, id),
     projectIds: Array.from({ length: sizes.projects }, id),
     taskIds: [],
@@ -254,6 +345,19 @@ async function seed() {
       ['manual', 'recording', 'email', 'transcript'][i % 4],
     );
   }
+  for (const [key, count] of [
+    ['words2k', 2000],
+    ['words10k', 10000],
+  ] as const)
+    run(
+      'INSERT INTO notes (id, owner_user_id, workspace_id, title, body, source) VALUES (?, ?, ?, ?, ?, ?)',
+      seedData.longNotes[key],
+      owner,
+      workspaceIds[0],
+      `Transcript (${count} words)`,
+      words(count, count),
+      'transcript',
+    );
   sqlite.db.exec('COMMIT');
   sqlite.db.close();
   writeFileSync(state, JSON.stringify(seedData));
@@ -333,32 +437,76 @@ function routes(data: Seed): Record<string, () => Promise<Result>> {
         body: { contact: `bench-${seq++}-${Math.random()}@example.test` },
         headers: { 'cf-connecting-ip': nextIp() },
       }),
-    // Preceded by its code request, which warms the shared sign-in code.
-    'POST /auth/otp/verify': async () => {
-      const asked = await request('POST', '/auth/otp/request', {
-        body: { contact: `bench-${seq++}-${Math.random()}@example.test` },
-        headers: { 'cf-connecting-ip': nextIp() },
-      });
+    // A ready challenge is written straight into D1 (untimed), so verify is
+    // measured on its own, cold or warm.
+    'POST /auth/otp/verify': () => {
+      const challengeId = crypto.randomUUID();
+      const code = '123456';
+      const hash = createHmac('sha256', Buffer.from(OTP_KEY, 'hex'))
+        .update(`${challengeId}:${code}`)
+        .digest('hex');
+      sqlite.db
+        .prepare(
+          `INSERT INTO otp_challenges (contact, challenge_id, code_hash, expires_at, next_send_at, window_started_at, requests, attempts, ready, consumed)
+           VALUES (?, ?, ?, '2999-01-01T00:00:00.000Z', ?, ?, 1, 0, 1, 0)`,
+        )
+        .run(
+          `verify-${seq++}-${Math.random()}@example.test`,
+          challengeId,
+          `hmac-sha256:${hash}`,
+          new Date().toISOString(),
+          new Date().toISOString(),
+        );
       return request('POST', '/auth/otp/verify', {
-        body: {
-          challengeId: JSON.parse(asked.text).challengeId,
-          code: codes.at(-1),
-        },
+        body: { challengeId, code },
         headers: { 'cf-connecting-ip': nextIp() },
       });
     },
     'POST /notes/:id/process': () => process(data.noteIds[seq++ % sizes.notes]),
-    // Preceded by its process request, which warms the shared capture code.
-    'POST /capture-runs/:id/save': async () => {
-      const run = JSON.parse(
-        (await process(data.noteIds[seq++ % sizes.notes])).text,
-      );
-      return request('POST', `/capture-runs/${run.id}/save`, {
+    'POST /notes/:id/process (2,000 words)': () =>
+      process(data.longNotes.words2k),
+    'POST /notes/:id/process (10,000 words)': () =>
+      process(data.longNotes.words10k),
+    // A ready run with 10 tasks and 2 drafts is written straight into D1
+    // (untimed), then saved with all of them.
+    'POST /capture-runs/:id/save (10 tasks, 2 drafts)': () => {
+      const runId = crypto.randomUUID();
+      const reply = JSON.parse(modelReply);
+      const suggestions = {
+        summary: reply.summary,
+        tasks: Array.from({ length: 10 }, (_, i) => ({
+          ...reply.tasks[i % 5],
+          key: `t${i + 1}`,
+          title: `${reply.tasks[i % 5].title} (${i + 1})`,
+        })),
+        drafts: [0, 1].map((i) => ({ ...reply.drafts[0], key: `d${i + 1}` })),
+        destination: {
+          workspaceId,
+          projectId: null,
+          confidence: 'low',
+          reason: 'No project named.',
+        },
+      };
+      sqlite.db
+        .prepare(
+          `INSERT INTO capture_runs (id, owner_user_id, note_id, note_revision, workspace_id, status, provider, model, suggestions)
+           VALUES (?, ?, ?, 1, ?, 'ready', 'workers_ai', 'bench', ?)`,
+        )
+        .run(
+          runId,
+          data.owner,
+          data.noteIds[0],
+          workspaceId,
+          JSON.stringify(suggestions),
+        );
+      const strip = <T extends { key: string }>({ key: _key, ...item }: T) =>
+        item;
+      return request('POST', `/capture-runs/${runId}/save`, {
         headers: { ...auth, 'idempotency-key': crypto.randomUUID() },
         body: {
           workspaceId,
-          tasks: run.suggestions.tasks,
-          drafts: run.suggestions.drafts,
+          tasks: suggestions.tasks.map(strip),
+          drafts: suggestions.drafts.map(strip),
         },
       });
     },
@@ -439,7 +587,6 @@ async function coldOne(name: string) {
       session.connect();
       await post('Profiler.enable');
       await post('Profiler.setSamplingInterval', { interval: 50 });
-      await post('Profiler.start');
     }
     // An idle Mac moves the process to a slow core or clock, which would
     // inflate the one request we time; keep the CPU busy just before it.
@@ -447,6 +594,7 @@ async function coldOne(name: string) {
     let spin = 0;
     while (performance.now() < until) spin += Math.sqrt(spin + 1);
     await new Promise((resolve) => setImmediate(resolve, spin));
+    if (session) await post('Profiler.start');
     const result = check(name, await run());
     if (session)
       writeFileSync(
@@ -469,6 +617,8 @@ function cold(args: string[]) {
       taskIds: [],
       noteIds: [],
       cookie: '',
+      owner: '',
+      longNotes: { words2k: '', words10k: '' },
     }),
   ).filter(filters(args));
   console.log(

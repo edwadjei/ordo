@@ -19,12 +19,31 @@ It takes about three minutes. Nothing leaves the machine and no account or remot
   - 3 workspaces, 20 projects and 300 tasks, every tenth task a subtask.
   - 100 notes of 1,000 to 20,000 characters, about 1 MB in all.
   - Sign-in goes through the real code flow, with a fake Gatekeeper that sends nothing.
-  - AI capture uses the development fake model.
+  - Two transcripts of about 2,000 and 10,000 spoken words (12,000 and 57,000 characters).
+  - AI capture goes through the real Workers AI adapter. The `AI` binding is a local stub that returns a reply the size of a real one (a summary, five tasks and an email draft) as a JSON string, so the Worker parses it.
+  - Save is a ready run with 10 tasks and 2 drafts, and verify is a ready sign-in challenge. Both are written straight into the database first (not timed), so each is measured on its own.
 - **Warm**: one process serves each route 45 times; the first 5 are discarded. This is a busy isolate.
 - **Cold**: each sample is a fresh process that imports the bundle, lets its startup finish, and serves one request. This is a new isolate, the usual case when traffic is light. V8 compiles each function the first time it runs, so this is where the 10 ms limit is at risk.
   - Before the timed request the process spins the CPU for 100 ms, because an idle Mac moves it to a slower core or clock and would inflate the one request being timed.
   - The startup column is the bundle's evaluation plus the warm-up. Cloudflare limits startup separately, at 1 second.
-  - Verify and save are measured after their own preceding step (the code request, the processing run), which has already warmed part of their path.
+
+## Inside workerd
+
+```bash
+npm run bench:workerd --workspace @ordo/api               # every route
+npm run bench:workerd --workspace @ordo/api -- process    # routes matching "process"
+```
+
+The Node benchmark cannot see workerd's own JavaScript, such as the D1 binding (`cloudflare-internal:d1-api`). That code runs in the isolate on every database call, counts as Worker CPU, and is compiled the first time a new isolate uses it. `bench/workerd.ts` measures it.
+
+For each sample it:
+- starts `wrangler dev --local` on a fresh isolate (port 8829, inspector 9239, its own local D1 under `bench/.build`);
+- lets the startup warm-up finish;
+- profiles exactly one request through the DevTools protocol.
+
+A sample's CPU is the profile's non-idle time, and the table shows where it went. Data a route needs is written beforehand with `wrangler d1 execute --local`. AI capture uses the development fake model, because workerd cannot reach Workers AI locally.
+
+It takes about 15 minutes for every route at 5 samples (`BENCH_COLD_SAMPLES`). With the inspector attached, workerd runs slower than on Cloudflare, so compare its numbers before against after rather than with the 10 ms limit.
 
 ## Comparing with another build
 
