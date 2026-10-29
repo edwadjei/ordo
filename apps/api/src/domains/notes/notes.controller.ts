@@ -1,5 +1,5 @@
 import type { HttpRoutes } from '../../platform/http/http.js';
-import { noteInput, notePatch, revisionInput } from '@ordo/core';
+import { archivedQuery, noteInput, notePatch, revisionInput } from '@ordo/core';
 import { actorId, entityId } from '../../platform/http/request-context.js';
 import { created } from '../../platform/http/response.js';
 import type { NotesService } from './notes.service.js';
@@ -15,7 +15,12 @@ export function registerNotesController(
   routes: HttpRoutes,
   service: NotesService,
 ) {
-  routes.get('/v1/notes', async (request) => service.list(actorId(request)));
+  routes.get('/v1/notes', async (request) =>
+    service.list(
+      actorId(request),
+      archivedQuery.parse(request.query).includeArchived,
+    ),
+  );
   routes.get('/v1/notes/:id', async (request) =>
     service.get(actorId(request), entityId(request)),
   );

@@ -3,51 +3,40 @@ import {
   and,
   asc,
   eq,
-  getTableColumns,
+  notInArchivedScope,
   isNull,
   sql,
   tables,
   type NewNote,
+  noteColumns,
 } from '../../adapters/database/database.adapter.js';
 
-const { notes, captureRuns } = tables;
+const { notes } = tables;
 
-/**
- * Each note with the status of its newest capture run (or null): one
- * correlated lookup per note on `capture_runs_note_idx`
- * (owner_user_id, note_id, created_at), inside the same query. The outer
- * columns are written out in full: Drizzle leaves column names unqualified
- * in a one-table select, which would bind them to `capture_runs` instead.
- */
-const latestCaptureStatus = sql<
-  'ready' | 'failed' | 'pending' | 'saved' | null
->`(SELECT r.status FROM ${captureRuns} AS r WHERE r.owner_user_id = "notes"."owner_user_id" AND r.note_id = "notes"."id" ORDER BY r.created_at DESC, r.rowid DESC LIMIT 1)`;
-const withCaptureStatus = { ...getTableColumns(notes), latestCaptureStatus };
-
-/**
- * A list entry: every column but the body, which can be 100,000 characters,
- * plus its first 280 characters and its length. SQLite's `substr` and
- * `length` count code points, so the preview never splits a character and
- * the full body never leaves D1 (no transfer, no parsing, no JSON).
- */
-const { body: _body, ...summaryColumns } = getTableColumns(notes);
-const summary = {
-  ...summaryColumns,
-  preview: sql<string>`substr("notes"."body", 1, 280)`,
-  bodyLength: sql<number>`length("notes"."body")`,
-  latestCaptureStatus,
-};
+// Each note with its newest capture run's status, and the bodiless list
+// entry: see `noteColumns` in the database adapter.
+const withCaptureStatus = noteColumns.withCaptureStatus;
+const summary = noteColumns.summary;
 
 export class NotesRepository {
   constructor(private readonly database: DatabaseAdapter) {}
 
-  /** Active notes as list entries (no body), oldest first. */
-  list(owner: string) {
+  /**
+   * Active notes as list entries (no body), oldest first; those in an
+   * archived workspace or project only on request.
+   */
+  list(owner: string, includeArchived = false) {
     return this.database
       .use()
       .select(summary)
       .from(notes)
-      .where(and(eq(notes.ownerUserId, owner), isNull(notes.deletedAt)))
+      .where(
+        and(
+          eq(notes.ownerUserId, owner),
+          isNull(notes.deletedAt),
+          includeArchived ? undefined : notInArchivedScope('notes'),
+        ),
+      )
       .orderBy(asc(notes.createdAt), asc(notes.id));
   }
 

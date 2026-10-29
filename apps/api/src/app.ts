@@ -19,6 +19,7 @@ import {
 } from './domains/ai-settings/ai-settings.module.js';
 import { createDraftsModule } from './domains/drafts/drafts.module.js';
 import { createCaptureModule } from './domains/capture/capture.module.js';
+import { createRelatedModule } from './domains/related/related.module.js';
 import type { OtpDelivery } from './capabilities/otp-delivery.contract.js';
 import { createSearchModule } from './domains/search/search.module.js';
 import {
@@ -144,6 +145,7 @@ export function composeApp(options: AppOptions) {
     aiSettings,
     drafts,
     capture,
+    createRelatedModule(database),
   ])
     module.register(http);
   return http;
