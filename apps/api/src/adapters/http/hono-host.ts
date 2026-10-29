@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono';
+import { LinearRouter } from 'hono/router/linear-router';
 import type { User } from '@ordo/core';
 import {
   JSON_BODY_LIMIT,
@@ -176,7 +177,11 @@ export function createHonoHost(
   pipeline: HttpPipeline,
   options: HonoHostOptions = {},
 ): HostedApp {
-  const hono = new Hono();
+  // LinearRouter registers routes without compiling them, so a new isolate's
+  // first request does not pay to build a matcher (Hono's default
+  // SmartRouter compiles a RegExp router then). About 50 routes match fast
+  // enough linearly.
+  const hono = new Hono({ router: new LinearRouter() });
   const dispatch = async (context: Context, route?: RouteDefinition) => {
     const request = new HonoHttpRequest(
       context,

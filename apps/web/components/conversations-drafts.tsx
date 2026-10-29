@@ -11,7 +11,7 @@ import {
   Mic,
   Sparkles,
 } from 'lucide-react';
-import type { HomeSnapshot, Note } from '@ordo/client';
+import type { HomeSnapshot, NoteSummary } from '@ordo/client';
 import type { CaptureRun, Draft } from '@ordo/client/capture';
 import { api } from '../lib/workspace';
 import { noteSourceLabel } from '../lib/views';
@@ -32,7 +32,7 @@ const shortDate = (value: string) =>
   });
 
 /** Each capture's latest summary, fetched when the list is shown. */
-function useSummaries(notes: Note[], enabled: boolean) {
+function useSummaries(notes: NoteSummary[], enabled: boolean) {
   const [summaries, setSummaries] = useState<Record<string, string>>({});
   const ids = notes.map((note) => note.id).join(',');
   useEffect(() => {

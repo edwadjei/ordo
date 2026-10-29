@@ -10,7 +10,7 @@ import {
   Plus,
   Upload,
 } from 'lucide-react';
-import type { HomeSnapshot, Note, Task } from '@ordo/client';
+import type { HomeSnapshot, NoteSummary, Task } from '@ordo/client';
 import { noteSourceLabel, projectOverview, type Clock } from '../lib/views';
 import { Empty, Section } from './task-views';
 
@@ -243,7 +243,7 @@ export function ProjectOverview({
   );
 }
 
-function noteMeta(note: Note) {
+function noteMeta(note: NoteSummary) {
   const date = new Date(note.updatedAt).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',

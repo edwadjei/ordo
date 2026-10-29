@@ -1,4 +1,4 @@
-import type { Note, Task } from '@ordo/client';
+import type { NoteSummary as Note, Task } from '@ordo/client';
 import type { CaptureRunStatus, TaskOrigin } from '@ordo/client/capture';
 
 /** Notes made from a recording, an email or a transcript: Ordo's conversations. */

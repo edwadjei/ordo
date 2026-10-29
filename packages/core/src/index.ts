@@ -410,24 +410,61 @@ export interface Task extends Omit<TaskInput, 'sourceNoteId'> {
   createdAt: string;
   updatedAt: string;
 }
+/** Characters of a note body sent as its `preview`. */
+export const NOTE_PREVIEW_LENGTH = 280;
+
+/**
+ * The first 280 characters of a note body, counted in Unicode code points,
+ * so a surrogate pair is never split. Matches SQLite's `substr(body, 1, 280)`.
+ */
+export function notePreview(body: string) {
+  let end = 0;
+  for (
+    let count = 0;
+    end < body.length && count < NOTE_PREVIEW_LENGTH;
+    count++
+  ) {
+    const unit = body.charCodeAt(end);
+    end += unit >= 0xd800 && unit <= 0xdbff && end + 1 < body.length ? 2 : 1;
+  }
+  return body.slice(0, end);
+}
+
+/** A note body's length in Unicode code points, as SQLite's `length(body)`. */
+export function noteBodyLength(body: string) {
+  return (
+    body.length - (body.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g)?.length ?? 0)
+  );
+}
+
+/** A note with its full body: `GET /v1/notes/:id` and every note write. */
 export interface Note extends NoteInput {
   /**
    * Status of the note's newest capture run, or null when it was never
-   * processed. Returned by `GET /v1/notes`, `GET /v1/notes/:id` and
-   * `/v1/home`; note writes omit it.
+   * processed. Returned by note lists, `GET /v1/notes/:id` and `/v1/home`;
+   * note writes omit it.
    */
   latestCaptureStatus?: CaptureRunStatus | null;
+  /** The body's first 280 characters (code points). */
+  preview: string;
+  /** The body's length in characters (code points). */
+  bodyLength: number;
   id: string;
   revision: number;
   createdAt: string;
   updatedAt: string;
 }
+/**
+ * A note in `/v1/home` and `GET /v1/notes`: everything but the body, which
+ * `GET /v1/notes/:id` returns when the note is opened.
+ */
+export type NoteSummary = Omit<Note, 'body'>;
 export interface HomeSnapshot {
   user: User;
   workspaces: Workspace[];
   projects: Project[];
   tasks: Task[];
-  notes: Note[];
+  notes: NoteSummary[];
 }
 export interface ApiError {
   error: { code: string; message: string };

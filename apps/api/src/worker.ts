@@ -1,5 +1,7 @@
+import { z } from 'zod';
 import { createDatabase } from '@ordo/db';
 import { buildApp } from './app.js';
+import { warmUp } from './warm-up.js';
 import { DatabaseAdapter } from './adapters/database/database.adapter.js';
 import { GatekeeperOtpDelivery } from './adapters/gatekeeper/gatekeeper-otp-delivery.js';
 import { DevelopmentTextModelProviders } from './adapters/text-ai/development-text-model.js';
@@ -14,6 +16,20 @@ import {
   readWorkerConfig,
   type WorkerVariables,
 } from './platform/config/worker-config.js';
+
+// Workers forbid `eval`, so Zod cannot compile its fast parsers here; say so
+// up front rather than let it probe on first use. (Node, where tests and the
+// CPU benchmark run, would otherwise compile them and measure differently.)
+z.config({ jitless: true });
+
+// Compile the main request paths while the isolate starts (see warm-up.ts).
+// It never touches `env` (D1, AI, secrets), never fetches, and never stops
+// the Worker from starting: any failure, even a synchronous one, is ignored.
+try {
+  void warmUp().catch(() => undefined);
+} catch {
+  // Warming is best-effort.
+}
 
 // Only the default export may be a value: workerd treats every named
 // export as an entrypoint. Helpers live in adapters/http/worker-routing.ts.
