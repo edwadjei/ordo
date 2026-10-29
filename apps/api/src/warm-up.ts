@@ -32,11 +32,11 @@ import { duringWarmUp } from './platform/identifiers/random.js';
  * request's status (0 when it threw), so a test can check that the paths
  * still run through.
  */
-export function warmUp(): Promise<number[]> {
+export function warmUp(compose = composeApp): Promise<number[]> {
   return duringWarmUp(async () => {
     const statuses: number[] = [];
     try {
-      const pipeline = composeApp({
+      const pipeline = compose({
         database: new DatabaseAdapter(
           createDatabase(new WarmUpD1() as unknown as D1Database),
         ),

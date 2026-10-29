@@ -321,13 +321,15 @@ Supply `captured_at`, `user_timezone`, and an optional conversation date. Resolv
 
 | Metric | Target |
 |---|---|
-| Worker CPU per API request | < 10 ms hard limit; design for low single digits |
+| Worker CPU per API request | < 10 ms hard limit; design for low single digits. Measured with `npm run bench:cpu --workspace @ordo/api` (see `apps/api/bench/README.md`), warm and in a new isolate |
 | Typical authenticated API read | < 300 ms p95 server response, excluding network variance |
 | Input feedback | < 100 ms p95 on a modern Mac |
 | Cached workspace/project navigation | < 300 ms p95 |
 | Add task optimistic rendering | < 100 ms p95 |
 | JS bundle | Monitor and minimize the initial route payload |
 | AI processing | Clearly asynchronous with progress/retry; no pretend instantaneous SLA |
+
+A new isolate's first requests are the risk: V8 compiles each function the first time it runs. The Worker therefore runs its main request paths once at startup (`apps/api/src/warm-up.ts`), on a throwaway app with an in-memory database and no I/O, inside Cloudflare's separate 1-second startup limit. Home and note lists send note previews rather than bodies.
 
 Instrument cold start, interaction latency, error rate, sync failures, and AI job outcomes without collecting content.
 

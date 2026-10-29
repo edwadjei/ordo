@@ -23,7 +23,13 @@ import {
 z.config({ jitless: true });
 
 // Compile the main request paths while the isolate starts (see warm-up.ts).
-void warmUp();
+// It never touches `env` (D1, AI, secrets), never fetches, and never stops
+// the Worker from starting: any failure, even a synchronous one, is ignored.
+try {
+  void warmUp().catch(() => undefined);
+} catch {
+  // Warming is best-effort.
+}
 
 // Only the default export may be a value: workerd treats every named
 // export as an entrypoint. Helpers live in adapters/http/worker-routing.ts.

@@ -6,7 +6,9 @@ NotesService owns scoped text notes, not AI summaries. A note always belongs to 
 
 ## Body and source
 
-`body` is Markdown text, at most 100,000 characters; existing plain-text notes are already valid Markdown. The API stores and returns it exactly as sent and never renders or sanitizes it, so clients must render it without raw HTML. Search indexes the raw text. Note create and edit accept a JSON body of up to 450,000 bytes (other routes keep 150,000), so a full 100,000-character body fits in any script, even at three bytes a character.
+`body` is Markdown text, at most 100,000 characters; existing plain-text notes are already valid Markdown. The API stores and returns it exactly as sent and never renders or sanitizes it, so clients must render it without raw HTML. Search indexes the raw text.
+
+`/v1/home` and `GET /v1/notes` leave the body out: each note carries `preview` (its first 280 characters, counted in code points so no character is split) and `bodyLength`, both computed by SQLite with `substr` and `length`, so long bodies never leave D1. `GET /v1/notes/:id` and every note write return the full body with the same two fields (`notePreview` and `noteBodyLength` in `@ordo/core`). Note create and edit accept a JSON body of up to 450,000 bytes (other routes keep 150,000), so a full 100,000-character body fits in any script, even at three bytes a character.
 
 `source` records where a note came from: `manual` (typed; the default and the value given to every note that existed before migration 0004), `recording` (the recorder's transcript), `email` (pasted email text) or `transcript` (an uploaded transcript file's text). It is set on create only: `PATCH` with `source` is refused as `400 INVALID_INPUT`, like any unknown field. The source is a label; it stores no audio, file or email metadata.
 
