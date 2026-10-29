@@ -6,13 +6,13 @@
 
 ## Shared contract
 
-| Change            | Shape                                                                                                         | Rule                                                                                                                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Set your name     | `PATCH /v1/auth/me` with `{ "displayName": string \| null }` → the same body as `GET /v1/auth/me`             | Uses `cleanDisplayName` from `packages/core`: trimmed, 1–80, never a phone number or email; empty or `null` clears it. Signed-in only, same-origin rules as other writes.           |
-| Project favourite | `favorite: boolean` on projects, default `false`; settable on project create and `PATCH`                      | Returned everywhere projects are returned (lists, home, sync). Archiving does not clear it.                                                                                         |
-| Note source       | `source: "manual" \| "recording" \| "email" \| "transcript"` on notes, default `"manual"`; set on create only | Immutable after create. Existing notes become `"manual"`. Recorder-made notes send `"recording"`.                                                                                   |
-| Note body         | Markdown text in the existing `body` field, max 100,000 characters (unchanged)                                | Existing plain-text notes are valid Markdown. The API stores text only; no HTML is stored or rendered by the API. Search keeps indexing the raw text.                               |
-| Move a task       | Existing task `PATCH` with `workspaceId` and/or `projectId`                                                   | API specialist confirms it moves the task's subtasks with it, rejects a project from another workspace, and keeps check-on-save (`revision`); adds tests if any of this is missing. |
+| Change | Shape | Rule |
+|---|---|---|
+| Set your name | `PATCH /v1/auth/me` with `{ "displayName": string \| null }` → the same body as `GET /v1/auth/me` | Uses `cleanDisplayName` from `packages/core`: trimmed, 1–80, never a phone number or email; empty or `null` clears it. Signed-in only, same-origin rules as other writes. |
+| Project favourite | `favorite: boolean` on projects, default `false`; settable on project create and `PATCH` | Returned everywhere projects are returned (lists, home, sync). Archiving does not clear it. |
+| Note source | `source: "manual" \| "recording" \| "email" \| "transcript"` on notes, default `"manual"`; set on create only | Immutable after create. Existing notes become `"manual"`. Recorder-made notes send `"recording"`. |
+| Note body | Markdown text in the existing `body` field, max 100,000 characters (unchanged) | Existing plain-text notes are valid Markdown. The API stores text only; no HTML is stored or rendered by the API. Search keeps indexing the raw text. |
+| Move a task | Existing task `PATCH` with `workspaceId` and/or `projectId` | API specialist confirms it moves the task's subtasks with it, rejects a project from another workspace, and keeps check-on-save (`revision`); adds tests if any of this is missing. |
 
 ## API specialist (`apps/api`, `packages/core`, `packages/db`)
 
