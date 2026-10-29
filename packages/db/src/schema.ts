@@ -51,6 +51,10 @@ export const workspaces = sqliteTable('workspaces', {
   color: text('color').notNull(),
   // 0006: set while archived (hidden, restorable).
   archivedAt: text('archived_at'),
+  // 0008: the token that created it, and a create's retry key.
+  createdByTokenId: text('created_by_token_id'),
+  idempotencyKey: text('idempotency_key'),
+  idempotencyFingerprint: text('idempotency_fingerprint'),
   ...revisionFields(),
 });
 
@@ -70,6 +74,10 @@ export const projects = sqliteTable('projects', {
     .default(sql`'[]'`),
   // 0006: set while archived (hidden, restorable).
   archivedAt: text('archived_at'),
+  // 0008: the token that created it, and a create's retry key.
+  createdByTokenId: text('created_by_token_id'),
+  idempotencyKey: text('idempotency_key'),
+  idempotencyFingerprint: text('idempotency_fingerprint'),
   ...revisionFields(),
 });
 

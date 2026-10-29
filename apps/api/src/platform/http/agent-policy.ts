@@ -2,8 +2,10 @@ import type { AgentScope } from '@ordo/core';
 
 /**
  * What an agent access token may do, route by route. Anything not listed is
- * refused: settings and keys, sign-in, deleting workspaces or projects, and
- * every other kind of delete. `DELETE /v1/tasks/:id` and `/v1/notes/:id`
+ * refused: settings and keys, sign-in, changing, archiving or deleting
+ * workspaces, archiving or deleting projects, and every other kind of
+ * delete. A token's project changes are limited to name, description and
+ * aliases by the controller. `DELETE /v1/tasks/:id` and `/v1/notes/:id`
  * archive (they are soft), so they are allowed with `write`.
  */
 interface Rule {
@@ -51,6 +53,16 @@ const rules: Rule[] = [
   rule('GET', '/v1/capture-runs/:id', 'read', 'capture.read', 'capture_run'),
   rule('GET', '/v1/drafts', 'read', 'draft.list', 'draft'),
   rule('GET', '/v1/drafts/:id', 'read', 'draft.read', 'draft'),
+  rule('POST', '/v1/workspaces', 'write', 'workspace.create', 'workspace'),
+  rule(
+    'POST',
+    '/v1/workspaces/:id/projects',
+    'write',
+    'project.create',
+    'project',
+  ),
+  rule('POST', '/v1/projects', 'write', 'project.create', 'project'),
+  rule('PATCH', '/v1/projects/:id', 'write', 'project.update', 'project'),
   rule('POST', '/v1/tasks', 'write', 'task.create', 'task'),
   rule('PATCH', '/v1/tasks/:id', 'write', 'task.update', 'task'),
   rule('DELETE', '/v1/tasks/:id', 'write', 'task.archive', 'task'),

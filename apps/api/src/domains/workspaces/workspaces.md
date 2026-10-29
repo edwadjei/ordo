@@ -14,6 +14,12 @@ A project has `favorite: boolean`, `false` by default, set on create or with `PA
 
 The personal Inbox is a null workspace/project destination with a non-null authenticated owner. It is not a fabricated workspace and is never ownerless data. `validateScope()` accepts this explicit empty destination, but a non-null project with null or mismatched workspace is rejected.
 
+## Creating without duplicates
+
+A create returns the owner's active workspace of the same name (ignoring case and surrounding spaces), or the workspace's active project of the same name, instead of making a second one: `200` with `existing: true`; a new one is `201` with `existing: false`. An optional `Idempotency-Key` returns what that key first made; the same key with a different request is `409 IDEMPOTENCY_CONFLICT`. The key and a hash of the request are kept on the row (`idempotency_key`, `idempotency_fingerprint`, migration 0008) and never returned. An account has at most 50 active workspaces and 500 active projects (`409 LIMIT_REACHED`). The service checks first; the insert repeats the limit and name checks in its own statement, so concurrent creates cannot both pass.
+
+A workspace or project an access key created has `origin: "agent"` and `createdByTokenId`; otherwise `origin: "manual"` and `null`. `origin` is derived from `created_by_token_id`.
+
 ## Archiving
 
 `PATCH` with `{ archived: true, expectedRevision }` sets `archivedAt` on a workspace or project; `false` clears it. Archiving twice keeps the first time. Nothing inside changes. Tasks, notes and drafts whose workspace or project is archived drop out of `/v1/home`, `GET /v1/tasks`, `GET /v1/notes`, `GET /v1/drafts` and `GET /v1/search`, which also hides archived projects and the projects of archived workspaces. Each of those lists except Home takes `?includeArchived=1` to bring them back. Workspace and project lists, Home included, still return archived ones, marked by `archivedAt`, so a client can offer an Archived filter. Restoring brings everything back as it was.

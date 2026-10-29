@@ -231,6 +231,7 @@ test('crypto capability adapters are wired only by the owning domain modules', a
     'adapters/cryptography/web-content-hasher.js': [
       'domains/tasks/tasks.module.ts',
       'domains/capture/capture.module.ts',
+      'domains/workspaces/workspaces.module.ts',
     ],
   };
   for (const file of await sources()) {

@@ -191,6 +191,20 @@ test('a read token cannot write, and no token reaches settings, keys, sign-in or
   );
   assert.equal(refused.statusCode, 403);
   assert.equal(refused.json().error.code, 'INSUFFICIENT_SCOPE');
+  for (const [method, url, payload] of [
+    ['POST', '/v1/workspaces', { name: 'No' }],
+    ['POST', `/v1/workspaces/${workspace.id}/projects`, { name: 'No' }],
+    ['POST', '/v1/projects', { name: 'No', workspaceId: workspace.id }],
+    [
+      'PATCH',
+      `/v1/projects/${project.id}`,
+      { name: 'No', expectedRevision: 1 },
+    ],
+  ] as [Method, string, object][]) {
+    const response = await agent(read, method, url, payload);
+    assert.equal(response.statusCode, 403, `${method} ${url}`);
+    assert.equal(response.json().error.code, 'INSUFFICIENT_SCOPE');
+  }
   assert.equal(
     (
       await agent(read, 'PATCH', `/v1/tasks/${task.id}`, {
@@ -228,6 +242,21 @@ test('a read token cannot write, and no token reaches settings, keys, sign-in or
       `/v1/workspaces/${workspace.id}`,
       { archived: true, expectedRevision: 1 },
     ],
+    [
+      'PATCH',
+      `/v1/workspaces/${workspace.id}`,
+      { name: 'Renamed', expectedRevision: 1 },
+    ],
+    [
+      'PATCH',
+      `/v1/projects/${project.id}`,
+      { archived: true, expectedRevision: 1 },
+    ],
+    [
+      'PATCH',
+      `/v1/projects/${project.id}`,
+      { favorite: true, expectedRevision: 1 },
+    ],
     ['DELETE', `/v1/tasks/${task.id}/links/${note.id}`],
     ['POST', `/v1/notes/${note.id}/process`, { workspaceId: workspace.id }],
     ['POST', '/v1/demo'],
@@ -244,11 +273,16 @@ test('a read token cannot write, and no token reaches settings, keys, sign-in or
       `${method} ${url}`,
     );
   }
-  // Nothing was deleted or archived.
-  assert.equal(
-    (await ok('GET', `/v1/workspaces/${workspace.id}`)).archivedAt,
-    null,
+  // Nothing was deleted, archived, renamed or created.
+  const after = await ok('GET', `/v1/workspaces/${workspace.id}`);
+  assert.equal(after.archivedAt, null);
+  assert.equal(after.name, 'Fiction');
+  const still = await ok('GET', `/v1/projects/${project.id}`);
+  assert.deepEqual(
+    [still.archivedAt, still.favorite, still.name],
+    [null, false, 'Plan'],
   );
+  assert.equal((await ok('GET', '/v1/workspaces')).length, 1);
   assert.equal((await ok('GET', '/v1/settings/agent-tokens')).length, 2);
   // An untrusted browser origin is refused even with a valid token.
   assert.equal(
@@ -457,7 +491,7 @@ test('MCP: handshake, discovery, versions and the transport rules', async (t) =>
     'search',
   ]);
   const writeTools = (await mcp(write, 'tools/list')).body.result.tools;
-  assert.equal(writeTools.length, 11);
+  assert.equal(writeTools.length, 14);
   for (const tool of writeTools) {
     assert.equal(tool.inputSchema.type, 'object');
     assert.ok(tool.description);
@@ -715,4 +749,423 @@ test('use is recorded with the request: with its activity entry, or alone when n
     await ok('GET', `/v1/settings/agent-activity?tokenId=${b.record.id}`),
     [],
   );
+});
+
+test('a write token creates workspaces and projects over REST, marked agent, without duplicates', async (t) => {
+  const { h, createToken, agent, ok } = await setup(t);
+  const { token, record } = await createToken(['read', 'write']);
+  const made = await agent(token, 'POST', '/v1/workspaces', {
+    name: 'Client Work',
+  });
+  assert.equal(made.statusCode, 201, made.body);
+  const workspace = made.json();
+  assert.equal(workspace.origin, 'agent');
+  assert.equal(workspace.createdByTokenId, record.id);
+  assert.equal(workspace.existing, false);
+  for (const hidden of [
+    'ownerUserId',
+    'idempotencyKey',
+    'idempotencyFingerprint',
+  ])
+    assert.ok(!(hidden in workspace), hidden);
+  const row = (await h.d1
+    .prepare('SELECT created_by_token_id FROM workspaces WHERE id = ?')
+    .bind(workspace.id)
+    .first()) as { created_by_token_id: string };
+  assert.equal(row.created_by_token_id, record.id);
+
+  // The same name, ignoring case and spaces: the existing one, 200.
+  const again = await agent(token, 'POST', '/v1/workspaces', {
+    name: '  client WORK ',
+    color: '#112233',
+  });
+  assert.equal(again.statusCode, 200);
+  assert.equal(again.json().id, workspace.id);
+  assert.equal(again.json().existing, true);
+  assert.equal(
+    again.json().color,
+    workspace.color,
+    'the existing one, unchanged',
+  );
+
+  // Both project routes; a same-named project in that workspace is returned.
+  const nested = await agent(
+    token,
+    'POST',
+    `/v1/workspaces/${workspace.id}/projects`,
+    { name: 'Relaunch', description: 'The new site', aliases: ['site'] },
+  );
+  assert.equal(nested.statusCode, 201, nested.body);
+  const project = nested.json();
+  assert.deepEqual(
+    [
+      project.origin,
+      project.createdByTokenId,
+      project.existing,
+      project.favorite,
+    ],
+    ['agent', record.id, false, false],
+  );
+  const flat = await agent(token, 'POST', '/v1/projects', {
+    name: 'RELAUNCH',
+    workspaceId: workspace.id,
+  });
+  assert.equal(flat.statusCode, 200);
+  assert.equal(flat.json().id, project.id);
+  assert.equal(flat.json().existing, true);
+  // The same name in another workspace is another project.
+  const other = await ok('POST', '/v1/workspaces', { name: 'Home' });
+  assert.equal(other.origin, 'manual');
+  assert.equal(other.createdByTokenId, null);
+  const elsewhere = await agent(token, 'POST', '/v1/projects', {
+    name: 'Relaunch',
+    workspaceId: other.id,
+  });
+  assert.equal(elsewhere.statusCode, 201);
+  assert.notEqual(elsewhere.json().id, project.id);
+  // An archived one does not count: the name can be used again.
+  await ok('PATCH', `/v1/projects/${elsewhere.json().id}`, {
+    archived: true,
+    expectedRevision: 1,
+  });
+  assert.equal(
+    (
+      await agent(token, 'POST', '/v1/projects', {
+        name: 'Relaunch',
+        workspaceId: other.id,
+      })
+    ).statusCode,
+    201,
+  );
+
+  // Name, description and aliases only; check-on-save holds.
+  const renamed = await agent(token, 'PATCH', `/v1/projects/${project.id}`, {
+    name: 'Website Relaunch',
+    description: 'Routing hint',
+    aliases: ['site', 'web relaunch'],
+    expectedRevision: 1,
+  });
+  assert.equal(renamed.statusCode, 200, renamed.body);
+  assert.deepEqual(
+    [renamed.json().name, renamed.json().aliases, renamed.json().revision],
+    ['Website Relaunch', ['site', 'web relaunch'], 2],
+  );
+  const stale = await agent(token, 'PATCH', `/v1/projects/${project.id}`, {
+    name: 'Late',
+    expectedRevision: 1,
+  });
+  assert.equal(stale.statusCode, 409);
+  assert.equal(stale.json().error.code, 'REVISION_CONFLICT');
+
+  // Another owner's workspace or project: not found.
+  const stranger = await signIn(h);
+  const theirs = (
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/workspaces',
+      headers: { origin, cookie: stranger.cookie },
+      payload: { name: 'Theirs' },
+    })
+  ).json();
+  const theirProject = (
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/projects',
+      headers: { origin, cookie: stranger.cookie },
+      payload: { name: 'Their project', workspaceId: theirs.id },
+    })
+  ).json();
+  for (const [method, url, payload] of [
+    ['POST', `/v1/workspaces/${theirs.id}/projects`, { name: 'Sneak' }],
+    ['POST', '/v1/projects', { name: 'Sneak', workspaceId: theirs.id }],
+    [
+      'PATCH',
+      `/v1/projects/${theirProject.id}`,
+      { name: 'Sneak', expectedRevision: 1 },
+    ],
+  ] as [Method, string, object][]) {
+    const response = await agent(token, method, url, payload);
+    assert.equal(response.statusCode, 404, `${method} ${url}`);
+  }
+  // The activity log names the project created under a workspace's URL.
+  const activity = await ok(
+    'GET',
+    `/v1/settings/agent-activity?tokenId=${record.id}`,
+  );
+  const entries = activity.map(
+    (entry: { action: string; entityType: string; entityId: string }) => [
+      entry.action,
+      entry.entityType,
+      entry.entityId,
+    ],
+  );
+  assert.deepEqual(
+    entries.find((e: string[]) => e[0] === 'workspace.create'),
+    ['workspace.create', 'workspace', workspace.id],
+  );
+  assert.ok(
+    entries.some(
+      (e: string[]) =>
+        e[0] === 'project.create' && e[1] === 'project' && e[2] === project.id,
+    ),
+  );
+  assert.ok(entries.some((e: string[]) => e[0] === 'project.update'));
+});
+
+test('retry keys and limits for workspace and project creates', async (t) => {
+  const { h, createToken, agent, ok } = await setup(t);
+  const { token } = await createToken(['read', 'write']);
+  const key = randomUUID();
+  const first = await agent(
+    token,
+    'POST',
+    '/v1/workspaces',
+    { name: 'Retried' },
+    { 'idempotency-key': key },
+  );
+  assert.equal(first.statusCode, 201);
+  // Renamed in between: the retry still returns what the key made.
+  await ok('PATCH', `/v1/workspaces/${first.json().id}`, {
+    name: 'Renamed since',
+    expectedRevision: 1,
+  });
+  const retry = await agent(
+    token,
+    'POST',
+    '/v1/workspaces',
+    { name: 'Retried' },
+    { 'idempotency-key': key },
+  );
+  assert.equal(retry.statusCode, 200);
+  assert.equal(retry.json().id, first.json().id);
+  assert.equal(retry.json().existing, true);
+  const misuse = await agent(
+    token,
+    'POST',
+    '/v1/workspaces',
+    { name: 'Something else' },
+    { 'idempotency-key': key },
+  );
+  assert.equal(misuse.statusCode, 409);
+  assert.equal(misuse.json().error.code, 'IDEMPOTENCY_CONFLICT');
+  const projectKey = randomUUID();
+  const project = await agent(
+    token,
+    'POST',
+    '/v1/projects',
+    { name: 'Keyed', workspaceId: first.json().id },
+    { 'idempotency-key': projectKey },
+  );
+  assert.equal(project.statusCode, 201);
+  const projectRetry = await agent(
+    token,
+    'POST',
+    '/v1/projects',
+    { name: 'Keyed', workspaceId: first.json().id },
+    { 'idempotency-key': projectKey },
+  );
+  assert.equal(projectRetry.json().id, project.json().id);
+  assert.equal(
+    (
+      await agent(
+        token,
+        'POST',
+        '/v1/projects',
+        { name: 'Other', workspaceId: first.json().id },
+        { 'idempotency-key': projectKey },
+      )
+    ).json().error.code,
+    'IDEMPOTENCY_CONFLICT',
+  );
+
+  // At most 50 active workspaces; archiving one makes room.
+  const owner = (await h.d1
+    .prepare('SELECT owner_user_id FROM workspaces WHERE id = ?')
+    .bind(first.json().id)
+    .first()) as { owner_user_id: string };
+  await h.d1
+    .prepare(
+      `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 49)
+       INSERT INTO workspaces (id, owner_user_id, name, color)
+       SELECT lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-a' || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))), ?, 'Filler ' || i, '#577664' FROM n`,
+    )
+    .bind(owner.owner_user_id)
+    .run();
+  const full = await agent(token, 'POST', '/v1/workspaces', {
+    name: 'One more',
+  });
+  assert.equal(full.statusCode, 409);
+  assert.equal(full.json().error.code, 'LIMIT_REACHED');
+  // A same-named one is still returned at the limit.
+  assert.equal(
+    (await agent(token, 'POST', '/v1/workspaces', { name: 'filler 7' }))
+      .statusCode,
+    200,
+  );
+  await ok('PATCH', `/v1/workspaces/${first.json().id}`, {
+    archived: true,
+    expectedRevision: 2,
+  });
+  assert.equal(
+    (await agent(token, 'POST', '/v1/workspaces', { name: 'One more' }))
+      .statusCode,
+    201,
+  );
+
+  // At most 500 active projects per owner.
+  const target = (await ok('GET', '/v1/workspaces')).find(
+    (w: { name: string }) => w.name === 'One more',
+  );
+  await h.d1
+    .prepare(
+      `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 499)
+       INSERT INTO projects (id, owner_user_id, workspace_id, name)
+       SELECT lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-a' || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))), ?, ?, 'Filler ' || i FROM n`,
+    )
+    .bind(owner.owner_user_id, target.id)
+    .run();
+  const tooMany = await agent(
+    token,
+    'POST',
+    `/v1/workspaces/${target.id}/projects`,
+    { name: 'Project 501' },
+  );
+  assert.equal(tooMany.statusCode, 409);
+  assert.equal(tooMany.json().error.code, 'LIMIT_REACHED');
+});
+
+test('MCP: create_workspace, create_project and update_project', async (t) => {
+  const { h, createToken, call, mcp, ok } = await setup(t);
+  const { token: write, record } = await createToken(['read', 'write']);
+  const read = (await createToken(['read'], 'Reader')).token;
+  const readTools = (await mcp(read, 'tools/list')).body.result.tools.map(
+    (tool: { name: string }) => tool.name,
+  );
+  for (const name of ['create_workspace', 'create_project', 'update_project'])
+    assert.ok(!readTools.includes(name), name);
+  const refused = await call(read, 'create_workspace', { name: 'No' });
+  assert.equal(refused.isError, true);
+  assert.match(refused.content[0].text, /^INSUFFICIENT_SCOPE: /);
+  assert.equal((await ok('GET', '/v1/workspaces')).length, 0);
+
+  const key = randomUUID();
+  const made = await call(write, 'create_workspace', {
+    name: 'Studio',
+    color: '#334455',
+    idempotencyKey: key,
+  });
+  assert.equal(made.isError, false, made.content[0].text);
+  const workspace = made.structuredContent;
+  assert.deepEqual(
+    [workspace.name, workspace.color, workspace.origin, workspace.existing],
+    ['Studio', '#334455', 'agent', false],
+  );
+  const retried = await call(write, 'create_workspace', {
+    name: 'Studio',
+    color: '#334455',
+    idempotencyKey: key,
+  });
+  assert.equal(retried.structuredContent.id, workspace.id);
+  const same = await call(write, 'create_workspace', { name: 'studio' });
+  assert.deepEqual(
+    [same.structuredContent.id, same.structuredContent.existing],
+    [workspace.id, true],
+  );
+  const conflict = await call(write, 'create_workspace', {
+    name: 'Elsewhere',
+    idempotencyKey: key,
+  });
+  assert.match(conflict.content[0].text, /^IDEMPOTENCY_CONFLICT: /);
+
+  const project = await call(write, 'create_project', {
+    workspaceId: workspace.id,
+    name: 'Album',
+    description: 'Recording sessions and mixing',
+    aliases: ['record', 'LP'],
+  });
+  assert.equal(project.isError, false, project.content[0].text);
+  assert.deepEqual(
+    [
+      project.structuredContent.name,
+      project.structuredContent.aliases,
+      project.structuredContent.origin,
+      project.structuredContent.existing,
+    ],
+    ['Album', ['record', 'LP'], 'agent', false],
+  );
+  const duplicate = await call(write, 'create_project', {
+    workspaceId: workspace.id,
+    name: 'ALBUM',
+  });
+  assert.equal(duplicate.structuredContent.id, project.structuredContent.id);
+  assert.equal(duplicate.structuredContent.existing, true);
+  // Favourites stay with the owner; another owner's workspace is not found.
+  const favourite = await call(write, 'create_project', {
+    workspaceId: workspace.id,
+    name: 'Fav',
+    favorite: true,
+  });
+  assert.equal(favourite.isError, true);
+  const stranger = await signIn(h);
+  const theirs = (
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/workspaces',
+      headers: { origin, cookie: stranger.cookie },
+      payload: { name: 'Theirs' },
+    })
+  ).json();
+  const foreign = await call(write, 'create_project', {
+    workspaceId: theirs.id,
+    name: 'Sneak',
+  });
+  assert.match(foreign.content[0].text, /^NOT_FOUND: /);
+
+  // update_project: routing hints; the current revision unless one is given.
+  const updated = await call(write, 'update_project', {
+    projectId: project.structuredContent.id,
+    description: 'Mixing only',
+    aliases: ['mix'],
+  });
+  assert.equal(updated.isError, false, updated.content[0].text);
+  assert.deepEqual(
+    [
+      updated.structuredContent.name,
+      updated.structuredContent.description,
+      updated.structuredContent.aliases,
+      updated.structuredContent.revision,
+    ],
+    ['Album', 'Mixing only', ['mix'], 2],
+  );
+  const stale = await call(write, 'update_project', {
+    projectId: project.structuredContent.id,
+    name: 'Late',
+    expectedRevision: 1,
+  });
+  assert.match(stale.content[0].text, /^REVISION_CONFLICT: /);
+  for (const args of [
+    { projectId: project.structuredContent.id, archived: true },
+    { projectId: project.structuredContent.id, favorite: true },
+  ]) {
+    const result = await call(write, 'update_project', args);
+    assert.equal(result.isError, true, JSON.stringify(args));
+  }
+  const stored = await ok(
+    'GET',
+    `/v1/projects/${project.structuredContent.id}`,
+  );
+  assert.deepEqual(
+    [stored.archivedAt, stored.favorite, stored.createdByTokenId],
+    [null, false, record.id],
+  );
+
+  const actions = (
+    await ok('GET', `/v1/settings/agent-activity?tokenId=${record.id}`)
+  ).map((entry: { action: string }) => entry.action);
+  for (const action of [
+    'mcp.create_workspace',
+    'mcp.create_project',
+    'mcp.update_project',
+  ])
+    assert.ok(actions.includes(action), action);
 });
