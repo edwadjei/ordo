@@ -277,3 +277,93 @@ test('platform and domains are framework-neutral: no HTTP framework types or imp
     }
   }
 });
+
+// Workers reject a global such as fetch called with any other `this`
+// ("TypeError: Illegal invocation"), which Node tolerates. Storing the bare
+// global (`transport = fetch`) and calling it as `this.transport(...)` broke
+// sign-in on the Worker while every Node test passed, so these globals may
+// only be called directly, never passed or stored as values.
+const bindSensitiveGlobals = new Set([
+  'fetch',
+  'setTimeout',
+  'setInterval',
+  'clearTimeout',
+  'clearInterval',
+  'queueMicrotask',
+  'structuredClone',
+  'atob',
+  'btoa',
+  'reportError',
+]);
+const cryptoMethods = new Set(['getRandomValues', 'randomUUID']);
+
+function detachedGlobals(source: ts.SourceFile) {
+  const found: string[] = [];
+  const called = (node: ts.Node) =>
+    ts.isCallExpression(node.parent) && node.parent.expression === node;
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isIdentifier(node) &&
+      bindSensitiveGlobals.has(node.text) &&
+      !called(node) &&
+      !ts.isTypeQueryNode(node.parent) &&
+      // A member named like the global (`x.fetch`, `async fetch() {}`).
+      !(
+        (ts.isPropertyAccessExpression(node.parent) ||
+          ts.isMethodDeclaration(node.parent) ||
+          ts.isMethodSignature(node.parent) ||
+          ts.isPropertyDeclaration(node.parent) ||
+          ts.isPropertySignature(node.parent) ||
+          ts.isPropertyAssignment(node.parent)) &&
+        node.parent.name === node
+      )
+    )
+      found.push(node.text);
+    // crypto.getRandomValues, crypto.randomUUID or crypto.subtle.<method>
+    // taken without calling them.
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      !called(node) &&
+      !ts.isTypeQueryNode(node.parent) &&
+      ((ts.isIdentifier(node.expression) &&
+        node.expression.text === 'crypto' &&
+        cryptoMethods.has(node.name.text)) ||
+        (ts.isPropertyAccessExpression(node.expression) &&
+          ts.isIdentifier(node.expression.expression) &&
+          node.expression.expression.text === 'crypto' &&
+          node.expression.name.text === 'subtle'))
+    )
+      found.push(node.getText(source));
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return found;
+}
+
+test('Workers globals such as fetch are only ever called directly, never stored unbound', async () => {
+  for (const file of await sources())
+    assert.deepEqual(
+      detachedGlobals(file.source),
+      [],
+      `${file.relative} passes a Workers global as a value; wrap it, e.g. (input, init) => fetch(input, init)`,
+    );
+  // The check itself catches the pattern that broke sign-in.
+  const broken = ts.createSourceFile(
+    'broken.ts',
+    [
+      'class A {',
+      '  constructor(private readonly transport: typeof fetch = fetch) {}',
+      '  go() { return this.transport("x"); }',
+      '}',
+      'const r = crypto.getRandomValues;',
+      'const d = crypto.subtle.digest;',
+    ].join('\n'),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  assert.deepEqual(detachedGlobals(broken), [
+    'fetch',
+    'crypto.getRandomValues',
+    'crypto.subtle.digest',
+  ]);
+});

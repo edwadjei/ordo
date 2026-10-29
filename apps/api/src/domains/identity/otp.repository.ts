@@ -54,6 +54,20 @@ export class OtpRepository {
     return rows.length === 1;
   }
 
+  /**
+   * After a failed delivery: lifts the 60-second spacing so the contact can
+   * ask again at once, and blanks the undelivered code so it can never be
+   * verified. The send still counts toward the five-per-window limit, which
+   * bounds messages to a contact even when a "failed" send (a timeout, say)
+   * actually arrived. Matches only this unready challenge, so it never
+   * touches a newer reservation.
+   */
+  async release(challengeId: string, now: number) {
+    await this.database.use().run(sql`
+      UPDATE ${otpChallenges} SET next_send_at = ${isoNow(now)}, code_hash = ''
+       WHERE challenge_id = ${challengeId} AND ready = 0 AND consumed = 0`);
+  }
+
   async markReady(challengeId: string) {
     await this.database
       .use()
