@@ -74,6 +74,21 @@ export class McpService {
     user: User,
     agent: AgentContext,
   ): Promise<McpReply> {
+    const reply = await this.respond(message, headers, user, agent);
+    // Only a successful tool call writes an activity entry (and records use
+    // with it); anything else records use on its own when that is due.
+    const result = (reply.body as { result?: { isError?: boolean } })?.result;
+    if (result?.isError !== false && agent.touch)
+      await this.agents.log(user.id, agent.tokenId, null, null, null, true);
+    return reply;
+  }
+
+  private async respond(
+    message: unknown,
+    headers: McpHeaders,
+    user: User,
+    agent: AgentContext,
+  ): Promise<McpReply> {
     if (Array.isArray(message))
       return error(400, null, -32600, 'Batches are not supported.');
     const request = message as {
@@ -200,6 +215,7 @@ export class McpService {
         `mcp.${tool.name}`,
         outcome.entityType,
         outcome.entityId,
+        agent.touch,
       );
       const structured = outcome.result as Record<string, unknown>;
       return ok(id, {

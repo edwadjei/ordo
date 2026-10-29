@@ -72,6 +72,7 @@ export function createRequestSecurity(
         scopes: identity.scopes,
         action: rule.action,
         entityType: rule.entityType,
+        touch: identity.touch,
       };
       return;
     }

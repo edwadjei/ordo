@@ -691,3 +691,28 @@ test('at most 20 active tokens', async (t) => {
     404,
   );
 });
+
+test('use is recorded with the request: with its activity entry, or alone when nothing is logged', async (t) => {
+  const { h, createToken, mcp, call, ok } = await setup(t);
+  const a = await createToken(['read'], 'Handshake only');
+  await mcp(a.token, 'initialize', { protocolVersion: '2025-06-18' });
+  assert.ok(
+    (await tokenRow(h, a.record.id)).last_used_at,
+    'set by a handshake',
+  );
+  assert.deepEqual(
+    await ok('GET', `/v1/settings/agent-activity?tokenId=${a.record.id}`),
+    [],
+  );
+  const b = await createToken(['read', 'write'], 'Tool user');
+  const failed = await call(b.token, 'get_task', { id: randomUUID() });
+  assert.equal(failed.isError, true);
+  assert.ok(
+    (await tokenRow(h, b.record.id)).last_used_at,
+    'set by a failed tool call',
+  );
+  assert.deepEqual(
+    await ok('GET', `/v1/settings/agent-activity?tokenId=${b.record.id}`),
+    [],
+  );
+});

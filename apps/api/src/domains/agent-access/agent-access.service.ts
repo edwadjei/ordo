@@ -107,35 +107,47 @@ export class AgentAccessService extends AgentAuthenticator {
     const now = isoNow();
     if (row.revokedAt || (row.expiresAt && row.expiresAt <= now)) return null;
     if (!(await this.secrets.verify(id, secret, row.secretHash))) return null;
-    if (
-      !row.lastUsedAt ||
-      Date.parse(now) - Date.parse(row.lastUsedAt) >= TOUCH_EVERY_MS
-    )
-      await this.repository.touch(row.ownerUserId, id, now);
     return {
       user: publicUser(user),
       tokenId: id,
       scopes: row.scopes.split(' ') as AgentScope[],
+      touch:
+        !row.lastUsedAt ||
+        Date.parse(now) - Date.parse(row.lastUsedAt) >= TOUCH_EVERY_MS,
     };
   }
 
-  /** One activity entry: what kind of thing happened to which id. */
+  /**
+   * One activity entry (what kind of thing happened to which id; `action`
+   * null records use only), written with the token's `lastUsedAt` when that
+   * is due: one D1 batch.
+   */
   async log(
     owner: string,
     tokenId: string,
-    action: string,
+    action: string | null,
     entityType: string | null,
     entityId: string | null,
+    touch = false,
   ) {
-    await this.repository.log({
-      id: newId(),
-      ownerUserId: owner,
+    const now = isoNow();
+    await this.repository.record(
+      owner,
       tokenId,
-      action,
-      entityType,
-      entityId,
-      createdAt: isoNow(),
-    });
+      action
+        ? {
+            id: newId(),
+            ownerUserId: owner,
+            tokenId,
+            action,
+            entityType,
+            entityId,
+            createdAt: now,
+          }
+        : null,
+      touch,
+      now,
+    );
   }
 
   async activity(
@@ -167,6 +179,7 @@ export class AgentAccessService extends AgentAuthenticator {
       agent.action,
       agent.entityType,
       entityId,
+      agent.touch,
     );
   };
 }

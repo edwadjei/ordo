@@ -69,14 +69,26 @@ Create a key in Settings and copy it; it is shown only once. Use your Ordo addre
 claude mcp add --transport http ordo https://ordo.example/api/mcp --header "Authorization: Bearer $ORDO_KEY"
 ```
 
-**Claude Desktop:** until Ordo supports sign-in for connectors (OAuth, a later step), use the `mcp-remote` bridge in `claude_desktop_config.json`. The header value lives in `env`, so the arguments hold no spaces:
+This is the form in the Claude Code MCP documentation for a remote HTTP server with a bearer token. Claude Code saves the server without checking the key, so run `/mcp` in Claude Code afterwards: a working connection is listed as connected, and a wrong key shows the HTTP status (`401`).
+
+**Claude Desktop:** until Ordo supports sign-in for connectors (OAuth, a later step), use the [`mcp-remote`](https://github.com/punkpeye/mcp-remote) bridge in `claude_desktop_config.json`. This follows its README:
+- `--header` sends the key on every request.
+- The value is kept in `env` so the arguments hold no spaces, which avoids a bug in Claude Desktop on Windows where spaces in arguments are not escaped.
+- `--transport http-only` stops it falling back to server-sent events, which Ordo does not offer.
 
 ```json
 {
   "mcpServers": {
     "ordo": {
       "command": "npx",
-      "args": ["mcp-remote", "https://ordo.example/api/mcp", "--header", "Authorization:${ORDO_AUTH}"],
+      "args": [
+        "mcp-remote",
+        "https://ordo.example/api/mcp",
+        "--transport",
+        "http-only",
+        "--header",
+        "Authorization:${ORDO_AUTH}"
+      ],
       "env": { "ORDO_AUTH": "Bearer your-key-from-Settings" }
     }
   }

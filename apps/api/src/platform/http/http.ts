@@ -44,6 +44,8 @@ export interface AgentContext {
   /** Activity-log action and entity type for this route, e.g. `task.create`. */
   action: string;
   entityType: string | null;
+  /** Update the token's `lastUsedAt` with this request's activity entry. */
+  touch: boolean;
 }
 
 /** Runs after a route answered successfully, with what it returned. */
