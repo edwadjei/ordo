@@ -1542,6 +1542,13 @@ export function WorkspaceApp() {
             setSelectedTask(null);
             setSelectedNote(id);
           }}
+          onOpenDrafts={(project, workspace) => {
+            setSelectedTask(null);
+            if (project) {
+              navigate('project', workspace, project);
+              setTab('drafts');
+            }
+          }}
         />
       )}
       {activeNote && (

@@ -3220,3 +3220,70 @@ fieldset:disabled select {
 .offline-note svg {
   vertical-align: -2px;
 }
+/* Task panel › Related. */
+.related {
+  margin: 26px 0 0;
+}
+.related h3 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.related-group h4 {
+  margin: 12px 0 4px;
+  font: 600 10px/1.4 var(--font);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.related ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.related-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  background: none;
+  text-align: left;
+  font-size: 12px;
+}
+.related-link:hover {
+  text-decoration: underline;
+}
+.related-link svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.related-link span {
+  display: flex;
+  flex-direction: column;
+}
+.related-link small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.linked-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.link-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.link-picker {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.link-results {
+  max-height: 220px;
+  overflow: auto;
+  margin: 6px 0 !important;
+}
