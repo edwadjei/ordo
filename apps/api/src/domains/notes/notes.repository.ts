@@ -3,13 +3,28 @@ import {
   and,
   asc,
   eq,
+  getTableColumns,
   isNull,
   sql,
   tables,
   type NewNote,
 } from '../../adapters/database/database.adapter.js';
 
-const { notes } = tables;
+const { notes, captureRuns } = tables;
+
+/**
+ * Each note with the status of its newest capture run (or null): one
+ * correlated lookup per note on `capture_runs_note_idx`
+ * (owner_user_id, note_id, created_at), inside the same query. The outer
+ * columns are written out in full: Drizzle leaves column names unqualified
+ * in a one-table select, which would bind them to `capture_runs` instead.
+ */
+const withCaptureStatus = {
+  ...getTableColumns(notes),
+  latestCaptureStatus: sql<
+    'ready' | 'failed' | 'pending' | 'saved' | null
+  >`(SELECT r.status FROM ${captureRuns} AS r WHERE r.owner_user_id = "notes"."owner_user_id" AND r.note_id = "notes"."id" ORDER BY r.created_at DESC, r.rowid DESC LIMIT 1)`,
+};
 
 export class NotesRepository {
   constructor(private readonly database: DatabaseAdapter) {}
@@ -17,7 +32,7 @@ export class NotesRepository {
   list(owner: string) {
     return this.database
       .use()
-      .select()
+      .select(withCaptureStatus)
       .from(notes)
       .where(and(eq(notes.ownerUserId, owner), isNull(notes.deletedAt)))
       .orderBy(asc(notes.createdAt), asc(notes.id));
@@ -26,7 +41,7 @@ export class NotesRepository {
   async find(owner: string, id: string) {
     const [row] = await this.database
       .use()
-      .select()
+      .select(withCaptureStatus)
       .from(notes)
       .where(
         and(

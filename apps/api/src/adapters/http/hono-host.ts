@@ -145,7 +145,8 @@ function safeJson(text: string) {
 }
 
 /**
- * Parses the body the way the former Fastify host did: JSON (150,000 bytes),
+ * Parses the body the way the former Fastify host did: JSON (150,000 bytes,
+ * or the route's own `jsonLimit`),
  * plain text, or a route's declared raw content types as bytes (with the
  * route's own limit). No content type means no body; others are 415.
  */
@@ -158,7 +159,10 @@ async function parseBody(raw: Request, route: RouteDefinition) {
     return readBytes(raw, rawBody.limit);
   const mediaType = contentType.split(';')[0].trim().toLowerCase();
   if (mediaType === 'application/json') {
-    const bytes = await readBytes(raw, JSON_BODY_LIMIT);
+    const bytes = await readBytes(
+      raw,
+      route.options.jsonLimit ?? JSON_BODY_LIMIT,
+    );
     if (!bytes.length) throw new BodyError(400);
     return safeJson(new TextDecoder().decode(bytes));
   }

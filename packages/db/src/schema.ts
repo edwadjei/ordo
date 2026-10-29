@@ -61,6 +61,11 @@ export const projects = sqliteTable('projects', {
   name: text('name').notNull(),
   description: text('description').notNull().default(''),
   favorite: integer('favorite', { mode: 'boolean' }).notNull().default(false),
+  // 0005: up to 10 alternative names the AI capture may match.
+  aliases: text('aliases', { mode: 'json' })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
   ...revisionFields(),
 });
 
@@ -87,6 +92,12 @@ export const tasks = sqliteTable('tasks', {
   // Plain-text names (1–80 characters), never matched to accounts.
   responsiblePerson: text('responsible_person'),
   waitingOn: text('waiting_on'),
+  // 0005: where the task came from; set on create only.
+  origin: text('origin')
+    .$type<'manual' | 'capture' | 'agent'>()
+    .notNull()
+    .default('manual'),
+  sourceNoteId: text('source_note_id'),
   completedAt: text('completed_at'),
   deletedAt: text('deleted_at'),
   ...revisionFields(),
@@ -107,6 +118,69 @@ export const notes = sqliteTable('notes', {
     .default('manual'),
   deletedAt: text('deleted_at'),
   ...revisionFields(),
+});
+
+export const drafts = sqliteTable('drafts', {
+  id: text('id').primaryKey(),
+  ownerUserId: text('owner_user_id')
+    .notNull()
+    .references(() => users.id),
+  workspaceId: text('workspace_id').notNull(),
+  projectId: text('project_id'),
+  sourceNoteId: text('source_note_id'),
+  kind: text('kind').$type<'email' | 'message'>().notNull(),
+  // Exposed as `to` by the API.
+  recipient: text('recipient'),
+  subject: text('subject'),
+  body: text('body').notNull(),
+  usedAt: text('used_at'),
+  deletedAt: text('deleted_at'),
+  ...revisionFields(),
+});
+
+export type TextProvider = 'workers_ai' | 'openai' | 'anthropic';
+
+export const captureRuns = sqliteTable('capture_runs', {
+  id: text('id').primaryKey(),
+  ownerUserId: text('owner_user_id')
+    .notNull()
+    .references(() => users.id),
+  noteId: text('note_id').notNull(),
+  noteRevision: integer('note_revision').notNull(),
+  workspaceId: text('workspace_id').notNull(),
+  projectId: text('project_id'),
+  status: text('status')
+    .$type<'ready' | 'failed' | 'pending' | 'saved'>()
+    .notNull(),
+  provider: text('provider').$type<TextProvider>().notNull(),
+  model: text('model'),
+  suggestions: text('suggestions', { mode: 'json' }),
+  errorCode: text('error_code'),
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  neurons: integer('neurons'),
+  saveKey: text('save_key'),
+  saveFingerprint: text('save_fingerprint'),
+  saveClaim: text('save_claim'),
+  savedResult: text('saved_result', { mode: 'json' }).$type<{
+    taskIds: string[];
+    draftIds: string[];
+  }>(),
+  savedAt: text('saved_at'),
+  ...timestampFields(),
+});
+
+// The OpenAI key is the one in audio_settings, shared with transcription.
+export const aiSettings = sqliteTable('ai_settings', {
+  ownerUserId: text('owner_user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  textProvider: text('text_provider')
+    .$type<TextProvider>()
+    .notNull()
+    .default('workers_ai'),
+  encryptedAnthropicKey: text('encrypted_anthropic_key'),
+  ...timestampFields(),
 });
 
 export const idempotencyKeys = sqliteTable(

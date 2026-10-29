@@ -97,6 +97,9 @@ const crossDomainServices: Record<string, Set<string>> = {
   notes: new Set(['workspaces']),
   home: new Set(['workspaces', 'tasks', 'notes']),
   demo: new Set(['home']),
+  'ai-settings': new Set(['audio-settings']),
+  drafts: new Set(['workspaces', 'notes']),
+  capture: new Set(['workspaces', 'notes', 'ai-settings', 'drafts']),
 };
 
 test('platform and capability contracts cannot import business domains or concrete adapters', async () => {
@@ -210,22 +213,23 @@ test('controllers and app composition contain no SQL queries or transaction orch
 });
 
 test('crypto capability adapters are wired only by the owning domain modules', async () => {
-  const owners: Record<string, string> = {
+  const owners: Record<string, string | string[]> = {
     'adapters/cryptography/web-session-tokens.js':
       'domains/identity/identity.module.ts',
     'adapters/cryptography/web-otp-secrets.js':
       'domains/identity/identity.module.ts',
-    'adapters/cryptography/web-content-hasher.js':
+    'adapters/cryptography/web-content-hasher.js': [
       'domains/tasks/tasks.module.ts',
+      'domains/capture/capture.module.ts',
+    ],
   };
   for (const file of await sources()) {
     for (const dependency of imports(file.source)) {
       if (!dependency.specifier.startsWith('.')) continue;
       const target = resolved(file.filename, dependency.specifier);
       if (owners[target])
-        assert.equal(
-          file.relative,
-          owners[target],
+        assert.ok(
+          [owners[target]].flat().includes(file.relative),
           `Only the capability owner may wire ${target}`,
         );
     }

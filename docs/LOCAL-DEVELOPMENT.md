@@ -68,6 +68,19 @@ Run the last two in separate terminals. `npm run dev:api` and `npm run dev:web` 
 | `ORDO_ENV` | `apps/api/.dev.vars` | `development` enables the console code transport, a temporary OTP key when `OTP_HMAC_KEY` is empty, non-Secure cookies and the local trusted origins |
 | `TRUSTED_ORIGINS` | `apps/api/.dev.vars` | Exact browser origins permitted for writes; empty in development means `127.0.0.1` and `localhost` on ports 8788 and 3358 |
 | `OTP_HMAC_KEY`, `ORDO_CREDENTIAL_KEY`, `GATEKEEPER_API_KEY`, `GATEKEEPER_API_URL` | `apps/api/.dev.vars` locally; Worker secrets when hosted | See the API guide, `apps/api/README.md` ("Configuration") |
+| `ORDO_FAKE_TEXT_AI` | `apps/api/.dev.vars` | `on` answers Process with AI with a deterministic fake model, so the capture journey runs locally without AI calls; refused unless `ORDO_ENV=development` |
+
+### AI capture without real AI
+
+Workers AI cannot run under `wrangler dev --local`, and own-key providers cost money, so local AI capture uses a fake model. Set `ORDO_FAKE_TEXT_AI=on` (with `ORDO_ENV=development`) in `apps/api/.dev.vars` and restart `npm run dev`. Every provider choice in Settings then gets the fake model, which makes no network call and answers from the note's own text:
+
+- a summary from the first sentence;
+- up to three tasks from the first sentences, the first due tomorrow with high priority;
+- when the note has at least two sentences and a capitalised name inside a sentence, the last task becomes a follow-up waiting on that name, due tomorrow;
+- one email draft about the first task;
+- a high-confidence destination when a project name or alias of the chosen workspace appears in the text, otherwise low confidence with no project.
+
+Runs record the model as `ordo-development-fake`. The Worker refuses to start with `ORDO_FAKE_TEXT_AI=on` outside development.
 
 Ports 8788 (Worker) and 3358 (web) are set in `apps/api/wrangler.jsonc` and `apps/web/package.json`. The D1 database is a Worker binding, not a connection string. Native token sign-in is designed alongside the Hono port.
 

@@ -17,6 +17,17 @@ export class AudioSettingsRepository {
       .where(eq(audioSettings.ownerUserId, owner));
     return row;
   }
+  /** Sets or removes (`null`) the OpenAI key, keeping the chosen provider. */
+  async saveKey(owner: string, encryptedApiKey: string | null) {
+    await this.database
+      .use()
+      .insert(audioSettings)
+      .values({ ownerUserId: owner, encryptedApiKey })
+      .onConflictDoUpdate({
+        target: audioSettings.ownerUserId,
+        set: { encryptedApiKey, updatedAt: isoNow() },
+      });
+  }
   /**
    * One upsert. `encryptedApiKey: undefined` keeps whatever key is stored at
    * the moment of the write; `null` removes it.
