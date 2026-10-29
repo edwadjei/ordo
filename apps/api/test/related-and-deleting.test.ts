@@ -644,3 +644,76 @@ test('related items cap the same-capture lists at 20', async (t) => {
   assert.equal(related.captureTasks.length, 20);
   assert.equal(related.drafts.length, 20);
 });
+
+test('a write that loses a race with a permanent delete gets 409 SCOPE_DELETED, not a 500', async (t) => {
+  const { h, ok, call } = await setup(t);
+  // Another workspace, so the doomed one is not the last.
+  await ok('POST', '/v1/workspaces', { name: 'Kept' });
+  const doomed = await ok('POST', '/v1/workspaces', { name: 'Doomed' });
+  // The real D1 error a write gets when its workspace is gone, through
+  // Drizzle as the repositories write.
+  const { tasks } = await import('@ordo/db');
+  const { errorEnvelope } =
+    await import('../src/platform/http/error-handler.js');
+  const missing = randomUUID();
+  const failure = await h.db
+    .insert(tasks)
+    .values({
+      id: randomUUID(),
+      ownerUserId: (await ok('GET', '/v1/auth/me')).user.id,
+      workspaceId: missing,
+      title: 'Lost the race',
+    })
+    .then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+  assert.ok(failure, 'the insert must fail on its foreign key');
+  assert.deepEqual(errorEnvelope(failure), {
+    status: 409,
+    body: {
+      error: {
+        code: 'SCOPE_DELETED',
+        message:
+          'Something this change points to was just deleted. Reload and choose another destination.',
+      },
+    },
+  });
+  // End to end: the scope check passes, then the workspace is deleted
+  // before the insert runs (simulated by deleting it inside the check).
+  const response = await raceCreate(h, call, doomed.id);
+  assert.equal(response.statusCode, 409, response.body);
+  assert.equal(response.json().error.code, 'SCOPE_DELETED');
+  assert.equal((await ok('GET', '/v1/tasks')).length, 0, 'nothing was written');
+});
+
+/**
+ * Creates a task in `workspaceId` while a trigger deletes that workspace
+ * the moment the task's insert begins: the scope check has passed, then the
+ * insert finds the workspace gone, exactly as when a permanent delete wins.
+ */
+async function raceCreate(
+  h: Harness,
+  call: (
+    method: Method,
+    url: string,
+    payload?: object,
+  ) => Promise<{ statusCode: number; body: string; json(): any }>,
+  workspaceId: string,
+) {
+  await h.d1
+    .prepare(
+      `CREATE TRIGGER race_delete BEFORE INSERT ON tasks
+       WHEN NEW.workspace_id = '${workspaceId}'
+       BEGIN DELETE FROM workspaces WHERE id = NEW.workspace_id; END`,
+    )
+    .run();
+  try {
+    return await call('POST', '/v1/tasks', {
+      title: 'Lost the race',
+      workspaceId,
+    });
+  } finally {
+    await h.d1.prepare('DROP TRIGGER race_delete').run();
+  }
+}
