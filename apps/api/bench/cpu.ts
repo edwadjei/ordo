@@ -54,6 +54,8 @@ const WARMUP = 5;
 interface Seed {
   cookie: string;
   owner: string;
+  /** A read-and-write agent access token, for token and MCP routes. */
+  agentToken: string;
   workspaceIds: string[];
   projectIds: string[];
   taskIds: string[];
@@ -252,6 +254,14 @@ async function seed() {
     throw new Error(`Sign-in failed: ${verified.text}`);
   const cookie = verified.headers.getSetCookie()[0].split(';')[0];
   const owner = JSON.parse(verified.text).user.id as string;
+  const agentToken = JSON.parse(
+    (
+      await request('POST', '/settings/agent-tokens', {
+        body: { name: 'Bench assistant', scopes: ['read', 'write'] },
+        headers: { cookie },
+      })
+    ).text,
+  ).token as string;
   const vocabulary =
     'launch vendor pricing review checklist venue supplier contract budget meeting follow agenda design rollout timeline'.split(
       ' ',
@@ -280,6 +290,7 @@ async function seed() {
   const seedData: Seed = {
     cookie,
     owner,
+    agentToken,
     longNotes: { words2k: id(), words10k: id() },
     workspaceIds: Array.from({ length: sizes.workspaces }, id),
     projectIds: Array.from({ length: sizes.projects }, id),
@@ -395,6 +406,41 @@ function routes(data: Seed): Record<string, () => Promise<Result>> {
   return {
     'GET /home': () => request('GET', '/home', { headers: auth }),
     'GET /auth/me': () => request('GET', '/auth/me', { headers: auth }),
+    'GET /home (access token)': () =>
+      request('GET', '/home', {
+        headers: { authorization: `Bearer ${data.agentToken}` },
+      }),
+    'POST /mcp tools/call create_task': () =>
+      request('POST', '/mcp', {
+        headers: { authorization: `Bearer ${data.agentToken}` },
+        body: {
+          jsonrpc: '2.0',
+          id: seq++,
+          method: 'tools/call',
+          params: {
+            name: 'create_task',
+            arguments: {
+              title: `Assistant task ${seq}`,
+              workspaceId: data.workspaceIds[0],
+              projectId: data.projectIds[0],
+              dueDate: '2026-11-14',
+            },
+          },
+        },
+      }),
+    'POST /mcp tools/call list_tasks': () =>
+      request('POST', '/mcp', {
+        headers: { authorization: `Bearer ${data.agentToken}` },
+        body: {
+          jsonrpc: '2.0',
+          id: seq++,
+          method: 'tools/call',
+          params: {
+            name: 'list_tasks',
+            arguments: { projectId: data.projectIds[0] },
+          },
+        },
+      }),
     'POST /tasks': () =>
       request('POST', '/tasks', {
         headers: { ...auth, 'idempotency-key': crypto.randomUUID() },
@@ -617,6 +663,7 @@ function cold(args: string[]) {
       taskIds: [],
       noteIds: [],
       cookie: '',
+      agentToken: '',
       owner: '',
       longNotes: { words2k: '', words10k: '' },
     }),

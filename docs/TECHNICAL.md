@@ -137,6 +137,8 @@ The D1 schema keeps today's tables and columns, translated to SQLite types:
 | `audio_settings` | owner_user_id (primary key), provider, encrypted_api_key, created_at, updated_at | Ciphertext only |
 | `drafts` | id, owner_user_id, workspace_id, project_id, source_note_id, kind, recipient, subject, body, used_at, deleted_at, revision, created_at, updated_at | Email/message drafts; never sent by Ordo |
 | `capture_runs` | id, owner_user_id, note_id, note_revision, workspace_id, project_id, status, provider, model, suggestions, error_code, input_tokens, output_tokens, neurons, save_key, save_fingerprint, save_claim, saved_result, saved_at, created_at, updated_at | One "Process with AI" request; validated suggestions only, never note text or raw model output |
+| `agent_tokens` | id, owner_user_id, name, scopes, secret_hash, created_at, expires_at, last_used_at, revoked_at | Personal access tokens for assistants; HMAC of the secret only; revoked, never deleted |
+| `agent_activity` | id, owner_user_id, token_id, action, entity_type, entity_id, created_at | What a token did to which id, never content; kept 90 days |
 | `task_note_links` | task_id, note_id, owner_user_id, created_at | Notes linked to a task by hand; one per pair; removed with either side |
 | `ai_settings` | owner_user_id (primary key), text_provider, encrypted_anthropic_key, created_at, updated_at | Ciphertext only; the one OpenAI key stays in `audio_settings`, shared with transcription |
 | `tasks_fts`, `notes_fts`, `projects_fts` | FTS5 virtual tables | Kept current by insert/update/delete triggers |
@@ -251,6 +253,8 @@ D1 read replicas can lag briefly behind a write. Ordo uses the **D1 Sessions API
 - Users must see the actual sync state; background sync is best-effort.
 
 ## 12. MCP interface — minimal and safe
+
+**Implemented (release slice 3, part 1):** `POST /api/mcp` on the same Worker is a small, stateless, hand-written Streamable HTTP JSON-RPC handler (no SDK: its minimal server alone bundles to 1,391 KB). It is authenticated by personal access tokens and has eleven tools, which read and write through the same services and checks as the REST API; agents cannot delete anything. The agent access concept note (`apps/api/src/domains/agent-access/agent-access.md`) has the details.
 
 Expose an MCP server backed by the **same authorized domain services** as REST. Example tools: `list_workspaces`, `list_projects`, `search_items`, `list_tasks`, `create_task`, `update_task`, `complete_task`, `create_note`, `create_conversation`, `get_project_context`, `create_capture`.
 
