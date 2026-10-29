@@ -34,12 +34,15 @@ The system prompt (`captureSystemPrompt`) treats the capture's author as its own
 - a draft's body is the message itself, ready to send, in the owner's voice, with a short subject for an email, and a recipient only as the capture names them;
 - a day of the month ("the 14th") is the next such date on or after today, with its stated time.
 
-Two checks run after validation, whatever the model does with the instructions:
+Checks run after validation, whatever the model does with the instructions (`capture.prompt.ts` and `capture.checks.ts`):
 
 - `responsiblePerson` or `waitingOn` of "me", "I", "myself", "we", "us" or "our team" becomes null;
-- a `dueTime` or `followUpTime` is kept only when that time is stated in the capture (`statedTimes`: "10am", "2:30 pm", "14:00", "3 o'clock", "noon", "midnight"; a time without am or pm may be either half of the day). Spelled-out times ("half past two") and bare hours ("at 9") are not recognised, so a model's reading of them is dropped: a missing time is safer than an invented one.
+- a `dueTime` or `followUpTime` is kept only when that time is stated in the capture (`statedTimes`: "10am", "2:30 pm", "14:00", "3 o'clock", "noon", "midnight"; a time without am or pm may be either half of the day). Spelled-out times ("half past two") and bare hours ("at 9") are not recognised, so a model's reading of them is dropped: a missing time is safer than an invented one;
+- a follow-up (`isFollowUp`) whose only date came back as `dueDate` has it moved to `followUpDate` ("follow up on Monday" is when to follow up, not a due date);
+- an item left with no date gets one only when its own sentence names a day of the month. Its sentence is the one sharing the most words of four letters or more with its title, and at least two. Accepted forms are "the 14th", "14 November", "the 3rd of March", "Nov 14" and "November 2nd", resolved to the next such date on or after the note date. A time stated in that sentence is added only if it is the only one. A lower-case "may" is never read as the month;
+- a draft greeting that addresses an article or organisation ("Hi the design agency,", "Dear our suppliers,") becomes "Hello,".
 
-A draft's wording cannot be checked mechanically; the person reviews it before saving.
+The instructions also say these things. The rest of a draft's wording cannot be checked mechanically; the person reviews it before saving.
 
 ### One real run
 
