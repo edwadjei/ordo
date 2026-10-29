@@ -8,6 +8,7 @@ import { Dialog } from './dialog';
 import { knownNames, statusLabels } from '../lib/views';
 import { taskOrigin, taskSourceNote } from '../lib/capture';
 import { RelatedSection } from './related-items';
+import { ByAgent } from './agent-names';
 const editable = [
   'title',
   'description',
@@ -456,7 +457,7 @@ export function TaskDetail({
             )}
           </>
         ) : taskOrigin(task) === 'agent' ? (
-          'Created by an agent'
+          <ByAgent item={task} className="by-agent" />
         ) : (
           'Created manually'
         )}{' '}

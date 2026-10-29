@@ -31,6 +31,7 @@ import {
   type EverydayTask,
   type Moment,
 } from '../lib/views';
+import { ByAgent } from './agent-names';
 
 type Icon = ComponentType<{
   size?: number;
@@ -458,6 +459,7 @@ export function TaskRow({
               Responsible: {task.responsiblePerson}
             </span>
           )}
+          <ByAgent item={task} className="meta-person by-agent" />
           {!moment && variant !== 'waiting' && other && (
             <span className={`meta-follow ${tone(other)}`}>
               {followFirst ? (
