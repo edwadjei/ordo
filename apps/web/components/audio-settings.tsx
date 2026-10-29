@@ -5,6 +5,7 @@ import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
 import {
   defaultProvider,
+  builtInDetail,
   providerLabels,
   settingsStatus,
 } from '../lib/transcription';
@@ -147,18 +148,15 @@ export function AudioSettingsDialog({
             </label>
             {provider === 'workers_ai' ? (
               <>
-                <p className="muted">
-                  Nothing to set up. Your audio stays within Cloudflare, which
-                  runs Whisper to transcribe it.
-                </p>
+                <p className="muted">{builtInDetail}</p>
                 <p className="muted small">
-                  Free for about 214 minutes of audio a day. If that runs out,
+                  Covers about 214 minutes of audio a day. If that runs out,
                   transcription pauses until midnight UTC; you are never
                   charged.
                 </p>
                 {saved && !saved.workersAiAvailable && (
                   <p className="notice small" role="status">
-                    Cloudflare transcription isn’t available on this server.
+                    Built-in transcription isn’t available on this server.
                     Choose OpenAI and add your key to transcribe here.
                   </p>
                 )}
