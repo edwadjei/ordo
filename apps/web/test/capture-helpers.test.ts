@@ -42,15 +42,15 @@ test('conversations are recordings, emails and transcripts in scope, newest firs
 
 test('Not processed means the latest run is pending or failed', () => {
   assert.equal(
-    notProcessed(note('a', 'email', { captureStatus: 'pending' })),
+    notProcessed(note('a', 'email', { latestCaptureStatus: 'pending' })),
     true,
   );
   assert.equal(
-    notProcessed(note('b', 'email', { captureStatus: 'failed' })),
+    notProcessed(note('b', 'email', { latestCaptureStatus: 'failed' })),
     true,
   );
   assert.equal(
-    notProcessed(note('c', 'email', { captureStatus: 'saved' })),
+    notProcessed(note('c', 'email', { latestCaptureStatus: 'saved' })),
     false,
   );
   assert.equal(notProcessed(note('d', 'email')), false);

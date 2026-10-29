@@ -258,11 +258,22 @@ export function createClient(
       send<CaptureSaveResult>(`/capture-runs/${id}/save`, 'POST', data, {
         'Idempotency-Key': key,
       }),
-    drafts: (filter: { projectId?: string } = {}, signal?: AbortSignal) =>
-      request<{ drafts: Draft[] }>(
-        `/drafts${filter.projectId ? `?projectId=${encodeURIComponent(filter.projectId)}` : ''}`,
+    /** Drafts, newest first, optionally for one project or workspace. */
+    drafts: (
+      filter: { projectId?: string; workspaceId?: string } = {},
+      signal?: AbortSignal,
+    ) => {
+      const query = new URLSearchParams(
+        Object.entries(filter).filter(([, value]) => !!value) as [
+          string,
+          string,
+        ][],
+      ).toString();
+      return request<{ drafts: Draft[] }>(
+        `/drafts${query ? `?${query}` : ''}`,
         { signal },
-      ),
+      );
+    },
     updateDraft: (
       id: string,
       data: Partial<

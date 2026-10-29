@@ -5,15 +5,15 @@ import type { AiSettings, TextProvider } from '@ordo/client/capture';
 import { api } from '../lib/workspace';
 
 const labels: Record<TextProvider, string> = {
-  'workers-ai': 'Built-in AI',
+  workers_ai: 'Built-in AI',
   openai: 'OpenAI (your key)',
   anthropic: 'Anthropic (your key)',
 };
 const details: Record<TextProvider, string> = {
-  'workers-ai':
+  workers_ai:
     'Included with Ordo, with nothing to set up. It runs on Ordo’s hosting provider, Cloudflare (Workers AI), and shares the free daily allowance with transcription.',
   openai:
-    'Uses your own OpenAI API key. Captures you process are sent to OpenAI and billed to your account.',
+    'Uses your own OpenAI API key, the same one transcription uses. Captures you process are sent to OpenAI and billed to your account.',
   anthropic:
     'Uses your own Anthropic API key. Captures you process are sent to Anthropic and billed to your account.',
 };
@@ -31,7 +31,7 @@ export function AiSettingsSection({
 }) {
   const [saved, setSaved] = useState<AiSettings | null>(initial);
   const [provider, setProvider] = useState<TextProvider>(
-    initial?.textProvider || 'workers-ai',
+    initial?.textProvider || 'workers_ai',
   );
   const [apiKey, setApiKey] = useState('');
   const [busy, setBusy] = useState(false);
@@ -79,6 +79,9 @@ export function AiSettingsSection({
     try {
       const result = await api.saveAiSettings({
         textProvider: provider,
+        ...(provider !== 'workers_ai' && (removeApiKey || apiKey.trim())
+          ? { keyProvider: provider as 'openai' | 'anthropic' }
+          : {}),
         ...(removeApiKey
           ? { removeApiKey: true }
           : apiKey.trim()
@@ -131,13 +134,13 @@ export function AiSettingsSection({
             </select>
           </label>
           <p className="field-hint">{details[provider]}</p>
-          {provider === 'workers-ai' && saved && !saved.workersAiAvailable && (
+          {provider === 'workers_ai' && saved && !saved.workersAiAvailable && (
             <p className="callout">
               Built-in AI isn’t available on this server. Choose OpenAI or
               Anthropic and add your key to process captures here.
             </p>
           )}
-          {provider !== 'workers-ai' && (
+          {provider !== 'workers_ai' && (
             <label>
               {hasKey ? 'Replace API key' : 'API key'}
               <input
@@ -145,7 +148,13 @@ export function AiSettingsSection({
                 autoComplete="off"
                 value={apiKey}
                 onChange={(event) => setApiKey(event.target.value)}
-                placeholder={hasKey ? 'A key is saved' : 'Paste your key'}
+                placeholder={
+                  hasKey
+                    ? provider === 'openai'
+                      ? 'Your saved OpenAI key is used (also for transcription)'
+                      : 'A key is saved'
+                    : 'Paste your key'
+                }
               />
             </label>
           )}
@@ -163,7 +172,7 @@ export function AiSettingsSection({
             >
               Save AI settings
             </button>
-            {provider !== 'workers-ai' && hasKey && (
+            {provider !== 'workers_ai' && hasKey && (
               <button
                 type="button"
                 className="text-button"

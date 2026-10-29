@@ -186,7 +186,7 @@ test('drafts list by project, and Mark used patches usedAt with the revision', a
   await client.drafts({ projectId: 'p 1' });
   await client.markDraftUsed('d1', 2, new Date('2026-10-29T12:00:00Z'));
   assert.deepEqual(sent, [
-    { url: '/api/drafts?projectId=p%201', method: undefined, body: undefined },
+    { url: '/api/drafts?projectId=p+1', method: undefined, body: undefined },
     {
       url: '/api/drafts/d1',
       method: 'PATCH',

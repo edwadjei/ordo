@@ -213,14 +213,14 @@ export function DraftsList({
     setDrafts(null);
     setError('');
     api
-      .drafts(projectId ? { projectId } : {}, control.signal)
-      .then(({ drafts }) =>
-        setDrafts(
-          drafts.filter(
-            (draft) => !workspaceId || draft.workspaceId === workspaceId,
-          ),
-        ),
+      .drafts(
+        {
+          projectId: projectId || undefined,
+          workspaceId: workspaceId || undefined,
+        },
+        control.signal,
       )
+      .then(({ drafts }) => setDrafts(drafts))
       .catch((cause) => {
         if (!control.signal.aborted) setError((cause as Error).message);
       });

@@ -3,7 +3,7 @@
  * suggestions the person reviews; only what they save becomes tasks and
  * drafts, linked to the source note. Drafts are never sent by Ordo.
  */
-export type TextProvider = 'workers-ai' | 'openai' | 'anthropic';
+export type TextProvider = 'workers_ai' | 'openai' | 'anthropic';
 export type CaptureRunStatus = 'ready' | 'failed' | 'pending' | 'saved';
 export type Confidence = 'high' | 'low';
 export type DraftKind = 'email' | 'message';
@@ -97,4 +97,6 @@ export interface AiSettingsInput {
   textProvider: TextProvider;
   apiKey?: string;
   removeApiKey?: boolean;
+  /** Which provider apiKey/removeApiKey is for. The OpenAI key is shared with transcription. */
+  keyProvider?: 'openai' | 'anthropic';
 }

@@ -54,7 +54,7 @@ export function ProjectSettingsDialog({
           Description
           <textarea
             rows={3}
-            maxLength={500}
+            maxLength={5000}
             value={description}
             onChange={(event) => {
               setDescription(event.target.value);
@@ -65,8 +65,8 @@ export function ProjectSettingsDialog({
           />
         </label>
         <p id="project-description-hint" className="field-hint">
-          {description.length}/500 · Shown on the project and used by AI capture
-          to tell projects apart.
+          {description.length}/5,000 · Shown on the project and used by AI
+          capture to tell projects apart.
         </p>
         <label>
           Other names

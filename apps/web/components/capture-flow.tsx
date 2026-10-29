@@ -39,6 +39,7 @@ type Phase =
   | { step: 'choose' }
   | { step: 'processing' }
   | { step: 'later'; run: CaptureRun | null; reason: string }
+  | { step: 'tooLong' }
   | { step: 'review' }
   | { step: 'saved'; result: CaptureSaveResult };
 
@@ -109,6 +110,10 @@ export function CaptureFlow({
     } catch (cause) {
       if (abort.signal.aborted) {
         setPhase({ step: 'choose' });
+        return;
+      }
+      if (cause instanceof RequestError && cause.code === 'CAPTURE_TOO_LONG') {
+        setPhase({ step: 'tooLong' });
         return;
       }
       setPhase({
@@ -264,6 +269,24 @@ export function CaptureFlow({
               </button>
               <button className="secondary" onClick={() => void process()}>
                 Try again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {phase.step === 'tooLong' && (
+        <div className="capture-later" role="alert">
+          <CircleAlert size={18} aria-hidden="true" />
+          <div>
+            <strong>This capture is too long for built-in AI.</strong>
+            <p className="muted">
+              Built-in AI reads up to about 64,000 characters. Split it into
+              smaller notes and process each one, or choose your own OpenAI or
+              Anthropic key in Settings. Nothing was changed.
+            </p>
+            <div className="form-actions">
+              <button className="primary" onClick={onClose}>
+                OK
               </button>
             </div>
           </div>

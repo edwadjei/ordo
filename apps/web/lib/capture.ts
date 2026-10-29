@@ -10,8 +10,8 @@ export const taskSourceNote = (task: Task): string | null =>
   (task as Task & { sourceNoteId?: string | null }).sourceNoteId ?? null;
 /** The latest capture run's status for a note, when the API reports it. */
 export const noteCaptureStatus = (note: Note): CaptureRunStatus | null =>
-  (note as Note & { captureStatus?: CaptureRunStatus | null }).captureStatus ??
-  null;
+  (note as Note & { latestCaptureStatus?: CaptureRunStatus | null })
+    .latestCaptureStatus ?? null;
 
 /** A capture whose AI processing didn't finish: pending (AI unavailable) or failed. */
 export const notProcessed = (note: Note) => {
