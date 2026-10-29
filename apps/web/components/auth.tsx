@@ -1,9 +1,14 @@
 'use client';
 import { ThemeSelector } from './theme-selector';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Leaf } from 'lucide-react';
 import type { AppCapabilities } from '@ordo/client';
 import { api } from '../lib/workspace';
+import {
+  normalizeSignInCode,
+  signInCodeLength,
+  signInCodeProblem,
+} from '../lib/sign-in-code';
 export function Auth({
   onSuccess,
   initialError,
@@ -20,6 +25,9 @@ export function Auth({
   const [now, setNow] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [code, setCode] = useState('');
+  const [codeError, setCodeError] = useState('');
+  const codeInput = useRef<HTMLInputElement>(null);
   const [capabilities, setCapabilities] = useState<AppCapabilities | null>(
     null,
   );
@@ -53,6 +61,8 @@ export function Auth({
     const result = await api.requestOtp(contact.trim());
     const time = Date.now();
     setNow(time);
+    setCode('');
+    setCodeError('');
     setChallenge({
       challengeId: result.challengeId,
       retryAt: time + result.retryAfterSeconds * 1000,
@@ -63,13 +73,21 @@ export function Auth({
     event.preventDefault();
     const form = event.currentTarget,
       fields = new FormData(form);
-    setBusy(true);
     setError('');
+    if (challenge) {
+      const problem = signInCodeProblem(code);
+      setCodeError(problem);
+      if (problem) {
+        codeInput.current?.focus();
+        return;
+      }
+    }
+    setBusy(true);
     try {
       if (challenge) {
         await api.verifyOtp({
           challengeId: challenge.challengeId,
-          code: String(fields.get('code')),
+          code,
           displayName: String(fields.get('name') || '').trim() || undefined,
         });
       } else {
@@ -120,18 +138,30 @@ export function Auth({
                   Sign-in code
                   <input
                     key={challenge.challengeId}
+                    ref={codeInput}
                     name="code"
                     inputMode="numeric"
                     autoComplete="one-time-code"
-                    pattern="[0-9]{6}"
-                    minLength={6}
-                    maxLength={6}
-                    required
+                    value={code}
+                    onChange={(event) => {
+                      const next = normalizeSignInCode(event.target.value);
+                      setCode(next);
+                      if (codeError && next.length === signInCodeLength)
+                        setCodeError('');
+                    }}
                     autoFocus
                     placeholder="000000"
-                    aria-describedby="otp-help"
+                    aria-invalid={codeError ? true : undefined}
+                    aria-describedby={
+                      codeError ? 'otp-error otp-help' : 'otp-help'
+                    }
                   />
                 </label>
+                {codeError && (
+                  <p className="error" id="otp-error" role="alert">
+                    {codeError}
+                  </p>
+                )}
                 <p className="muted small" id="otp-help">
                   {expired
                     ? 'This code has expired. Request another below.'
@@ -211,6 +241,8 @@ export function Auth({
               disabled={busy}
               onClick={() => {
                 setChallenge(null);
+                setCode('');
+                setCodeError('');
                 setError('');
               }}
             >
