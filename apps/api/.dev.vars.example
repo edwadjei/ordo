@@ -22,6 +22,9 @@ ORDO_CREDENTIAL_KEY=
 # OpenAI key. Set to on only when running `wrangler dev` (without --local)
 # while logged in to Cloudflare; that uses the account's daily allowance.
 ORDO_WORKERS_AI=
+# Development only: `on` answers "Process with AI" with a deterministic fake
+# model (no AI call). Refused unless ORDO_ENV=development.
+ORDO_FAKE_TEXT_AI=
 
 # Optional: real code delivery. When both are set they are used instead of
 # the console transport, so leave them empty for local work.

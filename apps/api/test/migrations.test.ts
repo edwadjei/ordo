@@ -342,3 +342,115 @@ test('0004 adds project favourites and note sources with defaults, keeping every
     1,
   );
 });
+
+test('0005 adds aliases, task provenance, drafts, capture runs and AI settings, keeping every row', async (t) => {
+  const proxy = await getPlatformProxy<{ DB: D1Database }>({
+    configPath: wranglerConfig,
+    persist: false,
+    remoteBindings: false,
+    envFiles: [],
+  });
+  t.after(() => proxy.dispose());
+  const d1 = proxy.env.DB;
+  const migrations = await migrationStatements();
+  assert.equal(migrations[4].name, '0005_ai_capture.sql');
+  const apply = (index: number) =>
+    d1.batch(migrations[index].statements.map((sql) => d1.prepare(sql)));
+  for (const index of [0, 1, 2, 3]) await apply(index);
+  const [owner, other, workspace, project, task, note] = Array.from(
+    { length: 6 },
+    () => crypto.randomUUID(),
+  );
+  await d1.batch([
+    d1
+      .prepare(
+        "INSERT INTO users (id, email) VALUES (?, 'fiction@example.test'), (?, 'other@example.test')",
+      )
+      .bind(owner, other),
+    d1
+      .prepare(
+        "INSERT INTO workspaces (id, owner_user_id, name, color) VALUES (?, ?, 'Fiction', '#577664')",
+      )
+      .bind(workspace, owner),
+    d1
+      .prepare(
+        "INSERT INTO projects (id, owner_user_id, workspace_id, name, revision) VALUES (?, ?, ?, 'Fictional project', 3)",
+      )
+      .bind(project, owner, workspace),
+    d1
+      .prepare(
+        "INSERT INTO tasks (id, owner_user_id, title, revision) VALUES (?, ?, 'Fictional task', 4)",
+      )
+      .bind(task, owner),
+    d1
+      .prepare(
+        "INSERT INTO notes (id, owner_user_id, title, body) VALUES (?, ?, 'Fictional note', 'Body')",
+      )
+      .bind(note, owner),
+  ]);
+  await apply(4);
+  assert.deepEqual(
+    await d1
+      .prepare('SELECT aliases, revision FROM projects WHERE id = ?')
+      .bind(project)
+      .first(),
+    { aliases: '[]', revision: 3 },
+  );
+  assert.deepEqual(
+    await d1
+      .prepare(
+        'SELECT title, origin, source_note_id, revision FROM tasks WHERE id = ?',
+      )
+      .bind(task)
+      .first(),
+    {
+      title: 'Fictional task',
+      origin: 'manual',
+      source_note_id: null,
+      revision: 4,
+    },
+  );
+  const rejects = (sql: string, ...values: unknown[]) =>
+    assert.rejects(
+      () =>
+        d1
+          .prepare(sql)
+          .bind(...values)
+          .run(),
+      sql,
+    );
+  await rejects("UPDATE tasks SET origin = 'robot' WHERE id = ?", task);
+  await rejects("UPDATE projects SET aliases = 'x' WHERE id = ?", project);
+  await rejects(
+    `UPDATE projects SET aliases = '${JSON.stringify(Array(11).fill('a'))}' WHERE id = ?`,
+    project,
+  );
+  // A draft or run cannot point at another account's note.
+  await rejects(
+    "INSERT INTO drafts (id, owner_user_id, workspace_id, source_note_id, kind, body) VALUES (?, ?, ?, ?, 'email', 'Hi')",
+    crypto.randomUUID(),
+    other,
+    workspace,
+    note,
+  );
+  await rejects(
+    "INSERT INTO capture_runs (id, owner_user_id, note_id, note_revision, workspace_id, status, provider) VALUES (?, ?, ?, 1, ?, 'ready', 'workers_ai')",
+    crypto.randomUUID(),
+    owner,
+    note,
+    workspace,
+  );
+  await d1
+    .prepare(
+      "INSERT INTO capture_runs (id, owner_user_id, note_id, note_revision, workspace_id, status, provider) VALUES (?, ?, ?, 1, ?, 'pending', 'workers_ai')",
+    )
+    .bind(crypto.randomUUID(), owner, note, workspace)
+    .run();
+  assert.deepEqual(
+    await d1
+      .prepare('SELECT text_provider FROM ai_settings WHERE owner_user_id = ?')
+      .bind(owner)
+      .first(),
+    null,
+  );
+});

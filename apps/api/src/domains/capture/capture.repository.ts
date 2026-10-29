@@ -37,14 +37,20 @@ export class CaptureRepository {
   }
 
   listForNote(owner: string, noteId: string) {
-    return this.database
-      .use()
-      .select()
-      .from(captureRuns)
-      .where(
-        and(eq(captureRuns.ownerUserId, owner), eq(captureRuns.noteId, noteId)),
-      )
-      .orderBy(asc(captureRuns.createdAt), asc(captureRuns.id));
+    return (
+      this.database
+        .use()
+        .select()
+        .from(captureRuns)
+        .where(
+          and(
+            eq(captureRuns.ownerUserId, owner),
+            eq(captureRuns.noteId, noteId),
+          ),
+        )
+        // rowid breaks ties between runs made in the same millisecond.
+        .orderBy(asc(captureRuns.createdAt), sql`${captureRuns}.rowid`)
+    );
   }
 
   /**

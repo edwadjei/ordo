@@ -40,6 +40,41 @@ export class AudioSettingsService {
   async hasSavedKey(owner: string) {
     return Boolean((await this.repository.find(owner))?.encryptedApiKey);
   }
+  /**
+   * The account's one OpenAI key, shared by transcription and AI capture:
+   * `null` when none is saved. Throws a 503 when it cannot be decrypted.
+   */
+  async openAiKey(owner: string) {
+    const row = await this.repository.find(owner);
+    if (!row?.encryptedApiKey) return null;
+    try {
+      return await this.cipher.decrypt(owner, row.encryptedApiKey);
+    } catch {
+      return fail(
+        503,
+        'CREDENTIAL_STORAGE_UNAVAILABLE',
+        'The saved API key is unavailable. Add it again in Settings.',
+      );
+    }
+  }
+
+  /** Saves (or with `null` removes) the shared OpenAI key; the provider choice is kept. */
+  async setOpenAiKey(owner: string, apiKey: string | null) {
+    let encrypted: string | null = null;
+    if (apiKey) {
+      try {
+        encrypted = await this.cipher.encrypt(owner, apiKey);
+      } catch {
+        fail(
+          503,
+          'CREDENTIAL_STORAGE_UNAVAILABLE',
+          'API key storage is unavailable. Please retry.',
+        );
+      }
+    }
+    await this.repository.saveKey(owner, encrypted);
+  }
+
   async status(owner: string) {
     const row = await this.repository.find(owner),
       workersAiAvailable = this.workersAiAvailable(),

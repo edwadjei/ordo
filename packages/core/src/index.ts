@@ -78,8 +78,9 @@ export const taskInput = scopeInput
     responsiblePerson: personName.nullable().default(null),
     waitingOn: personName.nullable().default(null),
     parentId: id.nullable().default(null),
-    // Provenance (0005): set on create only, never changed by a patch.
-    origin: z.enum(taskOrigins).default('manual'),
+    // Provenance (0005): the source note is set on create only. `origin` is
+    // set by the server, never by a client: `manual` here, `capture` by the
+    // capture save route, `agent` later by agent tokens.
     sourceNoteId: id.nullable().default(null),
   })
   .strict();
@@ -181,14 +182,17 @@ const providerKey = z
   .min(16)
   .max(512)
   .regex(/^[A-Za-z0-9_-]+$/);
-/** `PATCH /v1/settings/ai`. A key is saved for its own provider. */
+/**
+ * `PATCH /v1/settings/ai`. `apiKey` or `removeApiKey` applies to
+ * `keyProvider`, which defaults to the chosen `textProvider`. The OpenAI key
+ * is the account's one OpenAI key, shared with transcription.
+ */
 export const aiSettingsPatch = z
   .object({
     textProvider: z.enum(textProviders).optional(),
-    openaiKey: providerKey.optional(),
-    anthropicKey: providerKey.optional(),
-    removeOpenaiKey: z.boolean().optional(),
-    removeAnthropicKey: z.boolean().optional(),
+    apiKey: providerKey.optional(),
+    removeApiKey: z.boolean().optional(),
+    keyProvider: z.enum(['openai', 'anthropic']).optional(),
   })
   .strict();
 
@@ -216,6 +220,10 @@ export const draftInput = z
     subject: draftSubject.nullable().default(null),
     body: draftBody,
   })
+  .strict();
+/** `GET /v1/drafts` filters; both optional. */
+export const draftListQuery = z
+  .object({ workspaceId: id.optional(), projectId: id.optional() })
   .strict();
 /** `PATCH /v1/drafts/:id`; `used: true` marks it used, `false` clears that. */
 export const draftPatch = z
@@ -389,7 +397,7 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
 }
-export interface Task extends Omit<TaskInput, 'origin' | 'sourceNoteId'> {
+export interface Task extends Omit<TaskInput, 'sourceNoteId'> {
   /**
    * Always returned by the API (`"manual"` and `null` by default); optional
    * only so data a client cached before these fields existed still fits.
@@ -403,6 +411,12 @@ export interface Task extends Omit<TaskInput, 'origin' | 'sourceNoteId'> {
   updatedAt: string;
 }
 export interface Note extends NoteInput {
+  /**
+   * Status of the note's newest capture run, or null when it was never
+   * processed. Returned by `GET /v1/notes`, `GET /v1/notes/:id` and
+   * `/v1/home`; note writes omit it.
+   */
+  latestCaptureStatus?: CaptureRunStatus | null;
   id: string;
   revision: number;
   createdAt: string;

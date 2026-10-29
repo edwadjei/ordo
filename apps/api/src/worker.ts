@@ -2,6 +2,7 @@ import { createDatabase } from '@ordo/db';
 import { buildApp } from './app.js';
 import { DatabaseAdapter } from './adapters/database/database.adapter.js';
 import { GatekeeperOtpDelivery } from './adapters/gatekeeper/gatekeeper-otp-delivery.js';
+import { DevelopmentTextModelProviders } from './adapters/text-ai/development-text-model.js';
 import { ConsoleOtpDelivery } from './adapters/console/console-otp-delivery.js';
 import { fromHex, randomBytes } from './adapters/cryptography/encoding.js';
 import {
@@ -60,6 +61,10 @@ function compose(env: Env): Composition {
     otpDelivery,
     otpHmacKey,
     aiSettings: {
+      // Development only (enforced by readWorkerConfig).
+      providers: config.fakeTextAi
+        ? new DevelopmentTextModelProviders()
+        : undefined,
       ai: config.workersAi ? usableAiBinding(env.AI) : undefined,
       credentialKey: config.credentialKey
         ? fromHex(config.credentialKey)

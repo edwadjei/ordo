@@ -97,7 +97,7 @@ const crossDomainServices: Record<string, Set<string>> = {
   notes: new Set(['workspaces']),
   home: new Set(['workspaces', 'tasks', 'notes']),
   demo: new Set(['home']),
-  'ai-settings': new Set(),
+  'ai-settings': new Set(['audio-settings']),
   drafts: new Set(['workspaces', 'notes']),
   capture: new Set(['workspaces', 'notes', 'ai-settings', 'drafts']),
 };

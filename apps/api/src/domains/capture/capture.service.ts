@@ -307,10 +307,17 @@ export class CaptureService {
       this.repository.tasksByIds(owner, ids.taskIds),
       this.repository.draftsByIds(owner, ids.draftIds),
     ]);
+    // In the order they were saved (they share one timestamp).
+    const inOrder = <T extends { id: string }>(rows: T[], order: string[]) =>
+      [...rows].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
     return {
       run: publicRun(run),
-      tasks: tasks.map((task: TaskRecord) => publicRecord(task)),
-      drafts: drafts.map((draft: DraftRecord) => publicDraft(draft)),
+      tasks: inOrder(tasks, ids.taskIds).map((task: TaskRecord) =>
+        publicRecord(task),
+      ),
+      drafts: inOrder(drafts, ids.draftIds).map((draft: DraftRecord) =>
+        publicDraft(draft),
+      ),
     };
   }
 

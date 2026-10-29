@@ -130,14 +130,17 @@ The D1 schema keeps today's tables and columns, translated to SQLite types:
 | `otp_challenges` | contact (primary key), challenge_id, code_hash, expires_at, next_send_at, window_started_at, requests, attempts, ready, consumed, consumed_by | One row per email/phone; holds the current code and the contact's rate-limit window |
 | `auth_throttle` | key (route + client IP), window_started_at, count | Per-IP limits for sign-in routes |
 | `workspaces` | id, owner_user_id, name, color, revision, created_at, updated_at | |
-| `projects` | id, owner_user_id, workspace_id, name, description, revision, created_at, updated_at | Composite keys keep a project inside its workspace |
-| `tasks` | id, owner_user_id, workspace_id, project_id, parent_id, title, description, status, priority, due_date, due_time, follow_up_date, follow_up_time, responsible_person, waiting_on, completed_at, deleted_at, revision, created_at, updated_at | Null workspace and project = personal Inbox |
+| `projects` | id, owner_user_id, workspace_id, name, description, favorite, aliases, revision, created_at, updated_at | Composite keys keep a project inside its workspace; `aliases` is a JSON array of up to 10 names |
+| `tasks` | id, owner_user_id, workspace_id, project_id, parent_id, title, description, status, priority, due_date, due_time, follow_up_date, follow_up_time, responsible_person, waiting_on, origin, source_note_id, completed_at, deleted_at, revision, created_at, updated_at | Null workspace and project = personal Inbox; `origin` and `source_note_id` record provenance |
 | `idempotency_keys` | id, owner_user_id, key, fingerprint, task_id, created_at | Unique on (owner_user_id, key) |
 | `notes` | id, owner_user_id, workspace_id, project_id, title, body, deleted_at, revision, created_at, updated_at | |
 | `audio_settings` | owner_user_id (primary key), provider, encrypted_api_key, created_at, updated_at | Ciphertext only |
+| `drafts` | id, owner_user_id, workspace_id, project_id, source_note_id, kind, recipient, subject, body, used_at, deleted_at, revision, created_at, updated_at | Email/message drafts; never sent by Ordo |
+| `capture_runs` | id, owner_user_id, note_id, note_revision, workspace_id, project_id, status, provider, model, suggestions, error_code, input_tokens, output_tokens, neurons, save_key, save_fingerprint, save_claim, saved_result, saved_at, created_at, updated_at | One "Process with AI" request; validated suggestions only, never note text or raw model output |
+| `ai_settings` | owner_user_id (primary key), text_provider, encrypted_anthropic_key, created_at, updated_at | Ciphertext only; the one OpenAI key stays in `audio_settings`, shared with transcription |
 | `tasks_fts`, `notes_fts`, `projects_fts` | FTS5 virtual tables | Kept current by insert/update/delete triggers |
 
-Later feature streams add **conversations**, **people**, **drafts**, **captures**, **ai_jobs**, **ai_suggestions**, **entity_links**, **api_tokens**, and **audit_events** with the same ownership rules. Attachments are not part of Ordo: audio and files are never stored.
+Later feature streams add **conversations**, **people**, **ai_jobs**, **entity_links**, **api_tokens**, and **audit_events** with the same ownership rules. Attachments are not part of Ordo: audio and files are never stored.
 
 ### Database invariants
 
@@ -253,6 +256,8 @@ Expose an MCP server backed by the **same authorized domain services** as REST. 
 **Security:** each MCP client uses a short-lived OAuth flow or a revocable, scoped personal access token. Enforce scopes and workspace allowlists on the server; never rely on prompt instructions for access control. Reject ambiguous destinations instead of guessing. Token material must never enter agent context or logs. **MCP is not a database connection**: all operations go through validated, audited services with the same rules as the app.
 
 ## 13. AI processing pipeline
+
+**Implemented (release slice 2, AI capture):** processing runs synchronously when the person asks, with no queue: `POST /v1/notes/:id/process` sends one note and the chosen workspace's project names to the account's text model, validates the JSON reply with the shared Zod schemas, and stores a capture run (`ready`, `failed` or `pending`). The person reviews and edits, then `POST /v1/capture-runs/:id/save` creates the tasks and drafts in one D1 batch with provenance (`origin: "capture"`, `sourceNoteId`). Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`, JSON mode) is the default and shares the daily free allowance with transcription; an account may choose its own OpenAI or Anthropic key instead. Captures longer than the model accepts are refused, not chunked. The capture concept note (`apps/api/src/domains/capture/capture.md`) has the rules and the cost per capture. The pipeline below, with queues and chunking, is the longer-term design.
 
 ```text
 User capture (text / live audio)

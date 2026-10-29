@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import {
   and,
   asc,
+  desc,
   eq,
   getTableColumns,
   gt,
@@ -27,7 +28,7 @@ import {
   type Database,
 } from '@ordo/db';
 
-export { and, asc, eq, gt, isNull, sql, type SQL };
+export { and, asc, desc, eq, getTableColumns, gt, isNull, sql, type SQL };
 export const tables = {
   users,
   sessions,

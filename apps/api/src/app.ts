@@ -70,7 +70,11 @@ export function buildApp(options: AppOptions) {
     database,
     options.audioSettings,
   );
-  const aiSettings = createAiSettingsModule(database, options.aiSettings);
+  const aiSettings = createAiSettingsModule(
+    database,
+    audioSettings.service,
+    options.aiSettings,
+  );
   const drafts = createDraftsModule(
     database,
     workspaces.service,

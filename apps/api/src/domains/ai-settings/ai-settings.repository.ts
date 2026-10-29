@@ -9,7 +9,6 @@ const { aiSettings } = tables;
 export interface AiSettingsChanges {
   textProvider?: TextProvider;
   /** `undefined` keeps the stored key; `null` removes it. */
-  encryptedOpenaiKey?: string | null;
   encryptedAnthropicKey?: string | null;
 }
 export class AiSettingsRepository {

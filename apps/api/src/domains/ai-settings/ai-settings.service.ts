@@ -10,53 +10,49 @@ import type {
 } from '../../capabilities/text-model.contract.js';
 import type { SecretCipher } from '../../capabilities/secret-cipher.contract.js';
 import { fail } from '../../platform/http/api-failure.js';
+import type { AudioSettingsService } from '../audio-settings/audio-settings.service.js';
 import type {
   AiSettingsChanges,
   AiSettingsRepository,
 } from './ai-settings.repository.js';
 
-const providerNames: Record<Exclude<TextProvider, 'workers_ai'>, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-};
-
 /**
  * The account's text-AI choice for AI capture. Workers AI is the default;
- * OpenAI and Anthropic use the account's own key, encrypted like audio keys.
- * Never falls back from the chosen provider to another one.
+ * OpenAI uses the account's one OpenAI key (kept by audio settings and shared
+ * with transcription); Anthropic uses a key stored here. Never falls back
+ * from the chosen provider to another one.
  */
 export class AiSettingsService {
   constructor(
     private readonly repository: AiSettingsRepository,
     private readonly providers: TextModelProviders,
     private readonly cipher: SecretCipher,
+    private readonly audio: AudioSettingsService,
   ) {}
 
   async status(owner: string) {
-    const row = await this.repository.find(owner);
+    const [row, hasOpenAiKey] = await Promise.all([
+      this.repository.find(owner),
+      this.audio.hasSavedKey(owner),
+    ]);
     const textProvider = row?.textProvider ?? defaultTextProvider;
-    const keys = {
-      openai: Boolean(row?.encryptedOpenaiKey),
-      anthropic: Boolean(row?.encryptedAnthropicKey),
-    };
+    const hasAnthropicKey = Boolean(row?.encryptedAnthropicKey);
     const workersAiAvailable = this.providers.workersAiAvailable();
+    const hasKey = { openai: hasOpenAiKey, anthropic: hasAnthropicKey };
     return {
       textProvider,
       workersAiAvailable,
-      hasOpenaiKey: keys.openai,
-      hasAnthropicKey: keys.anthropic,
+      hasOpenAiKey,
+      hasAnthropicKey,
       configured:
         textProvider === 'workers_ai'
           ? workersAiAvailable
-          : keys[textProvider] && (await this.cipher.configured()),
+          : hasKey[textProvider] && (await this.cipher.configured()),
     };
   }
 
   async update(owner: string, input: z.infer<typeof aiSettingsPatch>) {
-    if (
-      (input.openaiKey && input.removeOpenaiKey) ||
-      (input.anthropicKey && input.removeAnthropicKey)
-    )
+    if (input.apiKey && input.removeApiKey)
       fail(
         400,
         'INVALID_INPUT',
@@ -64,15 +60,24 @@ export class AiSettingsService {
       );
     const changes: AiSettingsChanges = {};
     if (input.textProvider) changes.textProvider = input.textProvider;
-    if (input.openaiKey)
-      changes.encryptedOpenaiKey = await this.encrypt(owner, input.openaiKey);
-    if (input.anthropicKey)
-      changes.encryptedAnthropicKey = await this.encrypt(
-        owner,
-        input.anthropicKey,
-      );
-    if (input.removeOpenaiKey) changes.encryptedOpenaiKey = null;
-    if (input.removeAnthropicKey) changes.encryptedAnthropicKey = null;
+    if (input.apiKey || input.removeApiKey) {
+      const chosen =
+        input.textProvider ?? (await this.repository.find(owner))?.textProvider;
+      const keyProvider =
+        input.keyProvider ?? (chosen === 'workers_ai' ? undefined : chosen);
+      if (!keyProvider)
+        fail(
+          400,
+          'INVALID_INPUT',
+          'Say which provider the key is for (keyProvider).',
+        );
+      const key = input.apiKey ?? null;
+      if (keyProvider === 'openai') await this.audio.setOpenAiKey(owner, key);
+      else
+        changes.encryptedAnthropicKey = key
+          ? await this.encrypt(owner, key)
+          : null;
+    }
     if (Object.keys(changes).length) await this.repository.save(owner, changes);
     return this.status(owner);
   }
@@ -93,7 +98,7 @@ export class AiSettingsService {
    */
   async resolve(owner: string): Promise<TextModel> {
     const row = await this.repository.find(owner);
-    const provider = row?.textProvider ?? defaultTextProvider;
+    const provider: TextProvider = row?.textProvider ?? defaultTextProvider;
     if (provider === 'workers_ai') {
       if (!this.providers.workersAiAvailable())
         fail(
@@ -103,19 +108,25 @@ export class AiSettingsService {
         );
       return this.providers.workersAi();
     }
-    const encrypted =
-      provider === 'openai'
-        ? row?.encryptedOpenaiKey
-        : row?.encryptedAnthropicKey;
-    if (!encrypted)
+    if (provider === 'openai') {
+      const key = await this.audio.openAiKey(owner);
+      if (!key)
+        fail(
+          503,
+          'AI_KEY_MISSING',
+          'Add your OpenAI key in Settings to process captures.',
+        );
+      return this.providers.openAi(key);
+    }
+    if (!row?.encryptedAnthropicKey)
       fail(
         503,
         'AI_KEY_MISSING',
-        `Add your ${providerNames[provider]} key in Settings to process captures.`,
+        'Add your Anthropic key in Settings to process captures.',
       );
     let key: string;
     try {
-      key = await this.cipher.decrypt(owner, encrypted);
+      key = await this.cipher.decrypt(owner, row.encryptedAnthropicKey);
     } catch {
       return fail(
         503,
@@ -123,9 +134,7 @@ export class AiSettingsService {
         'The saved API key is unavailable. Add it again in Settings.',
       );
     }
-    return provider === 'openai'
-      ? this.providers.openAi(key)
-      : this.providers.anthropic(key);
+    return this.providers.anthropic(key);
   }
 
   private async encrypt(owner: string, key: string) {

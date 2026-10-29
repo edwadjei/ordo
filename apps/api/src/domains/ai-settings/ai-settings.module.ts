@@ -5,6 +5,7 @@ import type { TextModelProviders } from '../../capabilities/text-model.contract.
 import { ConfiguredTextModelProviders } from '../../adapters/text-ai/configured-text-model-providers.js';
 import type { WorkersAiTextBinding } from '../../adapters/text-ai/workers-ai-text-model.js';
 import { WebSecretCipher } from '../../adapters/secrets/web-secret-cipher.js';
+import type { AudioSettingsService } from '../audio-settings/audio-settings.service.js';
 import { AiSettingsRepository } from './ai-settings.repository.js';
 import { AiSettingsService } from './ai-settings.service.js';
 import { registerAiSettingsController } from './ai-settings.controller.js';
@@ -19,6 +20,7 @@ export interface AiSettingsOptions {
 }
 export function createAiSettingsModule(
   database: DatabaseAdapter,
+  audio: AudioSettingsService,
   options: AiSettingsOptions = {},
 ) {
   const credentialKey = options.credentialKey;
@@ -31,6 +33,7 @@ export function createAiSettingsModule(
           throw new Error('Credential encryption is not configured');
         return credentialKey;
       }),
+    audio,
   );
   return {
     service,
