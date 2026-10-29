@@ -91,6 +91,7 @@ import { ProjectSettingsDialog } from './project-settings';
 import { WorkspaceSettingsDialog } from './workspace-settings';
 import {
   archivedItems,
+  archivedScope,
   isLastWorkspace,
   withoutArchived,
 } from '../lib/organize';
@@ -1627,6 +1628,11 @@ export function WorkspaceApp() {
         <SearchDialog
           key={data.user.id}
           data={data}
+          everything={everything!}
+          archived={(kind, id) => {
+            setModal(null);
+            manageItem(kind, id);
+          }}
           query={query}
           setQuery={setQuery}
           onClose={() => setModal(null)}
@@ -1943,14 +1949,20 @@ function CreateContainer({
 }
 function SearchDialog({
   data,
+  everything,
   query,
   setQuery,
   onClose,
   task,
   note,
   project,
+  archived,
 }: {
   data: HomeSnapshot;
+  /** Includes archived workspaces and projects, to name and mark them. */
+  everything: HomeSnapshot;
+  /** Opens an archived scope's settings, to restore it. */
+  archived: (kind: 'workspaces' | 'projects', id: string) => void;
   query: string;
   setQuery: (value: string) => void;
   onClose: () => void;
@@ -1961,6 +1973,7 @@ function SearchDialog({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [includeArchived, setIncludeArchived] = useState(false);
   useEffect(() => {
     const control = new AbortController();
     let active = true;
@@ -1973,7 +1986,7 @@ function SearchDialog({
     setLoading(true);
     const timer = window.setTimeout(() => {
       api
-        .search(query.trim(), control.signal)
+        .search(query.trim(), control.signal, { includeArchived })
         .then((value) => {
           if (active) setResults(value.results);
         })
@@ -1989,7 +2002,7 @@ function SearchDialog({
       clearTimeout(timer);
       control.abort();
     };
-  }, [query]);
+  }, [query, includeArchived]);
   return (
     <Dialog title="Find a little clarity." onClose={onClose}>
       <div className="search-input">
@@ -2003,29 +2016,53 @@ function SearchDialog({
           maxLength={200}
         />
       </div>
+      <label className="completed-toggle search-archived">
+        <input
+          type="checkbox"
+          checked={includeArchived}
+          onChange={(event) => setIncludeArchived(event.target.checked)}
+        />
+        Include archived
+      </label>
       <div className="search-results">
-        {results.map((item) => (
-          <button
-            key={`${item.type}:${item.id}`}
-            onClick={() => {
-              if (item.type === 'task') task(item.id);
-              else if (item.type === 'note') note(item.id);
-              else project(item.id);
-            }}
-          >
-            <span>
-              {item.title}
-              {item.excerpt && (
-                <small className="search-excerpt">{item.excerpt}</small>
-              )}
-              <small>
-                {data.workspaces.find((w) => w.id === item.workspaceId)?.name ||
-                  'Personal Inbox'}
-              </small>
-            </span>
-            <em>{item.type}</em>
-          </button>
-        ))}
+        {results.map((item) => {
+          const scope = archivedScope(item, everything);
+          return (
+            <button
+              key={`${item.type}:${item.id}`}
+              className={scope ? 'is-archived' : undefined}
+              aria-label={
+                scope
+                  ? `${item.title}, archived in ${scope.name}. Opens its settings to restore it.`
+                  : undefined
+              }
+              onClick={() => {
+                if (scope) archived(scope.kind, scope.id);
+                else if (item.type === 'task') task(item.id);
+                else if (item.type === 'note') note(item.id);
+                else project(item.id);
+              }}
+            >
+              <span>
+                {item.title}
+                {item.excerpt && (
+                  <small className="search-excerpt">{item.excerpt}</small>
+                )}
+                <small>
+                  {everything.workspaces.find((w) => w.id === item.workspaceId)
+                    ?.name || 'Personal Inbox'}
+                  {scope && (
+                    <span className="archived-badge">
+                      {' '}
+                      · Archived · restore to open
+                    </span>
+                  )}
+                </small>
+              </span>
+              <em>{item.type}</em>
+            </button>
+          );
+        })}
         {loading && (
           <p className="muted" role="status">
             Searching…

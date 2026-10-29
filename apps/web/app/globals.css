@@ -3371,3 +3371,13 @@ fieldset:disabled select {
   color: var(--subtle);
   font-size: 9px;
 }
+.search-archived {
+  margin: 10px 0 0 !important;
+  font-size: 11px !important;
+}
+.search-results button.is-archived {
+  opacity: 0.75;
+}
+.archived-badge {
+  color: var(--warm);
+}

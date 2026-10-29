@@ -114,3 +114,13 @@ test('related items, linking and unlinking', async () => {
     ],
   );
 });
+
+test('search asks for archived items only when the toggle is on', async () => {
+  const { client, sent } = recorder(() => Response.json({ results: [] }));
+  await client.search('venue');
+  await client.search('venue', undefined, { includeArchived: true });
+  assert.deepEqual(
+    sent.map((s) => s.url),
+    ['/api/search?q=venue', '/api/search?q=venue&includeArchived=1'],
+  );
+});

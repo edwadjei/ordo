@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { HomeSnapshot } from '@ordo/client';
 import {
   archivedItems,
+  archivedScope,
   confirmsName,
   deleteSummary,
   isArchived,
@@ -125,5 +126,40 @@ test('the last workspace cannot be deleted', () => {
   assert.equal(
     isLastWorkspace({ ...snapshot, workspaces: [snapshot.workspaces[0]] }),
     true,
+  );
+});
+
+test('a search result in an archived scope says which one', () => {
+  assert.deepEqual(
+    archivedScope(
+      { type: 'task', id: 't-tv', workspaceId: 'mtn', projectId: 'tv' },
+      snapshot,
+    ),
+    { kind: 'projects', id: 'tv', name: 'One TV' },
+  );
+  assert.deepEqual(
+    archivedScope(
+      { type: 'note', id: 'n', workspaceId: 'old', projectId: 'legacy' },
+      snapshot,
+    ),
+    { kind: 'workspaces', id: 'old', name: 'Old job' },
+  );
+  assert.deepEqual(
+    archivedScope({ type: 'project', id: 'tv', workspaceId: 'mtn' }, snapshot),
+    { kind: 'projects', id: 'tv', name: 'One TV' },
+  );
+  assert.equal(
+    archivedScope(
+      { type: 'task', id: 't', workspaceId: 'mtn', projectId: 'sim' },
+      snapshot,
+    ),
+    null,
+  );
+  assert.equal(
+    archivedScope(
+      { type: 'task', id: 't', workspaceId: null, projectId: null },
+      snapshot,
+    ),
+    null,
   );
 });

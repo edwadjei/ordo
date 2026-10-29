@@ -178,9 +178,14 @@ export function createClient(
       code: string;
       displayName?: string;
     }) => send<{ user: User }>('/auth/otp/verify', 'POST', data),
-    search: (query: string, signal?: AbortSignal) =>
+    /** Full-text search; archived workspaces and projects only when asked. */
+    search: (
+      query: string,
+      signal?: AbortSignal,
+      options: { includeArchived?: boolean } = {},
+    ) =>
       request<{ results: SearchResult[] }>(
-        `/search?q=${encodeURIComponent(query)}`,
+        `/search?q=${encodeURIComponent(query)}${options.includeArchived ? '&includeArchived=1' : ''}`,
         { signal },
       ),
     transcribeAudio: (

@@ -71,3 +71,29 @@ export const confirmsName = (typed: string, name: string) => typed === name;
 /** The last workspace (archived or not) can't be deleted. */
 export const isLastWorkspace = (data: HomeSnapshot) =>
   data.workspaces.length <= 1;
+
+/**
+ * The archived workspace or project a search result sits in (or is), or
+ * null. Archived items aren't loaded, so they open their scope's settings to
+ * be restored rather than opening directly.
+ */
+export function archivedScope(
+  result: {
+    type: 'task' | 'note' | 'project';
+    id: string;
+    workspaceId: string | null;
+    projectId?: string | null;
+  },
+  everything: HomeSnapshot,
+): { kind: 'workspaces' | 'projects'; id: string; name: string } | null {
+  const workspace = everything.workspaces.find(
+    (w) => w.id === result.workspaceId,
+  );
+  if (workspace && isArchived(workspace))
+    return { kind: 'workspaces', id: workspace.id, name: workspace.name };
+  const projectId = result.type === 'project' ? result.id : result.projectId;
+  const project = everything.projects.find((p) => p.id === projectId);
+  if (project && isArchived(project))
+    return { kind: 'projects', id: project.id, name: project.name };
+  return null;
+}
