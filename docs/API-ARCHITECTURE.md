@@ -37,8 +37,11 @@ Do not add conceptual `transport/`, `application/`, or `use-cases/` directory tr
 | Notes | Plain-text notes and revision-aware saving in an owned destination | `apps/api/src/domains/notes/notes.md` |
 | Home | Authorized aggregation of workspace/project, task, and note reads through their services | `apps/api/src/domains/home/home.md` |
 | Demo | Explicit once-per-account fictional fixtures; not normal production business writes | `apps/api/src/domains/demo/demo.md` |
+| Drafts | Email and message drafts, copied and never sent; revision-aware edits, mark used, archive | `apps/api/src/domains/drafts/drafts.md` |
+| AI settings | The account's text-AI provider and its own encrypted OpenAI or Anthropic key | `apps/api/src/domains/ai-settings/ai-settings.md` |
+| Capture | "Process with AI" runs on a note, validated suggestions, and saving the edited tasks and drafts | `apps/api/src/domains/capture/capture.md` |
 
-Tasks and Notes ask Workspaces for scope validation. Home asks Workspaces, Tasks, and Notes for authorized lists. Demo is a documented fixture-orchestration exception that creates example records transactionally, then uses Home to return the current view. These dependencies are explicit, not permission to query another domain's tables from arbitrary services.
+Tasks and Notes ask Workspaces for scope validation. Home asks Workspaces, Tasks, and Notes for authorized lists. Demo is a documented fixture-orchestration exception that creates example records transactionally, then uses Home to return the current view. Capture asks Notes, Workspaces and AI settings for the source note, scope and model; its save is a second documented exception that inserts tasks and drafts in the same batch that marks the run saved, so a save is all or nothing. These dependencies are explicit, not permission to query another domain's tables from arbitrary services.
 
 ## Saving and tenant boundaries
 

@@ -8,7 +8,7 @@ Hono + TypeScript + Zod in one Cloudflare Worker on the Workers Free plan, with 
 
 The API follows the structure and concepts requested from Edward's DAMSYN API: `platform/`, abstract `capabilities/`, concrete `adapters/`, and business `domains/`. Controllers parse and call services; services own invariants and save preconditions; repositories own scoped queries. Routes and payloads are unchanged from the Node build except that password routes are gone.
 
-Read [the architecture map](docs/architecture.md), then the owning domain's concept note: [identity](src/domains/identity/identity.md), [workspaces/projects](src/domains/workspaces/workspaces.md), [tasks](src/domains/tasks/tasks.md), [notes](src/domains/notes/notes.md), [Home](src/domains/home/home.md), [search](src/domains/search/search.md), [fictional demo](src/domains/demo/demo.md), [audio settings](src/domains/audio-settings/audio-settings.md), or [transcriptions](src/domains/transcriptions/transcriptions.md). Import-boundary tests enforce the platform/domain split and capability ownership.
+Read [the architecture map](docs/architecture.md), then the owning domain's concept note: [identity](src/domains/identity/identity.md), [workspaces/projects](src/domains/workspaces/workspaces.md), [tasks](src/domains/tasks/tasks.md), [notes](src/domains/notes/notes.md), [Home](src/domains/home/home.md), [search](src/domains/search/search.md), [fictional demo](src/domains/demo/demo.md), [audio settings](src/domains/audio-settings/audio-settings.md), [transcriptions](src/domains/transcriptions/transcriptions.md), [AI capture](src/domains/capture/capture.md), [drafts](src/domains/drafts/drafts.md), or [AI settings](src/domains/ai-settings/ai-settings.md). Import-boundary tests enforce the platform/domain split and capability ownership.
 
 ## Run locally
 
@@ -76,8 +76,9 @@ Shared TypeScript types and strict Zod input schemas live in `packages/core/src/
 
 - `User`: `id, email, displayName, timezone`. `displayName` is `""` when the account has no name; it is never a phone number or email address (see [display names](src/domains/identity/identity.md#display-names)).
 - `Workspace`: `id, name, color, revision, createdAt, updatedAt`.
-- `Project`: `id, workspaceId, name, description, favorite, revision, createdAt, updatedAt`. `favorite` is a boolean, `false` by default.
-- `Task`: `id, title, description, status, priority, dueDate, dueTime, followUpDate, followUpTime, responsiblePerson, waitingOn, workspaceId, projectId, parentId, completedAt, deletedAt, revision, createdAt, updatedAt`.
+- `Project`: `id, workspaceId, name, description, favorite, aliases, revision, createdAt, updatedAt`. `favorite` is a boolean, `false` by default. `aliases` is up to 10 distinct alternative names (1–60 characters each), `[]` by default; AI capture may match them.
+- `Task`: `id, title, description, status, priority, dueDate, dueTime, followUpDate, followUpTime, responsiblePerson, waitingOn, workspaceId, projectId, parentId, origin, sourceNoteId, completedAt, deletedAt, revision, createdAt, updatedAt`. `origin` is `manual | capture | agent` (`manual` by default) and `sourceNoteId` the owner's note it came from; both are set on create only.
+- `Draft` and `CaptureRun`: see [AI capture](#ai-capture) below.
 - `Note`: `id, title, body, source, workspaceId, projectId, deletedAt, revision, createdAt, updatedAt`. `body` is Markdown text; `source` is `manual | recording | email | transcript`, `manual` by default, and is set on create only.
 
 Task status is `todo | in_progress | waiting | done`. Priority is `low | medium | high | null`. Workspace, project, parent, due/follow-up date fields are nullable. `dueTime` and `followUpTime` are optional 24-hour `HH:MM` local wall-clock times in the user's timezone, stored separately from their date-only fields; a time requires its date, so a request that leaves a time without its date (including clearing the date but not the time) returns `400 INVALID_INPUT` ("A due time needs a due date." / "A follow-up time needs a follow-up date."). `responsiblePerson` and `waitingOn` are plain-text names (trimmed, at most 80 characters, empty becomes `null`) and are never matched to accounts; `waitingOn` describes who a task waits on but Waiting On membership is still `status: waiting`. Unscoped tasks/notes have `workspaceId: null` and `projectId: null`, but always have an authenticated owner in storage; that is the personal Inbox. A project requires its workspace. Parent and child must share both workspace and project, including null Inbox scope.
@@ -96,10 +97,10 @@ Task status is `todo | in_progress | waiting | done`. Priority is `low | medium 
 | `POST /v1/workspaces`              | Required `name`; optional `color` (hex, default `#577664`)                                                        |
 | `PATCH /v1/workspaces/:id`         | Optional `name, color`; required `expectedRevision`                                                               |
 | `GET /v1/workspaces/:id/projects`  | Scoped owned project list                                                                                         |
-| `POST /v1/projects`                | Required `name, workspaceId`; optional `description, favorite`                                                    |
-| `POST /v1/workspaces/:id/projects` | Required `name`; workspace from URL; optional `description, favorite`                                             |
+| `POST /v1/projects`                | Required `name, workspaceId`; optional `description, favorite, aliases`                                           |
+| `POST /v1/workspaces/:id/projects` | Required `name`; workspace from URL; optional `description, favorite, aliases`                                    |
 | `GET /v1/projects/:id`             | Owned project or 404                                                                                              |
-| `PATCH /v1/projects/:id`           | Optional `name, description, favorite`; required `expectedRevision`                                               |
+| `PATCH /v1/projects/:id`           | Optional `name, description, favorite, aliases`; required `expectedRevision`                                      |
 | `GET /v1/tasks`                    | Current owner's active tasks                                                                                      |
 | `GET /v1/tasks/:id`                | Active owned task or 404                                                                                          |
 | `POST /v1/tasks`                   | Required `title` and `Idempotency-Key` header; optional task fields above; 201 first create / 200 identical retry |
@@ -122,7 +123,7 @@ Errors have `{ error: { code, message } }`. Expected codes include `UNAUTHORIZED
 
 ## Migrations and verification
 
-The schema is one numbered SQLite migration set in `packages/db/migrations/` (Phase 2 starts fresh with `0001_initial.sql`; `0002` moves transcription to Workers AI, `0003` makes the display name optional and `0004` adds project favourites and note sources), with matching Drizzle `sqlite-core` tables in `packages/db/src/schema.ts`. It includes the FTS5 search tables and their triggers, `auth_throttle`, and the check constraints for task times and name lengths. Future changes are new numbered files; an applied file is never edited. Every shared-environment migration needs Edward's approval, a D1 restore point and the rollback gates.
+The schema is one numbered SQLite migration set in `packages/db/migrations/` (Phase 2 starts fresh with `0001_initial.sql`; `0002` moves transcription to Workers AI, `0003` makes the display name optional, `0004` adds project favourites and note sources and `0005` adds AI capture: project aliases, task provenance, drafts, capture runs and AI settings), with matching Drizzle `sqlite-core` tables in `packages/db/src/schema.ts`. It includes the FTS5 search tables and their triggers, `auth_throttle`, and the check constraints for task times and name lengths. Future changes are new numbered files; an applied file is never edited. Every shared-environment migration needs Edward's approval, a D1 restore point and the rollback gates.
 
 ```bash
 npm run typecheck --workspace @ordo/api
@@ -135,7 +136,7 @@ CPU time per request has not been measured: the local runtime reports `cpu_time_
 
 ## Current limits
 
-Not yet implemented: contact linking/recovery, account/export/deletion UI, session management UI, OIDC/native auth, audit events, OpenAPI generation, pagination and advanced filtering, incremental sync cursor/tombstones, full offline note/multidevice editing, AI extraction, transcript imports, MCP, desktop/mobile packaging, or hosted backup/restore. The snapshot API supports the first web client but is not an unlimited-scale synchronization contract. Archive tombstones are returned from DELETE and excluded from refreshed snapshots; they are not yet distributed through an incremental sync feed. No staging environment or production deployment exists.
+Not yet implemented: contact linking/recovery, account/export/deletion UI, session management UI, OIDC/native auth, audit events, OpenAPI generation, pagination and advanced filtering, incremental sync cursor/tombstones, full offline note/multidevice editing, background or automatic AI processing, chunking of captures longer than the model accepts, MCP, desktop/mobile packaging, or hosted backup/restore. The snapshot API supports the first web client but is not an unlimited-scale synchronization contract. Archive tombstones are returned from DELETE and excluded from refreshed snapshots; they are not yet distributed through an incremental sync feed. No staging environment or production deployment exists.
 
 ## Codes, search, and recordings
 
@@ -156,3 +157,21 @@ A code is valid for five minutes and works once, with 60-second resend spacing, 
 `POST /v1/transcriptions` requires `X-Ordo-Audio-Provider` (`workers_ai` or `openai`) alongside the displayed-account guard when resolving user settings. A stale or missing snapshot returns `409 AUDIO_SETTINGS_CHANGED` before sending audio. When Workers AI's daily free allowance is used up the response is `429 TRANSCRIPTION_ALLOWANCE_USED`; without a usable binding it is `503 WORKERS_AI_UNAVAILABLE`. The full error list is in the [transcriptions concept note](src/domains/transcriptions/transcriptions.md#workers-ai-whisper-default) and the [audio setup guide](../../docs/AUDIO-SETUP.md). Real Workers AI calls are verified in Phase 3.
 
 Code email uses the Ordo HTML template by default (wordmark, orange accent, expiry/security copy, no remote assets). `GATEKEEPER_EMAIL_HTML=false` chooses the plain-text fallback. Sender delivery/domain identity remains controlled by the configured Gatekeeper service; the application supplies subject/body.
+
+## AI capture
+
+AI runs only when the person asks, and nothing is created until they save. The [capture concept note](src/domains/capture/capture.md) has the full rules, the providers and the Workers AI cost per capture.
+
+| Method and path | Body / behavior |
+|---|---|
+| `POST /v1/notes/:id/process` | `{ workspaceId, projectId? }` → `201` with a run; `413 CAPTURE_TOO_LONG` or `400 CAPTURE_EMPTY` create no run |
+| `GET /v1/notes/:id/capture-runs` | The note's runs, oldest first |
+| `GET /v1/capture-runs/:id` | One owned run or 404 |
+| `POST /v1/capture-runs/:id/save` | `Idempotency-Key` header; `{ workspaceId, projectId?, tasks, drafts }` with the edited items → `201 { run, tasks, drafts }`, or `200` for an identical retry; `409 RUN_ALREADY_SAVED`, `RUN_NOT_READY` or `IDEMPOTENCY_CONFLICT` |
+| `GET /v1/drafts`, `GET /v1/drafts/:id` | Active owned drafts |
+| `POST /v1/drafts` | Required `workspaceId, kind, body`; optional `projectId, sourceNoteId, to, subject` |
+| `PATCH /v1/drafts/:id` | Optional `workspaceId, projectId, kind, to, subject, body, used`; required `expectedRevision` |
+| `DELETE /v1/drafts/:id` | Required `{ expectedRevision }`; soft archive |
+| `GET /v1/settings/ai`, `PATCH /v1/settings/ai` | `textProvider` (`workers_ai`, `openai`, `anthropic`) and the account's own OpenAI or Anthropic key; keys are never returned |
+
+A run is `{ id, noteId, noteRevision, workspaceId, projectId, status, provider, model, suggestions, errorCode, usage, saved, createdAt, updatedAt }` with `status` `ready | failed | pending | saved`. `suggestions` is `{ summary, tasks: [{ key, title, dueDate, dueTime, followUpDate, followUpTime, priority, responsiblePerson, waitingOn, isFollowUp }], drafts: [{ key, kind, to, subject, body }], destination: { workspaceId, projectId, confidence, reason } }`; a low-confidence destination has `projectId: null`. `usage` is `{ inputTokens, outputTokens, neurons }` (neurons for Workers AI only). A draft is `{ id, workspaceId, projectId, sourceNoteId, kind, to, subject, body, usedAt, revision, createdAt, updatedAt }`; Ordo never sends it.
