@@ -82,27 +82,38 @@ export class AgentAccessRepository {
   }
 
   /**
-   * Records use: `last_used_at`, and removes this token's activity older
-   * than 90 days. Called at most once a minute per token.
+   * One D1 batch: the activity entry (when there is one) and, when `touch`,
+   * the token's `last_used_at` and the removal of its activity older than
+   * 90 days. Use is recorded with the request's own entry rather than in a
+   * round trip of its own.
    */
-  async touch(owner: string, tokenId: string, now: string) {
+  async record(
+    owner: string,
+    tokenId: string,
+    entry: typeof agentActivity.$inferInsert | null,
+    touch: boolean,
+    now: string,
+  ) {
     const db = this.database.use();
     const cutoff = new Date(
       Date.parse(now) - KEEP_DAYS * 86_400_000,
     ).toISOString();
-    await db.batch([
-      db
-        .update(agentTokens)
-        .set({ lastUsedAt: now })
-        .where(eq(agentTokens.id, tokenId)),
-      db.run(
-        sql`DELETE FROM agent_activity WHERE owner_user_id = ${owner} AND token_id = ${tokenId} AND created_at < ${cutoff}`,
-      ),
-    ]);
-  }
-
-  async log(row: typeof agentActivity.$inferInsert) {
-    await this.database.use().insert(agentActivity).values(row);
+    const statements = [
+      ...(entry ? [db.insert(agentActivity).values(entry)] : []),
+      ...(touch
+        ? [
+            db
+              .update(agentTokens)
+              .set({ lastUsedAt: now })
+              .where(eq(agentTokens.id, tokenId)),
+            db.run(
+              sql`DELETE FROM agent_activity WHERE owner_user_id = ${owner} AND token_id = ${tokenId} AND created_at < ${cutoff}`,
+            ),
+          ]
+        : []),
+    ];
+    if (statements.length)
+      await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
   }
 
   /** Newest first, 100 a page; `before` continues from a `createdAt`. */
