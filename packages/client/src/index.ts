@@ -1,4 +1,12 @@
 import { requestId } from './request-id.ts';
+import type {
+  AiSettings,
+  AiSettingsInput,
+  CaptureRun,
+  CaptureSave,
+  CaptureSaveResult,
+  Draft,
+} from './capture.ts';
 import {
   bookmarkHeader,
   createBookmarkStore,
@@ -57,7 +65,11 @@ export type TaskChanges = Partial<TaskInput> & { expectedRevision: number };
 export type NoteChanges = Partial<NoteInput> & { expectedRevision: number };
 export type ProjectChanges = Partial<
   Pick<Project, 'name' | 'description' | 'favorite'>
-> & { expectedRevision: number };
+> & {
+  /** Other names for AI routing: up to 10, each 1–60 characters. */
+  aliases?: string[];
+  expectedRevision: number;
+};
 export function createClient(
   base = '/api',
   transport: typeof fetch = fetch,
@@ -220,9 +232,72 @@ export function createClient(
       send<Note>(`/notes/${id}`, 'PATCH', data),
     archiveNote: (id: string, revision: number) =>
       send<void>(`/notes/${id}`, 'DELETE', { expectedRevision: revision }),
+    /** Runs AI on a note, only when the person asks; a failed or pending run leaves the note intact. */
+    processNote: (
+      id: string,
+      data: { workspaceId: string; projectId?: string | null },
+      signal?: AbortSignal,
+    ) =>
+      request<CaptureRun>(`/notes/${id}/process`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+        signal,
+      }),
+    captureRun: (id: string, signal?: AbortSignal) =>
+      request<CaptureRun>(`/capture-runs/${id}`, { signal }),
+    noteCaptureRuns: (noteId: string, signal?: AbortSignal) =>
+      request<CaptureRun[]>(`/notes/${noteId}/capture-runs`, {
+        signal,
+      }),
+    /** Saves the reviewed suggestions in one batch; a second save of a run is refused. */
+    saveCaptureRun: (
+      id: string,
+      data: CaptureSave,
+      key: string = requestId(),
+    ) =>
+      send<CaptureSaveResult>(`/capture-runs/${id}/save`, 'POST', data, {
+        'Idempotency-Key': key,
+      }),
+    /** Drafts, newest first, optionally for one project or workspace. */
+    drafts: (
+      filter: { projectId?: string; workspaceId?: string } = {},
+      signal?: AbortSignal,
+    ) => {
+      const query = new URLSearchParams(
+        Object.entries(filter).filter(([, value]) => !!value) as [
+          string,
+          string,
+        ][],
+      ).toString();
+      return request<Draft[]>(`/drafts${query ? `?${query}` : ''}`, { signal });
+    },
+    updateDraft: (
+      id: string,
+      data: Partial<Pick<Draft, 'to' | 'subject' | 'body' | 'kind'>> & {
+        used?: boolean;
+        expectedRevision: number;
+      },
+    ) => send<Draft>(`/drafts/${id}`, 'PATCH', data),
+    /** Records that a draft was used elsewhere. Ordo never sends drafts. */
+    markDraftUsed: (id: string, revision: number) =>
+      send<Draft>(`/drafts/${id}`, 'PATCH', {
+        used: true,
+        expectedRevision: revision,
+      }),
+    archiveDraft: (id: string, revision: number) =>
+      send<void>(`/drafts/${id}`, 'DELETE', { expectedRevision: revision }),
+    aiSettings: (signal?: AbortSignal) =>
+      request<AiSettings>('/settings/ai', { signal }),
+    saveAiSettings: (data: AiSettingsInput, signal?: AbortSignal) =>
+      request<AiSettings>('/settings/ai', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+        signal,
+      }),
   };
 }
 export type OrdoClient = ReturnType<typeof createClient>;
+export type * from './capture.ts';
 export {
   bookmarkHeader,
   createBookmarkStore,
@@ -239,3 +314,4 @@ export type {
   TaskInput,
   NoteInput,
 } from '@ordo/core';
+export { requestId } from './request-id.ts';

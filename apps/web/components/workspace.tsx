@@ -78,9 +78,18 @@ import { defaultProvider, unavailableReason } from '../lib/transcription';
 import { registerServiceWorker } from '../lib/service-worker';
 import { ImportDialog } from './import-dialog';
 import { NameSettings } from './name-settings';
+import { CaptureFlow } from './capture-flow';
+import {
+  ConversationsList,
+  DraftsList,
+  RecentConversations,
+} from './conversations-drafts';
+import { AiSettingsSection } from './ai-settings';
+import { ProjectSettingsDialog } from './project-settings';
+import { notProcessed } from '../lib/capture';
+import type { AiSettings } from '@ordo/client/capture';
 import { AudioSettingsDialog } from './audio-settings';
 import {
-  ComingSoonTab,
   FavoriteToggle,
   ProjectActions,
   ProjectOverview,
@@ -122,6 +131,27 @@ export function WorkspaceApp() {
       control.abort();
     };
   }, [data?.user.id]);
+  const [aiConfig, setAiConfig] = useState<{
+    ownerId: string;
+    settings: AiSettings;
+  } | null>(null);
+  useEffect(() => {
+    const ownerId = data?.user.id;
+    const control = new AbortController();
+    setAiConfig(null);
+    if (ownerId)
+      api
+        .aiSettings(control.signal)
+        .then((settings) => {
+          if (!control.signal.aborted) setAiConfig({ ownerId, settings });
+        })
+        .catch(() => {});
+    return () => control.abort();
+  }, [data?.user.id]);
+  // The capture being processed with AI, and whether an import should go
+  // straight to processing once saved (the AI Capture tile).
+  const [captureNote, setCaptureNote] = useState<string | null>(null),
+    [processAfterImport, setProcessAfterImport] = useState(false);
   const [view, setView] = useState<View>('day'),
     [workspaceId, setWorkspaceId] = useState<string | null>(null),
     [projectId, setProjectId] = useState<string | null>(null),
@@ -144,6 +174,7 @@ export function WorkspaceApp() {
       | 'settings'
       | 'email'
       | 'upload'
+      | 'projectSettings'
       | null
     >(null),
     [query, setQuery] = useState(''),
@@ -174,6 +205,7 @@ export function WorkspaceApp() {
   const readOnlyRef = useRef(work.readOnly);
   readOnlyRef.current = work.readOnly;
   const online: Record<string, string> = {
+    projectSettings: 'Project settings',
     workspace: 'A new workspace',
     project: 'A new project',
     record: 'Recording',
@@ -455,6 +487,23 @@ export function WorkspaceApp() {
   const audioSettings =
     audioConfig?.ownerId === data.user.id ? audioConfig.settings : null;
   const audioReady = !!audioSettings?.configured;
+  const aiSettings =
+    aiConfig?.ownerId === data.user.id ? aiConfig.settings : null;
+  const aiReady = !!aiSettings?.configured;
+  /** Process with AI, or Settings when no AI provider is ready. */
+  function processCapture(id: string) {
+    if (needsConnection('Processing with AI')) return;
+    setSelectedNote(null);
+    if (aiReady) setCaptureNote(id);
+    else {
+      work.setMessage(
+        aiSettings
+          ? 'Choose how Ordo processes captures in Settings first.'
+          : 'AI capture isn’t available right now.',
+      );
+      if (aiSettings) setModal('settings');
+    }
+  }
   const activeTask = data.tasks.find((task) => task.id === selectedTask),
     activeNote = data.notes.find((note) => note.id === selectedNote);
   const pending = work.pending.filter(
@@ -704,6 +753,19 @@ export function WorkspaceApp() {
                       busy={favoriteBusy.includes(project.id)}
                       onToggle={() => void toggleFavorite(project)}
                     />
+                    <button
+                      type="button"
+                      className="favorite-toggle"
+                      aria-label={`Project settings for ${project.name}`}
+                      title="Description and other names"
+                      onClick={() => openModal('projectSettings')}
+                    >
+                      <Settings
+                        size={13}
+                        strokeWidth={1.8}
+                        aria-hidden="true"
+                      />
+                    </button>
                     {scopeSelect}
                   </span>
                 ) : (
@@ -801,10 +863,22 @@ export function WorkspaceApp() {
                 },
                 {
                   title: 'AI Capture',
-                  hint: 'Coming soon',
-                  unavailable: true,
+                  // No vendor or price wording here: Settings explains providers.
+                  hint: aiReady
+                    ? 'Turn a capture into tasks'
+                    : aiSettings
+                      ? 'Set up in Settings'
+                      : 'Coming soon',
+                  unavailable: !aiSettings,
                   icon: Sparkles,
-                  action: () => {},
+                  action: () => {
+                    if (!aiReady) {
+                      openModal('settings');
+                      return;
+                    }
+                    setProcessAfterImport(true);
+                    openModal('upload');
+                  },
                 },
               ].map((action) => (
                 <button
@@ -921,9 +995,24 @@ export function WorkspaceApp() {
                     onNote={setSelectedNote}
                     onTab={setTab}
                   />
-                ) : view === 'project' &&
-                  (tab === 'conversations' || tab === 'drafts') ? (
-                  <ComingSoonTab kind={tab} />
+                ) : view === 'project' && project && tab === 'conversations' ? (
+                  <ConversationsList
+                    data={data}
+                    workspaceId={project.workspaceId}
+                    projectId={project.id}
+                    online={!work.readOnly}
+                    onNote={setSelectedNote}
+                    onTask={setSelectedTask}
+                    onProcess={processCapture}
+                  />
+                ) : view === 'project' && project && tab === 'drafts' ? (
+                  <DraftsList
+                    key={project.id}
+                    projectId={project.id}
+                    workspaceId={project.workspaceId}
+                    online={!work.readOnly}
+                    onNote={setSelectedNote}
+                  />
                 ) : tab === 'tasks' || !hasNotesTab ? (
                   <>
                     <InlineComposer
@@ -1144,6 +1233,12 @@ export function WorkspaceApp() {
                             )}
                             {noteSourceLabel(note.source) &&
                               ` · ${noteSourceLabel(note.source)}`}
+                            {notProcessed(note) && (
+                              <span className="not-processed">
+                                {' '}
+                                · Not processed
+                              </span>
+                            )}
                           </small>
                         </button>
                       ))
@@ -1220,6 +1315,13 @@ export function WorkspaceApp() {
               </footer>
             </section>
             <aside className="context-column">
+              {view === 'day' && (
+                <RecentConversations
+                  data={data}
+                  workspaceId={activeWorkspace}
+                  onNote={setSelectedNote}
+                />
+              )}
               {view !== 'day' && view !== 'waiting' && (
                 <section className="waiting-card">
                   <h2>
@@ -1346,7 +1448,17 @@ export function WorkspaceApp() {
         <AudioSettingsDialog
           key={data.user.id}
           initial={audioSettings}
-          profile={<NameSettings user={data.user} onSaved={work.refresh} />}
+          profile={
+            <>
+              <NameSettings user={data.user} onSaved={work.refresh} />
+              <AiSettingsSection
+                initial={aiSettings}
+                onChange={(settings) =>
+                  setAiConfig({ ownerId: data.user.id, settings })
+                }
+              />
+            </>
+          }
           onClose={() => setModal(null)}
           onChange={(settings) =>
             setAudioConfig({ ownerId: data.user.id, settings })
@@ -1377,11 +1489,17 @@ export function WorkspaceApp() {
           initialKind={modal === 'email' ? 'email' : 'transcript'}
           workspaceId={activeWorkspace}
           projectId={projectId}
-          onClose={() => setModal(null)}
+          onClose={() => {
+            setProcessAfterImport(false);
+            setModal(null);
+          }}
           onSaved={async (id) => {
             setModal(null);
             await work.refresh().catch(() => {});
-            setSelectedNote(id);
+            if (processAfterImport) {
+              setProcessAfterImport(false);
+              setCaptureNote(id);
+            } else setSelectedNote(id);
           }}
         />
       )}
@@ -1418,6 +1536,10 @@ export function WorkspaceApp() {
           onClose={() => setSelectedTask(null)}
           onChange={work.refresh}
           onSelect={setSelectedTask}
+          onOpenNote={(id) => {
+            setSelectedTask(null);
+            setSelectedNote(id);
+          }}
         />
       )}
       {activeNote && (
@@ -1426,6 +1548,36 @@ export function WorkspaceApp() {
           note={activeNote}
           readOnly={work.readOnly}
           onClose={() => setSelectedNote(null)}
+          onSaved={work.refresh}
+          onProcess={() => processCapture(activeNote.id)}
+          processHint={aiReady ? undefined : 'Set up in Settings'}
+        />
+      )}
+      {captureNote && data.notes.some((note) => note.id === captureNote) && (
+        <CaptureFlow
+          key={captureNote}
+          data={data}
+          note={data.notes.find((note) => note.id === captureNote)!}
+          onClose={() => setCaptureNote(null)}
+          onSaved={work.refresh}
+          onOpenTask={(id) => {
+            setCaptureNote(null);
+            setSelectedTask(id);
+          }}
+          onOpenDrafts={(project, workspace) => {
+            setCaptureNote(null);
+            if (project) {
+              navigate('project', workspace, project);
+              setTab('drafts');
+            }
+          }}
+        />
+      )}
+      {modal === 'projectSettings' && project && (
+        <ProjectSettingsDialog
+          key={project.id}
+          project={project}
+          onClose={() => setModal(null)}
           onSaved={work.refresh}
         />
       )}

@@ -7,10 +7,12 @@ import {
   CloudOff,
   LoaderCircle,
   RotateCw,
+  Sparkles,
 } from 'lucide-react';
 import { RequestError, type Note } from '@ordo/client';
 import { saveLatest } from '@ordo/client/autosave';
 import { noteSourceLabel, savedAtLabel } from '../lib/views';
+import { conversationSources, notProcessed } from '../lib/capture';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
 
@@ -30,10 +32,16 @@ export function NoteEditor({
   onClose,
   onSaved,
   readOnly = false,
+  onProcess,
+  processHint,
 }: {
   note: Note;
   /** Offline or showing the saved view: the note can be read, not edited. */
   readOnly?: boolean;
+  /** Process with AI: suggestions to review; nothing is created until saved. */
+  onProcess?: () => void;
+  /** Why AI can't run yet (for example "Set up in Settings"). */
+  processHint?: string;
   onClose: () => void;
   onSaved: () => Promise<unknown>;
 }) {
@@ -195,8 +203,41 @@ export function NoteEditor({
           )}
         </div>
       )}
-      {noteSourceLabel(note.source) && (
-        <p className="note-source">{noteSourceLabel(note.source)}</p>
+      {(noteSourceLabel(note.source) || onProcess) && (
+        <div className="note-capture-bar">
+          {noteSourceLabel(note.source) && (
+            <span className="note-source">
+              {noteSourceLabel(note.source)}
+              {notProcessed(note) && (
+                <span className="not-processed"> · Not processed</span>
+              )}
+            </span>
+          )}
+          {onProcess && !readOnly && (
+            <button
+              type="button"
+              className={`process-button ${conversationSources.includes(note.source) ? 'is-offered' : ''}`}
+              onClick={() => {
+                if (
+                  title !== saved.current.title ||
+                  body !== saved.current.body
+                ) {
+                  setError('Save your changes before processing this note.');
+                  return;
+                }
+                onProcess();
+              }}
+              aria-label={
+                processHint
+                  ? `Process with AI — ${processHint}`
+                  : 'Process with AI'
+              }
+            >
+              <Sparkles size={13} aria-hidden="true" /> Process with AI
+              {processHint && <small>{processHint}</small>}
+            </button>
+          )}
+        </div>
       )}
       <label>
         Title
@@ -252,8 +293,9 @@ export function NoteEditor({
         Headings, lists, checklists, bold, italic and links, saved as plain
         Markdown text · Saves automatically when you pause typing.
         <br />
-        Typed notes aren’t sent to any AI service. Voice notes are transcribed
-        by the provider chosen in Settings, and the recording isn’t kept.
+        Notes go to AI only when you choose Process with AI, and you review what
+        it suggests before anything is saved. Voice notes are transcribed by the
+        provider chosen in Settings, and the recording isn’t kept.
       </p>
     </Dialog>
   );
