@@ -24,6 +24,7 @@ export function registerTasksController(
       actorId(request),
       taskInput.parse(request.body),
       idempotencyKey.parse(request.header('idempotency-key')),
+      request.agent?.tokenId ?? null,
     );
     reply.status(result.created ? 201 : 200);
     return result.task;

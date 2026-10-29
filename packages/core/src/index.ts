@@ -417,6 +417,55 @@ export interface Draft {
   updatedAt: string;
 }
 
+// ---------------------------------------------------------------------------
+// Agent access (release slice 3). See apps/api/src/domains/agent-access.
+
+/** `write` also allows everything `read` does. */
+export const agentScopes = ['read', 'write'] as const;
+export type AgentScope = (typeof agentScopes)[number];
+/** Prefix of every access token, so a leaked one is recognisable. */
+export const AGENT_TOKEN_PREFIX = 'ordo_pat_';
+/** At most this many active (unrevoked, unexpired) tokens per account. */
+export const AGENT_TOKEN_LIMIT = 20;
+/** `POST /v1/settings/agent-tokens`. */
+export const agentTokenInput = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    scopes: z.array(z.enum(agentScopes)).min(1).max(2),
+    expiresAt: z.iso.datetime({ offset: true }).nullable().default(null),
+  })
+  .strict();
+/** A token as listed: never the secret. */
+export interface AgentTokenRecord {
+  id: string;
+  name: string;
+  scopes: AgentScope[];
+  createdAt: string;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+/** The one response that carries the token itself. */
+export interface CreatedAgentToken {
+  token: string;
+  record: AgentTokenRecord;
+}
+/** `GET /v1/settings/agent-activity`: newest first, 100 a page. */
+export const agentActivityQuery = z.object({
+  tokenId: id.optional(),
+  /** `createdAt` of the last entry seen, for the next page. */
+  before: z.iso.datetime().optional(),
+});
+/** What an agent did to which item. Never any content. */
+export interface AgentActivity {
+  id: string;
+  tokenId: string;
+  action: string;
+  entityType: string | null;
+  entityId: string | null;
+  createdAt: string;
+}
+
 export type TaskInput = z.infer<typeof taskInput>;
 export type NoteInput = z.infer<typeof noteInput>;
 export interface User {
@@ -456,6 +505,8 @@ export interface Task extends Omit<TaskInput, 'sourceNoteId'> {
    */
   origin?: TaskOrigin;
   sourceNoteId?: string | null;
+  /** The access token that created it, when an agent did. */
+  createdByTokenId?: string | null;
   id: string;
   revision: number;
   completedAt: string | null;
@@ -497,6 +548,9 @@ export interface Note extends NoteInput {
    * note writes omit it.
    */
   latestCaptureStatus?: CaptureRunStatus | null;
+  /** Where the note came from (set by the server); `agent` for an access token. */
+  origin?: TaskOrigin;
+  createdByTokenId?: string | null;
   /** The body's first 280 characters (code points). */
   preview: string;
   /** The body's length in characters (code points). */

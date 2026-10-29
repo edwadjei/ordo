@@ -93,6 +93,7 @@ async function dispatch(
       ip: '192.0.2.1',
       signal: new AbortController().signal,
       actor: null,
+      agent: null,
       header: (name) => headers[name.toLowerCase()],
       cookie: (name) => cookieValue(headers.cookie, name),
     };

@@ -29,7 +29,11 @@ export function registerNotesController(
     async (request, reply) =>
       created(
         reply,
-        await service.create(actorId(request), noteInput.parse(request.body)),
+        await service.create(
+          actorId(request),
+          noteInput.parse(request.body),
+          request.agent?.tokenId ?? null,
+        ),
       ),
     { jsonLimit: NOTE_BODY_LIMIT },
   );
