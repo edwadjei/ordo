@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { OtpDelivery } from '../../capabilities/otp-delivery.contract.js';
+import {
+  OtpDelivery,
+  otpDeliveryFailure,
+} from '../../capabilities/otp-delivery.contract.js';
 import { OtpSecrets } from '../../capabilities/otp-secrets.contract.js';
 import { SessionTokens } from '../../capabilities/session-tokens.contract.js';
 import { newId } from '../../platform/identifiers/new-id.js';
@@ -31,6 +34,25 @@ export function normalizeContact(input: string) {
   );
 }
 
+/**
+ * One diagnosable line without the contact, code, key, URL or provider body:
+ * the channel, the failure reason, and the HTTP status or error name.
+ */
+export function deliveryFailureLine(contact: string, error: unknown) {
+  const channel = contact.startsWith('+') ? 'sms' : 'email';
+  const parts = [`channel=${channel}`];
+  const failure = otpDeliveryFailure(error);
+  if (failure) {
+    parts.push(`reason=${failure.reason}`);
+    if (failure.status !== undefined) parts.push(`status=${failure.status}`);
+    if (failure.errorName) parts.push(`error=${failure.errorName}`);
+  } else {
+    parts.push('reason=unexpected');
+    parts.push(`error=${error instanceof Error ? error.name : typeof error}`);
+  }
+  return `[ordo] Sign-in code delivery failed: ${parts.join(' ')}`;
+}
+
 function refused(): never {
   return fail(
     401,
@@ -46,6 +68,8 @@ export class OtpService {
     private readonly secrets: OtpSecrets,
     private readonly delivery: OtpDelivery,
     private readonly now: () => number = Date.now,
+    private readonly log: (line: string) => void = (line) =>
+      console.error(line),
   ) {}
   async request(contactInput: string) {
     const contact = normalizeContact(contactInput);
@@ -69,11 +93,14 @@ export class OtpService {
       );
     try {
       await this.delivery.send(contact, code);
-    } catch {
+    } catch (error) {
+      this.log(deliveryFailureLine(contact, error));
+      // Best effort: if the release fails too, the spacing simply runs out.
+      await this.repository.release(challengeId, this.now()).catch(() => {});
       fail(
         502,
         'OTP_DELIVERY_FAILED',
-        'The sign-in code could not be delivered. Please try again later.',
+        "We couldn't send your code. Please try again.",
       );
     }
     await this.repository.markReady(challengeId);

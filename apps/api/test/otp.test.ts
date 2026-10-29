@@ -7,6 +7,9 @@ import { DatabaseAdapter } from '../src/adapters/database/database.adapter.js';
 import { fromHex } from '../src/adapters/cryptography/encoding.js';
 import { testClient } from './http-harness.js';
 import { GatekeeperOtpDelivery } from '../src/adapters/gatekeeper/gatekeeper-otp-delivery.js';
+import { OpenAiTranscriber } from '../src/adapters/transcription/openai-transcriber.js';
+import { ConfiguredAudioProviders } from '../src/adapters/transcription/configured-audio-providers.js';
+import { deliveryFailureLine } from '../src/domains/identity/otp.service.js';
 import {
   ConsoleOtpDelivery,
   maskContact,
@@ -196,9 +199,14 @@ test('delivery failure and unavailable provider return safe messages; CSRF and I
   h.delivery.failing = true;
   const failed = await h.request('failed@example.invalid');
   assert.equal(failed.statusCode, 502);
+  assert.equal(
+    failed.json().error.message,
+    "We couldn't send your code. Please try again.",
+  );
   assert.ok(!failed.body.includes('Sensitive'));
   const [row] = await h.db.select().from(otpChallenges);
   assert.equal(row.ready, false);
+  assert.equal(row.codeHash, '');
   h.delivery.enabled = false;
   assert.equal((await h.request('disabled@example.invalid')).statusCode, 503);
   const untrusted = await h.app.inject({
@@ -221,6 +229,128 @@ test('delivery failure and unavailable provider return safe messages; CSRF and I
       })
     ).statusCode,
     429,
+  );
+});
+
+test('a failed delivery lets the contact retry at once, still counts toward the window, and logs no contact or code', async (t) => {
+  const h = await harness();
+  const lines: string[] = [];
+  const original = console.error;
+  console.error = (line: string) => lines.push(line);
+  t.after(() => {
+    console.error = original;
+    return h.app.close();
+  });
+  const contact = 'retry@example.invalid';
+  h.delivery.failing = true;
+  const failed = await h.request(contact);
+  assert.equal(failed.statusCode, 502);
+  const [released] = await h.db.select().from(otpChallenges);
+  // The undelivered code can never be verified.
+  assert.equal(
+    (await h.verify(released.challengeId, '000000')).statusCode,
+    401,
+  );
+  assert.deepEqual(lines, [
+    '[ordo] Sign-in code delivery failed: channel=email reason=unexpected error=Error',
+  ]);
+  // No 60-second wait after a failure the user did not cause.
+  h.delivery.failing = false;
+  const retried = await h.request(contact);
+  assert.equal(retried.statusCode, 202);
+  const code = h.delivery.messages.at(-1)!.code;
+  // Normal spacing applies again after a successful send.
+  assert.equal((await h.request(contact)).statusCode, 429);
+  const verified = await h.verify(retried.json().challengeId, code);
+  assert.equal(verified.statusCode, 200);
+  // Failed sends count toward the five sends a window, so a broken or
+  // slow provider cannot be used to send a contact unlimited messages.
+  h.advance(60_001);
+  h.delivery.failing = true;
+  for (let send = 3; send <= 5; send++)
+    assert.equal((await h.request(contact)).statusCode, 502, `send ${send}`);
+  assert.equal((await h.request(contact)).statusCode, 429, 'sixth send');
+  const [row] = await h.db.select().from(otpChallenges);
+  assert.equal(row.requests, 5);
+  for (const line of lines) {
+    assert.ok(!line.includes('retry'), 'no contact in logs');
+    assert.ok(!line.includes(code), 'no code in logs');
+  }
+});
+
+test('the default transports call fetch unbound, as Workers require', async (t) => {
+  // workerd throws "Illegal invocation" when fetch runs with a foreign
+  // `this`; Node does not, so simulate the Workers rule here.
+  const original = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = original;
+  });
+  const urls: string[] = [];
+  globalThis.fetch = function (this: unknown, input: RequestInfo | URL) {
+    if (this !== undefined && this !== globalThis)
+      throw new TypeError('Illegal invocation');
+    urls.push(String(input));
+    return Promise.resolve(
+      new Response(JSON.stringify({ success: true, text: 'Hello' }), {
+        status: 200,
+      }),
+    );
+  } as typeof fetch;
+  await new GatekeeperOtpDelivery({
+    apiKey: 'fictional',
+    apiUrl: 'https://provider.invalid',
+  }).send('person@example.invalid', '123456');
+  assert.equal(
+    await new OpenAiTranscriber('fictional').transcribe(
+      new Uint8Array([1, 2, 3]),
+      'audio/webm',
+    ),
+    'Hello',
+  );
+  assert.equal(
+    await new ConfiguredAudioProviders().testOpenAi('fictional'),
+    true,
+  );
+  assert.deepEqual(urls, [
+    'https://provider.invalid/send_email',
+    'https://api.openai.com/v1/audio/transcriptions',
+    'https://api.openai.com/v1/models',
+  ]);
+});
+
+test('Gatekeeper failures carry only a reason, HTTP status or error name', async () => {
+  const settings = { apiKey: 'fictional', apiUrl: 'https://provider.invalid' };
+  const failure = async (transport: typeof fetch) => {
+    try {
+      await new GatekeeperOtpDelivery(settings, transport).send(
+        'person@example.invalid',
+        '123456',
+      );
+    } catch (error) {
+      assert.equal((error as Error).message, 'Delivery failed');
+      return deliveryFailureLine('person@example.invalid', error);
+    }
+    assert.fail('expected a delivery failure');
+  };
+  assert.equal(
+    await failure(async () => new Response('secret echo', { status: 503 })),
+    '[ordo] Sign-in code delivery failed: channel=email reason=rejected status=503',
+  );
+  assert.equal(
+    await failure(async () => {
+      throw new TypeError('Illegal invocation https://provider.invalid');
+    }),
+    '[ordo] Sign-in code delivery failed: channel=email reason=network error=TypeError',
+  );
+  assert.equal(
+    await failure(async () => {
+      throw new DOMException('timed out', 'TimeoutError');
+    }),
+    '[ordo] Sign-in code delivery failed: channel=email reason=timeout error=TimeoutError',
+  );
+  assert.equal(
+    deliveryFailureLine('+233241234567', new Error('+233241234567 123456')),
+    '[ordo] Sign-in code delivery failed: channel=sms reason=unexpected error=Error',
   );
 });
 

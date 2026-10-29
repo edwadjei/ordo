@@ -12,7 +12,9 @@ import {
 export class ConfiguredAudioProviders extends AudioProviders {
   constructor(
     private readonly ai?: WorkersAiBinding,
-    private readonly transport: typeof fetch = fetch,
+    // Called unbound: Workers reject the global fetch called as a method.
+    private readonly transport: typeof fetch = (input, init) =>
+      fetch(input, init),
   ) {
     super();
   }
