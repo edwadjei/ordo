@@ -25,6 +25,32 @@ A run records the provider, model, token usage and, for Workers AI, the estimate
 
 Suggestions are validated twice: against the model reply schema, then against the shared `captureSuggestions` schema in `@ordo/core`. Each task and draft gets a `key` (`t1`, `d1`, …). A time without its date is dropped. A destination the model is unsure of (`confidence: "low"`) or that names no listed project is returned with `projectId: null`, so the person picks one. A project the person chose when processing always wins.
 
+## What the instructions ask for
+
+The system prompt (`captureSystemPrompt`) treats the capture's author as its owner: "I", "me" and "we" are the owner. The first real Workers AI run, on the fictional weekly sync in `apps/api/test/fixtures/weekly-sync.txt`, made four mistakes, so the instructions now say:
+
+- the owner's own tasks have no `responsiblePerson`; a name is used only for someone else named in the capture;
+- a time is set only when the capture states it, never a default such as 23:59;
+- a draft's body is the message itself, ready to send, in the owner's voice, with a short subject for an email, and a recipient only as the capture names them;
+- a day of the month ("the 14th") is the next such date on or after today, with its stated time.
+
+Two checks run after validation, whatever the model does with the instructions:
+
+- `responsiblePerson` or `waitingOn` of "me", "I", "myself", "we", "us" or "our team" becomes null;
+- a `dueTime` or `followUpTime` is kept only when that time is stated in the capture (`statedTimes`: "10am", "2:30 pm", "14:00", "3 o'clock", "noon", "midnight"; a time without am or pm may be either half of the day). Spelled-out times ("half past two") and bare hours ("at 9") are not recognised, so a model's reading of them is dropped: a missing time is safer than an invented one.
+
+A draft's wording cannot be checked mechanically; the person reviews it before saving.
+
+### One real run
+
+`apps/api/scripts/capture-real-run.ts` runs the weekly sync once through a real model and checks the result against the expected tasks, then prints the draft for review. It calls a paid or allowance-limited provider, so it is run only with the owner's approval at the time, and only with `--yes`. From `apps/api`:
+
+```bash
+CLOUDFLARE_ACCOUNT_ID=… CLOUDFLARE_API_TOKEN=… npx tsx scripts/capture-real-run.ts --yes
+```
+
+Workers AI is called through Cloudflare's REST API with a token that has Workers AI access (about 125 neurons). `--provider openai` or `--provider anthropic` uses `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` instead. Keys are never printed, and no Ordo data is touched.
+
 ## Saving
 
 `POST /v1/capture-runs/:id/save` with an `Idempotency-Key` header and `{ workspaceId, projectId?, tasks, drafts }`, holding the person's edited items. An item may carry its own `workspaceId`/`projectId` (reassigned on the review screen); otherwise it takes the save's scope. Every scope is checked like any other write.
