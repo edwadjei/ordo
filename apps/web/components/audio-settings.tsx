@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AudioSettings } from '@ordo/client';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
@@ -13,8 +13,11 @@ export function AudioSettingsDialog({
   initial,
   onChange,
   onClose,
+  profile,
 }: {
   initial: AudioSettings | null;
+  /** Account settings shown above voice (Your name). */
+  profile?: ReactNode;
   onChange: (settings: AudioSettings) => void;
   onClose: () => void;
 }) {
@@ -119,8 +122,10 @@ export function AudioSettingsDialog({
   }
   const dirty = provider !== saved?.provider || !!apiKey;
   return (
-    <Dialog title="Make voice work for you." eyebrow="SETTINGS" onClose={close}>
+    <Dialog title="Make Ordo yours." eyebrow="SETTINGS" onClose={close}>
+      {profile}
       <div className="audio-settings">
+        <h3 className="settings-heading">Voice</h3>
         <p className="muted">
           Choose how Ordo turns your voice into text. Audio is used to
           transcribe, then discarded by Ordo.

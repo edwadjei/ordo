@@ -1,4 +1,5 @@
 import type { HomeSnapshot, Task } from '@ordo/client';
+import { looksLikeContact as looksLikeContactForApi } from '@ordo/core';
 export type View =
   'day' | 'inbox' | 'upcoming' | 'waiting' | 'workspace' | 'project';
 export const defaultTimezone = 'Africa/Accra';
@@ -52,6 +53,18 @@ export function looksLikeContact(value: string) {
   const text = value.trim();
   return text.includes('@') || /^\+?[\d\s().-]{6,}$/.test(text);
 }
+/**
+ * Why a name can't be saved, in plain words, or '' when it can. Matches the
+ * API's rule (`cleanDisplayName`): up to 80 characters, never a phone number
+ * or email. Empty is allowed and clears the name.
+ */
+export function nameProblem(value: string) {
+  const text = value.trim();
+  if (text.length > 80) return 'Keep your name to 80 characters or fewer.';
+  if (looksLikeContactForApi(text))
+    return 'Use a name, not a phone number or email address.';
+  return '';
+}
 /** The API's default name for phone accounts that gave none; not a real name. */
 const placeholderNames = new Set(['ordo member']);
 
@@ -65,6 +78,21 @@ export function firstName(displayName: string | null | undefined) {
   )
     return '';
   return text.split(/\s+/)[0];
+}
+/** Up to two initials of a real name for the avatar, or '' to show no letters. */
+export function initials(displayName: string | null | undefined) {
+  if (!firstName(displayName)) return '';
+  return displayName!
+    .trim()
+    .split(/\s+/)
+    .map((word) => [...word][0] || '')
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+/** The name shown beside the avatar, never contact details. */
+export function profileName(displayName: string | null | undefined) {
+  return firstName(displayName) ? displayName!.trim() : 'Your account';
 }
 export function greeting(hour: number, displayName?: string | null) {
   const part =
@@ -357,4 +385,102 @@ export function savedAtLabel(saved: Date, now = new Date(), locale?: string) {
   return sameDay
     ? saved.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
     : saved.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+}
+
+export interface ProjectOverview {
+  open: EverydayTask[];
+  /** The first open tasks to show on the Overview tab. */
+  next: EverydayTask[];
+  overdue: EverydayTask[];
+  waiting: EverydayTask[];
+  notes: HomeSnapshot['notes'];
+  recentNotes: HomeSnapshot['notes'];
+}
+/**
+ * A project's Overview tab: overdue tasks (its blockers), the next open tasks,
+ * Waiting On with who, and the most recently updated notes. Overdue and
+ * waiting tasks are not repeated in the open list.
+ */
+export function projectOverview(
+  data: HomeSnapshot,
+  projectId: string,
+  now: Clock,
+  limits = { next: 5, notes: 3 },
+): ProjectOverview {
+  const tasks = data.tasks.filter(
+    (task) => task.projectId === projectId && open(task),
+  );
+  const overdue = tasks.filter((task) =>
+    moments(task).some((m) => m.date < now.date),
+  );
+  const waiting = waitingTasks(tasks);
+  const shown = new Set([...overdue, ...waiting].map((task) => task.id));
+  const rest = visibleTasks(
+    { ...data, tasks },
+    'project',
+    null,
+    projectId,
+    false,
+  ).filter((task) => !shown.has(task.id));
+  const notes = data.notes
+    .filter((note) => note.projectId === projectId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return {
+    open: tasks,
+    next: rest.slice(0, limits.next),
+    overdue,
+    waiting,
+    notes,
+    recentNotes: notes.slice(0, limits.notes),
+  };
+}
+
+/** Favourite projects first; otherwise the order the API returned them in. */
+export function favoritesFirst<T extends { favorite?: boolean }>(
+  projects: T[],
+) {
+  return projects
+    .map((project, index) => ({ project, index }))
+    .sort(
+      (a, b) =>
+        Number(!!b.project.favorite) - Number(!!a.project.favorite) ||
+        a.index - b.index,
+    )
+    .map((item) => item.project);
+}
+
+export const noteSourceLabels = {
+  manual: 'Typed note',
+  recording: 'From a recording',
+  email: 'From an email',
+  transcript: 'From a transcript',
+} as const;
+/** Where a note came from, for its card and editor; '' for an ordinary typed note. */
+export function noteSourceLabel(source: string | null | undefined) {
+  if (!source || source === 'manual') return '';
+  return noteSourceLabels[source as keyof typeof noteSourceLabels] || '';
+}
+
+/**
+ * A short plain preview of a Markdown note for cards, without loading the
+ * note editor's parser: list, heading and checklist marks, emphasis and link
+ * syntax are dropped.
+ */
+export function notePreview(body: string, max = 220) {
+  return body
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^\s*#{1,3}\s+/, '')
+        .replace(/^\s*(?:[-*+]|\d{1,9}[.)])\s+\[[xX]\]\s+/, '☑ ')
+        .replace(/^\s*(?:[-*+]|\d{1,9}[.)])\s+\[ \]\s+/, '☐ ')
+        .replace(/^\s*(?:[-*+]|\d{1,9}[.)])\s+/, '')
+        .replace(/\[([^\]\n]+)\]\([^)\s]+\)/g, '$1')
+        .replace(/(\*\*|__)(\S(?:.*?\S)?)\1/g, '$2')
+        .replace(/(^|[^\w*])[*_](\S(?:[^*_]*?\S)?)[*_](?![\w*])/g, '$1$2')
+        .trim(),
+    )
+    .filter(Boolean)
+    .join(' · ')
+    .slice(0, max);
 }

@@ -13,6 +13,8 @@ export function Recorder({
   transcription,
   unavailableReason,
   provider,
+  workspaceId = null,
+  projectId = null,
 }: {
   onClose: () => void;
   onNote: (id: string) => Promise<void>;
@@ -22,6 +24,9 @@ export function Recorder({
   /** Why transcription can't run with the saved choice, in plain words. */
   unavailableReason?: string | null;
   provider: AudioSettings['provider'];
+  /** Where a saved voice note lands; the Inbox when both are null. */
+  workspaceId?: string | null;
+  projectId?: string | null;
 }) {
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -212,7 +217,13 @@ export function Recorder({
     try {
       let id = savedNote;
       if (!id) {
-        const note = await api.createNote({ title: 'Voice note', body: text });
+        const note = await api.createNote({
+          title: 'Voice note',
+          body: text,
+          workspaceId,
+          projectId,
+          source: 'recording',
+        });
         id = note.id;
         if (active.current) setSavedNote(id);
       }

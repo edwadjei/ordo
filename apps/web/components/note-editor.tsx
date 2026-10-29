@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import {
   AlertCircle,
   Check,
@@ -9,17 +10,30 @@ import {
 } from 'lucide-react';
 import { RequestError, type Note } from '@ordo/client';
 import { saveLatest } from '@ordo/client/autosave';
-import { savedAtLabel } from '../lib/views';
+import { noteSourceLabel, savedAtLabel } from '../lib/views';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
+
+// The editor and its Markdown parser load only when a note opens.
+const RichNoteBody = dynamic(() => import('./rich-note'), {
+  ssr: false,
+  loading: () => (
+    <p className="muted small" role="status">
+      Opening the editor…
+    </p>
+  ),
+});
 
 type SaveState = 'saved' | 'unsaved' | 'saving' | 'offline' | 'error';
 export function NoteEditor({
   note,
   onClose,
   onSaved,
+  readOnly = false,
 }: {
   note: Note;
+  /** Offline or showing the saved view: the note can be read, not edited. */
+  readOnly?: boolean;
   onClose: () => void;
   onSaved: () => Promise<unknown>;
 }) {
@@ -143,57 +157,61 @@ export function NoteEditor({
     state === 'unsaved' || state === 'error' || state === 'offline';
   return (
     <Dialog title="A place for your thoughts" drawer onClose={close}>
-      <div className={`note-save-state is-${state}`} role="status">
-        {state === 'saved' ? (
-          <>
-            <Check size={12} aria-hidden="true" />
-            {savedAt
-              ? `Saved ${savedAt.toDateString() === new Date().toDateString() ? 'at' : 'on'} ${savedAtLabel(savedAt)}`
-              : 'Saved'}
-          </>
-        ) : state === 'saving' ? (
-          <>
-            <LoaderCircle size={12} className="spin" aria-hidden="true" />
-            Saving…
-          </>
-        ) : state === 'offline' ? (
-          <>
-            <CloudOff size={12} aria-hidden="true" />
-            {typeof navigator !== 'undefined' && !navigator.onLine
-              ? 'Offline — not saved yet. It will save when you’re back online.'
-              : 'Couldn’t reach Ordo — not saved yet. Your text is still here.'}
-          </>
-        ) : state === 'error' ? (
-          <>
-            <AlertCircle size={12} aria-hidden="true" />
-            Not saved — your text is still here
-          </>
-        ) : (
-          <>
-            <span className="note-save-dot" aria-hidden="true" />
-            Unsaved changes
-          </>
-        )}
-      </div>
+      {readOnly && state === 'saved' ? (
+        <p className="offline-note" role="status">
+          You’re viewing a saved copy. Editing notes needs a connection.
+        </p>
+      ) : (
+        <div className={`note-save-state is-${state}`} role="status">
+          {state === 'saved' ? (
+            <>
+              <Check size={12} aria-hidden="true" />
+              {savedAt
+                ? `Saved ${savedAt.toDateString() === new Date().toDateString() ? 'at' : 'on'} ${savedAtLabel(savedAt)}`
+                : 'Saved'}
+            </>
+          ) : state === 'saving' ? (
+            <>
+              <LoaderCircle size={12} className="spin" aria-hidden="true" />
+              Saving…
+            </>
+          ) : state === 'offline' ? (
+            <>
+              <CloudOff size={12} aria-hidden="true" />
+              {typeof navigator !== 'undefined' && !navigator.onLine
+                ? 'Offline — not saved yet. It will save when you’re back online.'
+                : 'Couldn’t reach Ordo — not saved yet. Your text is still here.'}
+            </>
+          ) : state === 'error' ? (
+            <>
+              <AlertCircle size={12} aria-hidden="true" />
+              Not saved — your text is still here
+            </>
+          ) : (
+            <>
+              <span className="note-save-dot" aria-hidden="true" />
+              Unsaved changes
+            </>
+          )}
+        </div>
+      )}
+      {noteSourceLabel(note.source) && (
+        <p className="note-source">{noteSourceLabel(note.source)}</p>
+      )}
       <label>
         Title
         <input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
+          readOnly={readOnly && state === 'saved'}
           maxLength={200}
         />
       </label>
-      <label>
-        Note
-        <textarea
-          autoFocus
-          data-autofocus
-          className="note-body"
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          placeholder="Write freely. You can organize it later."
-        />
-      </label>
+      <RichNoteBody
+        value={body}
+        onChange={setBody}
+        readOnly={readOnly && state === 'saved'}
+      />
       {error && (
         <p className="error" role="alert">
           {error} Your current text has been preserved in this editor. Copy it
@@ -231,7 +249,8 @@ export function NoteEditor({
         )}
       </button>
       <p className="privacy-note">
-        Plain-text note · Saves automatically when you pause typing.
+        Headings, lists, checklists, bold, italic and links, saved as plain
+        Markdown text · Saves automatically when you pause typing.
         <br />
         Typed notes aren’t sent to any AI service. Voice notes are transcribed
         by the provider chosen in Settings, and the recording isn’t kept.

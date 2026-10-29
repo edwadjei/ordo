@@ -28,7 +28,10 @@ export function useWorkspace() {
     [online, setOnline] = useState(true);
   const [pending, setPending] = useState<PendingTask[]>([]);
   const [message, setMessage] = useState(''),
-    [syncing, setSyncing] = useState(false);
+    [syncing, setSyncing] = useState(false),
+    // True while the view is the last snapshot saved on this device rather
+    // than a fresh load: Ordo is then read-only apart from queued task capture.
+    [stale, setStale] = useState(false);
   const owner = useRef<string | null>(null),
     epoch = useRef(0),
     running = useRef(false),
@@ -38,6 +41,7 @@ export function useWorkspace() {
     owner.current = null;
     api.setAccount(null);
     setSnapshot(null);
+    setStale(false);
     setPending([]);
     setSyncing(false);
     try {
@@ -77,7 +81,10 @@ export function useWorkspace() {
     const generation = epoch.current;
     try {
       const next = await api.home();
-      if (generation === epoch.current) cache(next);
+      if (generation === epoch.current) {
+        cache(next);
+        setStale(false);
+      }
       return next;
     } catch (error) {
       if (
@@ -179,9 +186,7 @@ export function useWorkspace() {
             saved = id && localStorage.getItem(cacheKey(id));
           if (saved) {
             cache(JSON.parse(saved));
-            setMessage(
-              'Showing the last saved view. New task captures stay on this device until sync.',
-            );
+            setStale(true);
           } else
             setMessage(
               'Could not reach Ordo. Check that the API is running, then retry.',
@@ -195,6 +200,7 @@ export function useWorkspace() {
       });
     const connected = () => {
         setOnline(true);
+        // A successful sync reloads, which also leaves the saved view.
         void sync();
       },
       disconnected = () => setOnline(false);
@@ -240,6 +246,9 @@ export function useWorkspace() {
     snapshot,
     loading,
     online,
+    stale,
+    /** Edits need the API: true when offline or showing the saved view. */
+    readOnly: !online || stale,
     pending,
     syncing,
     message,
