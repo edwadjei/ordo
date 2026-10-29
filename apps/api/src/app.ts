@@ -49,6 +49,11 @@ export interface AppOptions {
  * once and reuses it for every request.
  */
 export function buildApp(options: AppOptions) {
+  return createHonoHost(composeApp(options));
+}
+
+/** The framework-neutral pipeline: guards and routes, with no HTTP host. */
+export function composeApp(options: AppOptions) {
   const http = new HttpPipeline();
   const database = options.database;
   const identity = createIdentityModule(database, options.secureCookies, {
@@ -141,5 +146,5 @@ export function buildApp(options: AppOptions) {
     capture,
   ])
     module.register(http);
-  return createHonoHost(http);
+  return http;
 }

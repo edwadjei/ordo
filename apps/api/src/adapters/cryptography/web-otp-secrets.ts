@@ -1,4 +1,5 @@
 import { OtpSecrets } from '../../capabilities/otp-secrets.contract.js';
+import { fillRandom } from '../../platform/identifiers/random.js';
 import { fromHex, toHex, utf8Bytes, type WebCryptoKey } from './encoding.js';
 
 const PREFIX = 'hmac-sha256:';
@@ -37,7 +38,7 @@ export class WebOtpSecrets extends OtpSecrets {
 
   code() {
     const sample = new Uint32Array(1);
-    do crypto.getRandomValues(sample);
+    do fillRandom(sample);
     while (sample[0] >= UNBIASED_LIMIT);
     return (sample[0] % CODE_SPACE).toString().padStart(6, '0');
   }

@@ -1,9 +1,8 @@
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
-import * as schema from './schema.js';
 export * from './schema.js';
 
 /** Drizzle on a D1 binding or a D1 Sessions API session. */
-export type Database = DrizzleD1Database<typeof schema>;
+export type Database = DrizzleD1Database;
 
 /** Anything that answers `prepare()` and `batch()`: a D1 binding or session. */
 export type D1Client = D1Database | D1DatabaseSession;
@@ -14,8 +13,10 @@ interface PreparedBatchQuery {
 }
 
 /**
- * Wraps a D1 binding (or a session opened from one) with the shared schema.
- * Cheap: call it per request. Migrations are applied separately with
+ * Wraps a D1 binding (or a session opened from one). Cheap: call it per
+ * request. No schema is passed: Ordo builds every query from the table
+ * objects and never uses Drizzle's relational query API, and passing the
+ * schema made each call rebuild the relational config for every table. Migrations are applied separately with
  * `wrangler d1 migrations apply`; this never changes the schema.
  *
  * `batch()` is replaced with an equivalent that prepares every statement on
@@ -25,7 +26,7 @@ interface PreparedBatchQuery {
  * implicit transaction).
  */
 export function createDatabase(client: D1Client): Database {
-  const db = drizzle(client as D1Database, { schema });
+  const db = drizzle(client as D1Database);
   db.batch = (async (queries: readonly unknown[]) => {
     const prepared = queries.map((query) =>
       (query as { _prepare(): PreparedBatchQuery })._prepare(),

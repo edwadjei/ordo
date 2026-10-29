@@ -11,7 +11,8 @@
     "db:import:local": "tsx ../../packages/db/scripts/import-local.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test --test-concurrency=1 test/*.test.ts",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "bench:cpu": "node --no-warnings --import tsx bench/cpu.ts"
   },
   "dependencies": {
     "@ordo/core": "*",
