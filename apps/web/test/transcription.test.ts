@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import type { AudioSettings } from '@ordo/client';
 import {
   defaultProvider,
+  builtInDetail,
   providerLabels,
-  recorderDestination,
   settingsStatus,
   transcriptionFailure,
   unavailableReason,
@@ -18,16 +18,24 @@ const settings = (changes: Partial<AudioSettings>): AudioSettings => ({
   ...changes,
 });
 
-test('Cloudflare is the default and both providers have plain names', () => {
+test('the built-in provider is the default and is never labelled by vendor or price', () => {
   assert.equal(defaultProvider, 'workers_ai');
   assert.deepEqual(Object.keys(providerLabels).sort(), [
     'openai',
     'workers_ai',
   ]);
-  assert.equal(providerLabels.workers_ai, 'Cloudflare (free, built in)');
+  assert.equal(providerLabels.workers_ai, 'Built-in transcription');
   assert.equal(providerLabels.openai, 'OpenAI (your key)');
-  assert.match(recorderDestination('workers_ai'), /stays within Cloudflare/);
-  assert.match(recorderDestination('openai'), /sent to OpenAI/);
+  assert.doesNotMatch(providerLabels.workers_ai, /cloudflare|free/i);
+  // Where it runs is a secondary detail, not the label.
+  assert.match(builtInDetail, /Cloudflare/);
+  assert.doesNotMatch(builtInDetail, /free/i);
+});
+
+test('the recorder unavailable message names no vendor for the built-in choice', () => {
+  const off = settings({ workersAiAvailable: false, configured: false });
+  assert.doesNotMatch(unavailableReason(off)!, /cloudflare|free/i);
+  assert.match(unavailableReason(off)!, /^Built-in transcription/);
 });
 
 test('readiness explains what is missing for the selected provider', () => {

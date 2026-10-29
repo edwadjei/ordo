@@ -11,6 +11,8 @@ import {
   hasPassed,
   knownNames,
   localNow,
+  looksLikeContact,
+  savedAtLabel,
   upcomingGroups,
   waitingTasks,
   whenLabel,
@@ -47,6 +49,36 @@ test('greeting uses the local hour and the first word of the display name', () =
   assert.equal(greeting(2, 'Kofi'), 'Good evening, Kofi');
   assert.equal(greeting(5, ''), 'Good morning');
   assert.equal(firstName(null), '');
+});
+
+test('greeting never shows a phone number, an email or the placeholder name', () => {
+  assert.equal(greeting(19, '0558601966'), 'Good evening');
+  assert.equal(greeting(19, '+233 24 000 0000'), 'Good evening');
+  assert.equal(greeting(8, '(024) 000-0000'), 'Good morning');
+  assert.equal(greeting(13, 'ama.mensah@example.test'), 'Good afternoon');
+  assert.equal(greeting(13, 'Ordo member'), 'Good afternoon');
+  assert.equal(greeting(8, 'Ama 2'), 'Good morning, Ama');
+  assert.equal(greeting(8, 'Kofi 0558601966'), 'Good morning, Kofi');
+  assert.equal(looksLikeContact('0558601966'), true);
+  assert.equal(looksLikeContact('someone@example.test'), true);
+  assert.equal(looksLikeContact('Agent 47'), false);
+  assert.equal(looksLikeContact('2024'), false);
+});
+
+test('saved label shows the time today and the date otherwise', () => {
+  const now = new Date(2026, 9, 29, 18, 5);
+  assert.equal(
+    savedAtLabel(new Date(2026, 9, 29, 15, 42), now, 'en-GB'),
+    '15:42',
+  );
+  assert.match(
+    savedAtLabel(new Date(2026, 9, 29, 15, 42), now, 'en-US'),
+    /^3:42\sPM$/,
+  );
+  assert.equal(
+    savedAtLabel(new Date(2026, 9, 27, 9, 0), now, 'en-GB'),
+    '27 Oct',
+  );
 });
 
 test('localNow reads wall-clock time in the user timezone, with an Accra fallback', () => {

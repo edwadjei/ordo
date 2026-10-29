@@ -43,8 +43,28 @@ export function addDays(date: string, days: number) {
   return next.toISOString().slice(0, 10);
 }
 
+/**
+ * True when a "name" is really a phone number or an email address. Accounts
+ * can end up with one as their display name (typed or autofilled into the
+ * optional name field), and a greeting must never show contact details.
+ */
+export function looksLikeContact(value: string) {
+  const text = value.trim();
+  return text.includes('@') || /^\+?[\d\s().-]{6,}$/.test(text);
+}
+/** The API's default name for phone accounts that gave none; not a real name. */
+const placeholderNames = new Set(['ordo member']);
+
+/** The first word of a real display name, or '' when there isn't one to greet by. */
 export function firstName(displayName: string | null | undefined) {
-  return displayName?.trim().split(/\s+/)[0] || '';
+  const text = displayName?.trim() || '';
+  if (
+    !text ||
+    looksLikeContact(text) ||
+    placeholderNames.has(text.toLowerCase())
+  )
+    return '';
+  return text.split(/\s+/)[0];
 }
 export function greeting(hour: number, displayName?: string | null) {
   const part =
@@ -327,3 +347,14 @@ export const statusLabels = {
   waiting: 'Waiting',
   done: 'Done',
 };
+
+/**
+ * When a note was last saved, for the editor's "Saved" line: the time for
+ * today, otherwise the date.
+ */
+export function savedAtLabel(saved: Date, now = new Date(), locale?: string) {
+  const sameDay = saved.toDateString() === now.toDateString();
+  return sameDay
+    ? saved.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
+    : saved.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+}

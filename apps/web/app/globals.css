@@ -1117,15 +1117,56 @@ svg {
   padding: 5px 0;
 }
 .note-save-state {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 10px;
   color: light-dark(#99a79e, #b4bec8);
 }
-.note-save-state.error,
-.note-save-state.unsaved {
-  color: #b38e67;
-  background: none;
-  border: 0;
-  padding: 0;
+.note-save-state.is-saved {
+  color: var(--saved-ink);
+}
+.note-save-state.is-unsaved,
+.note-save-state.is-offline {
+  color: var(--pending-ink);
+}
+.note-save-state.is-error {
+  color: var(--danger-ink);
+}
+.note-save-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+/* The note's save button reads as an action only when there is something to
+   save. Saved and saving are confirmations, not a greyed-out failure. */
+:root {
+  --saved-ink: light-dark(#2f7a4c, #7fd3a0);
+  --saved-soft: light-dark(#ecf6f0, #1b2a22);
+  --pending-ink: light-dark(#9a6a3a, #e2b98d);
+  --danger-ink: light-dark(#a3473b, #f0a093);
+}
+.note-save-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 7px;
+  padding: 11px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  min-height: 40px;
+}
+.note-save-button.is-saved,
+.note-save-button.is-saving {
+  background: var(--saved-soft);
+  color: var(--saved-ink);
+  cursor: default;
+}
+.note-save-button.is-saving {
+  background: var(--soft);
+  color: var(--muted);
 }
 .note-body {
   min-height: 45dvh;
