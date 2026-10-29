@@ -4,6 +4,8 @@ import { Check } from 'lucide-react';
 import type { Project } from '@ordo/client';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
+import { ArchiveControl } from './archive-control';
+import { DangerZone } from './danger-zone';
 import { parseAliases, projectAliases } from '../lib/capture';
 
 /**
@@ -14,10 +16,14 @@ export function ProjectSettingsDialog({
   project,
   onClose,
   onSaved,
+  onArchived,
+  onDeleted,
 }: {
   project: Project;
   onClose: () => void;
   onSaved: () => Promise<unknown>;
+  onArchived: (archived: boolean) => Promise<unknown> | void;
+  onDeleted: () => Promise<unknown> | void;
 }) {
   const [description, setDescription] = useState(project.description || ''),
     [aliases, setAliases] = useState(projectAliases(project).join(', ')),
@@ -106,6 +112,8 @@ export function ProjectSettingsDialog({
           descriptions and other names go with it, never their tasks or notes.
         </p>
       </form>
+      <ArchiveControl kind="projects" item={project} onDone={onArchived} />
+      <DangerZone kind="projects" item={project} onDeleted={onDeleted} />
     </Dialog>
   );
 }
