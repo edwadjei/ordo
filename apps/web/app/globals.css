@@ -2736,7 +2736,7 @@ fieldset:disabled select {
   height: 34px;
   border-radius: 999px;
 }
-.heading-aside {
+.project-aside {
   display: flex;
   align-items: center;
   gap: 8px;

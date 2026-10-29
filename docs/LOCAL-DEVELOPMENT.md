@@ -45,6 +45,10 @@ npm run dev
 
 Then open `http://127.0.0.1:8788`. If `apps/web/out` does not exist yet, `npm run dev` creates it empty so `wrangler dev` can start; port 3358 still works. The export has a single page and no client-side routes, so the Worker's `404-page` handling is enough; single-page fallback routing is not needed.
 
+### The service worker
+
+The built export registers a service worker (`apps/web/public/sw.js`) so Ordo opens offline; `next dev` on 3358 never registers it. On 8788 it keeps the last export it saw: after rebuilding, reload once for the new page, or clear it in the browser's developer tools (Application → Service workers → Unregister, and Clear storage). It never caches `/api`. To check offline opening, load `http://127.0.0.1:8788` once, then switch the browser to offline and reload.
+
 ### Running the pieces separately
 
 ```bash
@@ -92,7 +96,7 @@ A one-time import moves content from the old `.data/ordo` into local D1: export 
 
 ## Current release limits
 
-This build is local development, not a hosted release. Hosting is Phase 3 ([hosting runbook](HOSTING-RUNBOOK.md)). The sign-in throttle is stored in D1 (`auth_throttle`) keyed by route and `CF-Connecting-IP`. Contact linking/recovery and native-client authentication need further work. Recording-to-transcription uses temporary memory only; Ordo stores no audio or uploaded files. AI extraction and transcript imports show Coming soon. MCP, native mobile packages, and Mac packaging remain separate slices. See [phone verification](PHONE-TESTING.md) for HTTPS requirements and the actual-device checklist.
+This build is local development, not a hosted release. Hosting is Phase 3 ([hosting runbook](HOSTING-RUNBOOK.md)). The sign-in throttle is stored in D1 (`auth_throttle`) keyed by route and `CF-Connecting-IP`. Contact linking/recovery and native-client authentication need further work. Recording-to-transcription uses temporary memory only; Ordo stores no audio or uploaded files. Pasted emails and transcript files (`.txt`, `.md`, `.vtt`, `.srt`) are read in the browser and saved as note text only; AI extraction shows Coming soon. MCP, native mobile packages, and Mac packaging remain separate slices. See [phone verification](PHONE-TESTING.md) for HTTPS requirements and the actual-device checklist.
 
 ## Delivery and audio settings
 

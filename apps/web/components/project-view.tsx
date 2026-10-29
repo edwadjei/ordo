@@ -1,7 +1,7 @@
 'use client';
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
 import {
-  AlertTriangle,
+  ListTodo,
   Star,
   Clock3,
   FileText,
@@ -183,7 +183,7 @@ export function ProjectOverview({
         ) : (
           <Empty
             compact
-            icon={AlertTriangle}
+            icon={ListTodo}
             title="Nothing open."
             text="Add the next step for this project and it will show here."
           />

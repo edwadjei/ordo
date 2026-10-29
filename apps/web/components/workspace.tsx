@@ -696,16 +696,15 @@ export function WorkspaceApp() {
               purpose={header.purpose}
               aside={
                 view === 'project' && project ? (
-                  <>
+                  <span className="project-aside">
                     <FavoriteToggle
-                      className="with-label"
                       name={project.name}
                       favorite={!!project.favorite}
                       busy={favoriteBusy.includes(project.id)}
                       onToggle={() => void toggleFavorite(project)}
                     />
                     {scopeSelect}
-                  </>
+                  </span>
                 ) : (
                   scopeSelect
                 )
