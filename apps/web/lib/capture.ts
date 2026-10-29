@@ -17,17 +17,26 @@ export const notProcessed = (note: Note) => {
   return status === 'pending' || status === 'failed';
 };
 
-/** Conversations in scope, newest first. */
+/**
+ * Conversations in scope, newest first. A capture belongs to a project when
+ * it was filed there or when tasks saved from it went there.
+ */
 export function conversations(
   notes: Note[],
   scope: { workspaceId?: string | null; projectId?: string | null } = {},
+  tasks: Task[] = [],
 ) {
+  const fedProject = (note: Note) =>
+    tasks.some(
+      (task) =>
+        taskSourceNote(task) === note.id && task.projectId === scope.projectId,
+    );
   return notes
     .filter((note) => conversationSources.includes(note.source))
-    .filter(
-      (note) =>
-        (!scope.workspaceId || note.workspaceId === scope.workspaceId) &&
-        (!scope.projectId || note.projectId === scope.projectId),
+    .filter((note) =>
+      scope.projectId
+        ? note.projectId === scope.projectId || fedProject(note)
+        : !scope.workspaceId || note.workspaceId === scope.workspaceId,
     )
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }

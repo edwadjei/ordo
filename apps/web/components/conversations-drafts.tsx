@@ -80,7 +80,11 @@ export function ConversationsList({
   onTask: (id: string) => void;
   onProcess: (id: string) => void;
 }) {
-  const list = conversations(data.notes, { workspaceId, projectId });
+  const list = conversations(
+    data.notes,
+    { workspaceId, projectId },
+    data.tasks,
+  );
   const summaries = useSummaries(list, online);
   if (!list.length)
     return (

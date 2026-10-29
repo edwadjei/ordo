@@ -40,6 +40,18 @@ test('conversations are recordings, emails and transcripts in scope, newest firs
   );
 });
 
+test('a project lists captures whose saved tasks went there', () => {
+  const inbox = note('filed-elsewhere', 'transcript', { projectId: null });
+  const tasks = [
+    { id: 't1', projectId: 'p1', sourceNoteId: 'filed-elsewhere' },
+  ] as unknown as Task[];
+  assert.deepEqual(
+    conversations([inbox], { projectId: 'p1' }, tasks).map((n) => n.id),
+    ['filed-elsewhere'],
+  );
+  assert.deepEqual(conversations([inbox], { projectId: 'p1' }), []);
+});
+
 test('Not processed means the latest run is pending or failed', () => {
   assert.equal(
     notProcessed(note('a', 'email', { latestCaptureStatus: 'pending' })),
