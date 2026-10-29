@@ -75,7 +75,18 @@ Application baseline verification: fresh `npm ci`, `npm run format:check`, all w
 
 ## Release record
 
-No hosted releases, deployments, or hosted backups exist. Migrations have run on local D1 only. Recent merges to `main`, each on Edward's word: #9 Phase 1 → `180742d` (rollback `2bac518`); #11 D1 and the Worker → `97b0469` (rollback `0838aad`); #12 Workers AI transcription → `ff4a567` (rollback `97b0469`); #13 sign-in delivery fix → `e96df57` (rollback `ff4a567`). Add a release entry only after an approved integration/deploy, with revision, checks, D1 restore point if relevant, rollback point, and post-deploy evidence.
+**Hosted release 1 — 29 October 2026** (each step on Edward's word in the Cloudflare specialist session; procedure in the [hosting runbook](HOSTING-RUNBOOK.md)):
+
+| Item | Value |
+|---|---|
+| Address | `https://ordo.edward-dejaysblog.workers.dev` (Worker `ordo`, Workers Free plan) |
+| Revision deployed | `main` at `fe2fb83` (after #19), from a clean detached worktree; typecheck, 130 tests and build passed before upload |
+| D1 | `ordo`, id `fa30bd33-275d-4120-8d0e-a6a50887687d`, region WEUR; migrations 0001–0003 applied |
+| D1 restore point (before migrations) | Time Travel bookmark `00000001-00000000-00005113-69c37252a9cb4375ff0d76ef2d7ede98` (empty database) |
+| Worker versions | `de1fa2c2-a7b7-47d8-a451-a55c500566b8` (upload, 02:02 UTC); `06856662-1fd0-4d20-abd5-ab22c58c9a22` (adds `OTP_HMAC_KEY`, 02:02 UTC, live). Rollback point for the next deploy: `06856662-1fd0-4d20-abd5-ab22c58c9a22`. There is no version before the first upload; its undo is `wrangler delete` |
+| Secrets set | `OTP_HMAC_KEY` only. Still to set by Edward: `ORDO_CREDENTIAL_KEY`, `GATEKEEPER_API_KEY`, `GATEKEEPER_API_URL` |
+
+Before this release, migrations had run on local D1 only. Recent merges to `main`, each on Edward's word: #9 Phase 1 → `180742d` (rollback `2bac518`); #11 D1 and the Worker → `97b0469` (rollback `0838aad`); #12 Workers AI transcription → `ff4a567` (rollback `97b0469`); #13 sign-in delivery fix → `e96df57` (rollback `ff4a567`). Add a release entry only after an approved integration/deploy, with revision, checks, D1 restore point if relevant, rollback point, and post-deploy evidence.
 
 ## Remaining web acceptance work
 

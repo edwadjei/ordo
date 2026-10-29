@@ -115,3 +115,22 @@ Branch `edw/ordo-everyday-views`. Automated: typecheck (all workspaces), 64 test
 Signed-in browser checks used a fictional account on an isolated stack (scratch API with migration 0005 applied to a fresh embedded database, production web build). My Day shows the first-name greeting, date, summary and five count chips. A task created from the My Day composer landed on Today. Setting Waiting, a due time, a follow-up date and time, and padded names saved and came back trimmed; the past due time moved the task into Due now. Clearing the due date cleared its time on the server and disabled the time field. Inbox, Upcoming (seven grouped days) and Waiting On (who, follow-up, responsible) render distinctly in light, dark and 375px mobile. Screenshots: `design/evidence/everyday-views/`.
 
 Not verified: migration 0005 against the existing `.data/ordo` database used by the running local servers (they were started by another tool and were not restarted; migration was tested by the API specialist on a database with 0001–0004 applied), physical phones, and screen-reader output. Reminders are in-app surfacing only; no notifications.
+
+## Hosted Ordo on Cloudflare — 29 October 2026
+
+Worker `ordo` at `https://ordo.edward-dejaysblog.workers.dev`, deployed from `main` at `fe2fb83`. The deploy gate passed: typecheck, 130 tests (API 76, web 28, client 26) and build. The live version is bound to D1 `fa30bd33-275d-4120-8d0e-a6a50887687d` (checked with `wrangler versions view`), Workers AI, assets, and the variables `ORDO_ENV=production`, `ORDO_WORKERS_AI=on` and `TRUSTED_ORIGINS`.
+
+Signed-out checks after `OTP_HMAC_KEY` was set:
+
+| Request | Result |
+|---|---|
+| `/` | 200, web app |
+| `/api/health` | 200 `{"status":"ok"}` |
+| `/api/auth/me` | 401 (configuration loaded, route exists) |
+| `/api/capabilities` | 200; Workers AI transcription available; code delivery (email, SMS) unavailable and credential storage off, as expected until the remaining secrets are set |
+
+Before `OTP_HMAC_KEY` was set, every `/api` route, including `/api/health`, answered 500 (configuration), while `/` answered 200.
+
+CPU time from `wrangler tail` on signed-out requests: `/api/health` median 0.5 ms, max 2 ms; `/api/auth/me` median 0.5 ms, max 1 ms; `/api/capabilities` median 0 ms, max 1 ms. All are well under the 10 ms Free-plan limit. Static pages are served from assets without running the Worker.
+
+Not verified: sign-in and every signed-in journey (task, note, search, reload, transcription), and their CPU time. These need `GATEKEEPER_API_KEY` and `GATEKEEPER_API_URL`, which Edward sets himself, plus a real code to his own address.
