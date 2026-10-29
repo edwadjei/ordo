@@ -2876,3 +2876,318 @@ fieldset:disabled select {
   align-items: center;
   justify-content: center;
 }
+/* AI capture: process, review, save. */
+.detail-context svg {
+  vertical-align: -1px;
+}
+.capture-progress {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  margin: 18px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.capture-progress p {
+  flex: 1;
+  margin: 0;
+}
+.capture-later {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  margin: 18px 0;
+  border-radius: 10px;
+  border: 1px solid light-dark(#f0d9cd, #4a3a32);
+  background: var(--warm-soft);
+}
+.capture-later > svg {
+  flex-shrink: 0;
+  color: var(--warm);
+}
+.capture-later p {
+  margin: 4px 0 0;
+}
+.capture-group {
+  margin: 22px 0 0;
+}
+.capture-group h3 {
+  margin: 0 0 8px;
+  font: 600 11px/1.4 var(--font);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.capture-summary {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.suggestion {
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important;
+  padding: 4px 12px 10px !important;
+  margin: 0 0 10px !important;
+}
+.suggestion.is-off {
+  opacity: 0.55;
+}
+.suggestion-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  float: left;
+  margin: 6px 0 0;
+}
+.suggestion-head + * {
+  clear: both;
+}
+.dialog .suggestion-pick {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  margin: 0 !important;
+  font-size: 12px !important;
+  color: var(--ink) !important;
+}
+.dialog .suggestion-pick input {
+  width: 16px;
+  min-height: 0 !important;
+  height: 16px;
+  padding: 0;
+  accent-color: var(--brand-orange);
+}
+.dialog input.suggestion-title {
+  flex: 1;
+  min-width: 0;
+  border-color: transparent;
+  font-weight: 500;
+  font-size: 13px;
+  padding: 6px 8px;
+  min-height: 34px;
+}
+.dialog input.suggestion-title:hover,
+.dialog input.suggestion-title:focus {
+  border-color: light-dark(#dfe5e9, #38434f);
+}
+.suggestion-meta {
+  clear: both;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 4px 0 0 24px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.suggestion-fields {
+  margin-left: 24px;
+}
+.dialog .inline-check {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  align-self: end;
+}
+.dialog .inline-check input {
+  width: 16px;
+  min-height: 0 !important;
+  height: 16px;
+}
+.reassign {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.item-destination {
+  padding: 4px 0 0;
+}
+.warm-text {
+  color: var(--warm);
+}
+.capture-actions {
+  position: sticky;
+  bottom: -40px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 0 18px;
+  margin-top: 18px;
+  background: linear-gradient(transparent, var(--bg) 22%);
+}
+.capture-saved p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.capture-saved p svg {
+  color: light-dark(#2f7d4f, #7fd19d);
+}
+.created-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px;
+}
+.created-list .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  text-align: left;
+}
+/* Notes: where a capture came from, and processing. */
+.note-capture-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+.note-capture-bar .note-source {
+  margin: 0;
+}
+.process-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 12px;
+}
+.process-button small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.process-button.is-offered {
+  border-color: light-dark(#ffd0ad, #6a4329);
+  background: light-dark(#fff6ef, #2a2019);
+}
+.process-button:hover {
+  border-color: light-dark(#c8cfd4, #52606d);
+}
+.not-processed {
+  color: var(--warm);
+  font-weight: 500;
+}
+.text-button.inline {
+  padding: 0;
+  font-size: inherit;
+}
+/* Conversations and drafts. */
+.conversation-list,
+.draft-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.conversation,
+.draft {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+.conversation-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: none;
+  text-align: left;
+  font-size: 14px;
+}
+.conversation-title svg {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.conversation > small,
+.draft > small {
+  display: block;
+  margin: 3px 0 0 23px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.conversation-summary {
+  margin: 8px 0 0 23px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.conversation-actions {
+  list-style: none;
+  margin: 6px 0 0 23px;
+  padding: 0;
+}
+.conversation-actions .text-button,
+.process-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-align: left;
+}
+.process-link {
+  margin-left: 23px;
+}
+.recent-conversations {
+  margin-bottom: 26px;
+}
+.draft-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.draft-head svg {
+  color: var(--muted);
+}
+.used-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--soft);
+  font-size: 10px;
+  color: var(--muted);
+}
+.draft.is-used .draft-body {
+  color: var(--muted);
+}
+.draft-body {
+  margin: 8px 0 0 22px;
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.6;
+  max-height: 12em;
+  overflow: auto;
+}
+.draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0 22px;
+}
+.draft-actions .secondary {
+  min-height: 32px;
+  padding: 6px 12px;
+  gap: 6px;
+}
+.ai-settings {
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.ai-settings .callout {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .suggestion-meta,
+  .suggestion-fields {
+    margin-left: 0;
+  }
+}

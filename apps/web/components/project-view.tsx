@@ -252,20 +252,6 @@ function noteMeta(note: Note) {
   return source ? `${date} · ${source}` : date;
 }
 
-export function ComingSoonTab({ kind }: { kind: 'conversations' | 'drafts' }) {
-  return (
-    <Empty
-      icon={kind === 'conversations' ? Mic : FileText}
-      title="Coming soon"
-      text={
-        kind === 'conversations'
-          ? 'Conversations will keep a meeting or call linked to the tasks and notes it produced.'
-          : 'Drafts will hold emails and messages you prepare for this project. Ordo will never send them for you.'
-      }
-    />
-  );
-}
-
 /** A star that favourites a project; favourites sort first everywhere. */
 export function FavoriteToggle({
   name,

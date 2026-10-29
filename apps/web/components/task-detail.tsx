@@ -6,6 +6,7 @@ import type { TaskChanges } from '@ordo/client';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
 import { knownNames, statusLabels } from '../lib/views';
+import { taskOrigin, taskSourceNote } from '../lib/capture';
 const editable = [
   'title',
   'description',
@@ -28,8 +29,11 @@ export function TaskDetail({
   onChange,
   onSelect,
   readOnly = false,
+  onOpenNote,
 }: {
   task: Task;
+  /** Opens a task's source note (provenance). */
+  onOpenNote?: (id: string) => void;
   /** Offline or showing the saved view: the task can be read, not changed. */
   readOnly?: boolean;
   data: HomeSnapshot;
@@ -38,6 +42,10 @@ export function TaskDetail({
   onSelect: (id: string) => void;
 }) {
   const [baseline, setBaseline] = useState(task);
+  const sourceId = taskSourceNote(task);
+  const sourceNote = sourceId
+    ? data.notes.find((note) => note.id === sourceId)
+    : undefined;
   const [draft, setDraft] = useState({ ...task }),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
@@ -411,7 +419,30 @@ export function TaskDetail({
         </form>
       </section>
       <div className="provenance">
-        Created manually · {new Date(task.createdAt).toLocaleDateString()}
+        {taskOrigin(task) === 'capture' ? (
+          <>
+            From capture
+            {sourceNote ? (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  className="text-button inline"
+                  onClick={() => onOpenNote?.(sourceNote.id)}
+                >
+                  {sourceNote.title}
+                </button>
+              </>
+            ) : (
+              ' · source note archived'
+            )}
+          </>
+        ) : taskOrigin(task) === 'agent' ? (
+          'Created by an agent'
+        ) : (
+          'Created manually'
+        )}{' '}
+        · {new Date(task.createdAt).toLocaleDateString()}
         <br />
         Completing a parent does not complete its subtasks.
       </div>

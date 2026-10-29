@@ -65,7 +65,11 @@ export type TaskChanges = Partial<TaskInput> & { expectedRevision: number };
 export type NoteChanges = Partial<NoteInput> & { expectedRevision: number };
 export type ProjectChanges = Partial<
   Pick<Project, 'name' | 'description' | 'favorite'>
-> & { expectedRevision: number };
+> & {
+  /** Other names for AI routing: up to 10, each 1–60 characters. */
+  aliases?: string[];
+  expectedRevision: number;
+};
 export function createClient(
   base = '/api',
   transport: typeof fetch = fetch,
