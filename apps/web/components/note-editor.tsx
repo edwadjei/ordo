@@ -16,6 +16,7 @@ import { conversationSources, notProcessed } from '../lib/capture';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
 import { ByAgent } from './agent-names';
+import { lostToDelete, saveErrorText } from '../lib/errors';
 
 // The editor and its Markdown parser load only when a note opens.
 const RichNoteBody = dynamic(() => import('./rich-note'), {
@@ -60,6 +61,7 @@ export function NoteEditor({
       return Number.isNaN(when.getTime()) ? null : when;
     }),
     [error, setError] = useState('');
+  const gone = useRef(false);
   const revision = useRef(note.revision),
     saved = useRef({ title: note.title, body: note.body }),
     running = useRef(false),
@@ -117,7 +119,9 @@ export function NoteEditor({
         setError('');
       } else {
         setState('error');
-        setError((error as Error).message);
+        setError(saveErrorText(error, 'note'));
+        // Reload only once the editor closes, so the message stays readable.
+        if (lostToDelete(error)) gone.current = true;
       }
     } finally {
       running.current = false;
@@ -168,6 +172,7 @@ export function NoteEditor({
     )
       return;
     onClose();
+    if (gone.current) void onSaved().catch(() => {});
   }
   const actionable =
     state === 'unsaved' || state === 'error' || state === 'offline';
