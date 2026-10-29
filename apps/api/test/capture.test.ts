@@ -916,9 +916,46 @@ test('the largest save the review screen allows fits; only the save route takes 
   );
   assert.equal(tooLarge.statusCode, 413);
   // Other routes keep the 150,000-byte limit.
-  const note = await call('POST', '/v1/notes', {
-    title: 'Big',
-    body: '€'.repeat(60000),
+  const draft413 = await call('POST', '/v1/drafts', {
+    workspaceId: damsyn.id,
+    kind: 'email',
+    body: 'x',
+    padding: '€'.repeat(60000),
   });
-  assert.equal(note.statusCode, 413);
+  assert.equal(draft413.statusCode, 413);
+});
+
+test('a full 100,000-character note body fits in any script, on create and edit', async (t) => {
+  const { ok, call } = await setup(t);
+  // Three-byte characters: about 300,000 bytes, beyond the default limit.
+  const body = '€'.repeat(100000);
+  assert.ok(
+    Buffer.byteLength(JSON.stringify({ title: 'Long', body })) > 300_000,
+  );
+  const note = await ok('POST', '/v1/notes', { title: 'Long', body });
+  assert.equal(note.body.length, 100000);
+  const edited = await ok('PATCH', `/v1/notes/${note.id}`, {
+    body: '中'.repeat(100000),
+    expectedRevision: 1,
+  });
+  assert.equal(edited.body, '中'.repeat(100000));
+  // One character over is the schema's 400; far over is the byte limit's 413.
+  assert.equal(
+    (
+      await call('POST', '/v1/notes', {
+        title: 'Over',
+        body: '€'.repeat(100001),
+      })
+    ).statusCode,
+    400,
+  );
+  assert.equal(
+    (
+      await call('POST', '/v1/notes', {
+        title: 'Far over',
+        body: '€'.repeat(160000),
+      })
+    ).statusCode,
+    413,
+  );
 });

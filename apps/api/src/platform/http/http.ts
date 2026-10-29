@@ -75,7 +75,7 @@ export interface RouteDefinition {
 export interface HttpRoutes {
   get(path: string, handler: HttpHandler): void;
   post(path: string, handler: HttpHandler, options?: RouteOptions): void;
-  patch(path: string, handler: HttpHandler): void;
+  patch(path: string, handler: HttpHandler, options?: RouteOptions): void;
   delete(path: string, handler: HttpHandler): void;
 }
 
@@ -102,8 +102,8 @@ export class HttpPipeline implements HttpRoutes {
   post(path: string, handler: HttpHandler, options?: RouteOptions) {
     this.add('POST', path, handler, options);
   }
-  patch(path: string, handler: HttpHandler) {
-    this.add('PATCH', path, handler);
+  patch(path: string, handler: HttpHandler, options?: RouteOptions) {
+    this.add('PATCH', path, handler, options);
   }
   delete(path: string, handler: HttpHandler) {
     this.add('DELETE', path, handler);
