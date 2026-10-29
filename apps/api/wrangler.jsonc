@@ -1,7 +1,9 @@
 // Ordo as one Cloudflare Worker: the static web export plus the Hono API under
-// /api on a D1 database. Phase 2 runs it only locally with `wrangler dev`
-// and `wrangler d1 migrations apply ordo --local`; nothing here is deployed
-// and no Cloudflare account or resource exists yet (Phase 3).
+// /api on a D1 database. This one configuration serves both local development
+// (`npm run dev`: `wrangler dev --local` on a local D1 copy, settings from
+// .dev.vars) and the single hosted deployment, Worker `ordo` at
+// https://ordo.edward-dejaysblog.workers.dev. Every step that touches the
+// Cloudflare account is in docs/HOSTING-RUNBOOK.md and needs Edward's OK.
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "ordo",
@@ -20,8 +22,12 @@
     {
       "binding": "DB",
       "database_name": "ordo",
-      // Placeholder for local development only; Phase 3 sets the real ID.
-      "database_id": "00000000-0000-4000-8000-000000000000",
+      // TODO(hosting step 1): the id printed by `wrangler d1 create ordo`,
+      // after Edward approves it. Not secret.
+      "database_id": "TODO-set-after-wrangler-d1-create",
+      // Local development and `--local` commands use this id, so the local
+      // database (.wrangler/state) stays the same one as before hosting.
+      "preview_database_id": "00000000-0000-4000-8000-000000000000",
       "migrations_dir": "../../packages/db/migrations",
     },
   ],
@@ -37,8 +43,23 @@
     "ip": "127.0.0.1",
     "port": 8788,
   },
+  // Hosted on the account's workers.dev address only; no preview URLs.
+  "workers_dev": true,
+  "preview_urls": false,
+  // Hosted settings. Locally, apps/api/.dev.vars (created from
+  // .dev.vars.example) sets the same names and overrides these, so
+  // `npm run dev` stays in development mode. Anything other than
+  // ORDO_ENV=development is hosted: real code delivery, Secure cookies, and
+  // OTP_HMAC_KEY and TRUSTED_ORIGINS required.
+  "vars": {
+    "ORDO_ENV": "production",
+    "ORDO_WORKERS_AI": "on",
+    "TRUSTED_ORIGINS": "https://ordo.edward-dejaysblog.workers.dev",
+  },
   // Secrets come from .dev.vars locally (see .dev.vars.example) and from
-  // Worker secrets when hosted: OTP_HMAC_KEY, ORDO_CREDENTIAL_KEY,
-  // GATEKEEPER_API_KEY, GATEKEEPER_API_URL; plain var ORDO_WORKERS_AI.
+  // Worker secrets when hosted (`wrangler secret put`, never here):
+  // OTP_HMAC_KEY, ORDO_CREDENTIAL_KEY, GATEKEEPER_API_KEY, GATEKEEPER_API_URL.
+  // Workers Logs: CPU and wall time per request (Free plan: 200,000 events a
+  // day, kept 3 days).
   "observability": { "enabled": true },
 }
