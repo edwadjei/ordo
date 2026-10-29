@@ -1,6 +1,6 @@
 import type { HttpRoutes } from '../../platform/http/http.js';
 import { z } from 'zod';
-import { taskInput, taskPatch, revisionInput } from '@ordo/core';
+import { archivedQuery, taskInput, taskPatch, revisionInput } from '@ordo/core';
 import { actorId, entityId } from '../../platform/http/request-context.js';
 import type { TasksService } from './tasks.service.js';
 
@@ -10,7 +10,12 @@ export function registerTasksController(
   routes: HttpRoutes,
   service: TasksService,
 ) {
-  routes.get('/v1/tasks', async (request) => service.list(actorId(request)));
+  routes.get('/v1/tasks', async (request) =>
+    service.list(
+      actorId(request),
+      archivedQuery.parse(request.query).includeArchived,
+    ),
+  );
   routes.get('/v1/tasks/:id', async (request) =>
     service.get(actorId(request), entityId(request)),
   );

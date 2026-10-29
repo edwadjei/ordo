@@ -100,6 +100,7 @@ const crossDomainServices: Record<string, Set<string>> = {
   'ai-settings': new Set(['audio-settings']),
   drafts: new Set(['workspaces', 'notes']),
   capture: new Set(['workspaces', 'notes', 'ai-settings', 'drafts']),
+  related: new Set(['drafts']),
 };
 
 test('platform and capability contracts cannot import business domains or concrete adapters', async () => {

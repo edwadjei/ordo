@@ -143,6 +143,8 @@ export const workspacePatch = z
       .string()
       .regex(/^#[0-9a-fA-F]{6}$/)
       .optional(),
+    // Archive (true) or restore (false); everything inside is kept.
+    archived: z.boolean().optional(),
     expectedRevision: z.number().int().positive(),
   })
   .strict();
@@ -152,9 +154,51 @@ export const projectPatch = z
     description: z.string().max(5000).optional(),
     favorite: z.boolean().optional(),
     aliases: projectAliases.optional(),
+    archived: z.boolean().optional(),
     expectedRevision: z.number().int().positive(),
   })
   .strict();
+
+/**
+ * `DELETE /v1/workspaces/:id` and `DELETE /v1/projects/:id`: permanent, so
+ * the current name must be typed exactly.
+ */
+export const permanentDeleteInput = z
+  .object({
+    confirmName: z.string(),
+    expectedRevision: z.number().int().positive(),
+  })
+  .strict();
+/** What a permanent delete removes (preview) or removed (result). */
+export interface DeletedCounts {
+  projects: number;
+  tasks: number;
+  notes: number;
+  drafts: number;
+  captureRuns: number;
+}
+export interface DeletePreview extends DeletedCounts {
+  name: string;
+}
+export interface DeleteResult {
+  deleted: DeletedCounts;
+}
+
+/** `?includeArchived=1` on lists and search also returns archived items. */
+const includeArchived = z
+  .enum(['1', 'true', '0', 'false'])
+  .optional()
+  .transform((value) => value === '1' || value === 'true');
+// Not strict: these routes accepted any other query parameter before.
+export const archivedQuery = z.object({ includeArchived });
+
+/** `POST /v1/tasks/:id/links`: link one of the owner's notes to a task. */
+export const taskLinkInput = z.object({ noteId: id }).strict();
+export interface TaskNoteLink {
+  taskId: string;
+  noteId: string;
+  createdAt: string;
+}
 
 /**
  * Transcription providers an account can choose. `workers_ai` (Cloudflare
@@ -223,7 +267,11 @@ export const draftInput = z
   .strict();
 /** `GET /v1/drafts` filters; both optional. */
 export const draftListQuery = z
-  .object({ workspaceId: id.optional(), projectId: id.optional() })
+  .object({
+    workspaceId: id.optional(),
+    projectId: id.optional(),
+    includeArchived,
+  })
   .strict();
 /** `PATCH /v1/drafts/:id`; `used: true` marks it used, `false` clears that. */
 export const draftPatch = z
@@ -382,6 +430,8 @@ export interface Workspace {
   id: string;
   name: string;
   color: string;
+  /** Set while the workspace is archived; null otherwise. */
+  archivedAt: string | null;
   revision: number;
   createdAt: string;
   updatedAt: string;
@@ -393,6 +443,8 @@ export interface Project {
   workspaceId: string;
   favorite: boolean;
   aliases: string[];
+  /** Set while the project is archived; null otherwise. */
+  archivedAt: string | null;
   revision: number;
   createdAt: string;
   updatedAt: string;
@@ -459,6 +511,17 @@ export interface Note extends NoteInput {
  * `GET /v1/notes/:id` returns when the note is opened.
  */
 export type NoteSummary = Omit<Note, 'body'>;
+/** A task without its description, as listed in related items. */
+export type TaskSummary = Omit<Task, 'description'>;
+/** `GET /v1/tasks/:id/related`. */
+export interface RelatedItems {
+  sourceNote: NoteSummary | null;
+  linkedNotes: NoteSummary[];
+  /** Other tasks saved from the same source note (up to 20). */
+  captureTasks: TaskSummary[];
+  /** Drafts saved from the same source note (up to 20). */
+  drafts: Draft[];
+}
 export interface HomeSnapshot {
   user: User;
   workspaces: Workspace[];

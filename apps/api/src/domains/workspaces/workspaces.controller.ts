@@ -1,5 +1,6 @@
 import type { HttpRoutes } from '../../platform/http/http.js';
 import {
+  permanentDeleteInput,
   workspaceInput,
   workspacePatch,
   projectInput,
@@ -35,6 +36,17 @@ export function registerWorkspacesController(
       workspacePatch.parse(request.body),
     ),
   );
+  routes.get('/v1/workspaces/:id/delete-preview', async (request) =>
+    service.deletePreview(actorId(request), 'workspace', entityId(request)),
+  );
+  routes.delete('/v1/workspaces/:id', async (request) =>
+    service.deletePermanently(
+      actorId(request),
+      'workspace',
+      entityId(request),
+      permanentDeleteInput.parse(request.body),
+    ),
+  );
   routes.get('/v1/workspaces/:id/projects', async (request) =>
     service.listProjects(actorId(request), entityId(request)),
   );
@@ -61,6 +73,17 @@ export function registerWorkspacesController(
   );
   routes.get('/v1/projects/:id', async (request) =>
     service.getProject(actorId(request), entityId(request)),
+  );
+  routes.get('/v1/projects/:id/delete-preview', async (request) =>
+    service.deletePreview(actorId(request), 'project', entityId(request)),
+  );
+  routes.delete('/v1/projects/:id', async (request) =>
+    service.deletePermanently(
+      actorId(request),
+      'project',
+      entityId(request),
+      permanentDeleteInput.parse(request.body),
+    ),
   );
   routes.patch('/v1/projects/:id', async (request) =>
     service.updateProject(

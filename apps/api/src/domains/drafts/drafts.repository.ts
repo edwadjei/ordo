@@ -4,6 +4,7 @@ import {
   desc,
   eq,
   isNull,
+  notInArchivedScope,
   sql,
   tables,
   type NewDraft,
@@ -14,7 +15,14 @@ const { drafts } = tables;
 export class DraftsRepository {
   constructor(private readonly database: DatabaseAdapter) {}
 
-  list(owner: string, filter: { workspaceId?: string; projectId?: string }) {
+  list(
+    owner: string,
+    filter: {
+      workspaceId?: string;
+      projectId?: string;
+      includeArchived?: boolean;
+    },
+  ) {
     return this.database
       .use()
       .select()
@@ -27,6 +35,7 @@ export class DraftsRepository {
             ? eq(drafts.workspaceId, filter.workspaceId)
             : undefined,
           filter.projectId ? eq(drafts.projectId, filter.projectId) : undefined,
+          filter.includeArchived ? undefined : notInArchivedScope('drafts'),
         ),
       )
       .orderBy(desc(drafts.createdAt), desc(drafts.id));

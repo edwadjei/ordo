@@ -49,6 +49,8 @@ export const workspaces = sqliteTable('workspaces', {
     .references(() => users.id),
   name: text('name').notNull(),
   color: text('color').notNull(),
+  // 0006: set while archived (hidden, restorable).
+  archivedAt: text('archived_at'),
   ...revisionFields(),
 });
 
@@ -66,6 +68,8 @@ export const projects = sqliteTable('projects', {
     .$type<string[]>()
     .notNull()
     .default(sql`'[]'`),
+  // 0006: set while archived (hidden, restorable).
+  archivedAt: text('archived_at'),
   ...revisionFields(),
 });
 
@@ -182,6 +186,20 @@ export const aiSettings = sqliteTable('ai_settings', {
   encryptedAnthropicKey: text('encrypted_anthropic_key'),
   ...timestampFields(),
 });
+
+/** Notes linked to a task by hand (0006); removed with either side. */
+export const taskNoteLinks = sqliteTable(
+  'task_note_links',
+  {
+    taskId: text('task_id').notNull(),
+    noteId: text('note_id').notNull(),
+    ownerUserId: text('owner_user_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: text('created_at').notNull().default(now),
+  },
+  (t) => [primaryKey({ columns: [t.taskId, t.noteId] })],
+);
 
 export const idempotencyKeys = sqliteTable(
   'idempotency_keys',

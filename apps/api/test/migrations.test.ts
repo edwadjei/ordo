@@ -454,3 +454,82 @@ test('0005 adds aliases, task provenance, drafts, capture runs and AI settings, 
     null,
   );
 });
+
+test('0006 adds archiving and task links, keeping every row; links go with either side', async (t) => {
+  const proxy = await getPlatformProxy<{ DB: D1Database }>({
+    configPath: wranglerConfig,
+    persist: false,
+    remoteBindings: false,
+    envFiles: [],
+  });
+  t.after(() => proxy.dispose());
+  const d1 = proxy.env.DB;
+  const migrations = await migrationStatements();
+  assert.equal(migrations[5].name, '0006_related_items_and_deleting.sql');
+  const apply = (index: number) =>
+    d1.batch(migrations[index].statements.map((sql) => d1.prepare(sql)));
+  for (const index of [0, 1, 2, 3, 4]) await apply(index);
+  const [owner, workspace, project, task, note] = Array.from(
+    { length: 5 },
+    () => crypto.randomUUID(),
+  );
+  await d1.batch([
+    d1
+      .prepare(
+        "INSERT INTO users (id, email) VALUES (?, 'fiction@example.test')",
+      )
+      .bind(owner),
+    d1
+      .prepare(
+        "INSERT INTO workspaces (id, owner_user_id, name, color, revision) VALUES (?, ?, 'Fiction', '#577664', 2)",
+      )
+      .bind(workspace, owner),
+    d1
+      .prepare(
+        "INSERT INTO projects (id, owner_user_id, workspace_id, name) VALUES (?, ?, ?, 'Fictional project')",
+      )
+      .bind(project, owner, workspace),
+    d1
+      .prepare(
+        "INSERT INTO tasks (id, owner_user_id, title) VALUES (?, ?, 'Task')",
+      )
+      .bind(task, owner),
+    d1
+      .prepare(
+        "INSERT INTO notes (id, owner_user_id, title) VALUES (?, ?, 'Note')",
+      )
+      .bind(note, owner),
+  ]);
+  await apply(5);
+  assert.deepEqual(
+    await d1
+      .prepare(
+        'SELECT name, revision, archived_at FROM workspaces WHERE id = ?',
+      )
+      .bind(workspace)
+      .first(),
+    { name: 'Fiction', revision: 2, archived_at: null },
+  );
+  assert.equal(
+    (await d1
+      .prepare('SELECT archived_at FROM projects WHERE id = ?')
+      .bind(project)
+      .first())!.archived_at,
+    null,
+  );
+  const link = () =>
+    d1
+      .prepare(
+        'INSERT INTO task_note_links (task_id, note_id, owner_user_id) VALUES (?, ?, ?)',
+      )
+      .bind(task, note, owner)
+      .run();
+  await link();
+  await assert.rejects(link, 'one link per pair');
+  await d1.prepare('DELETE FROM notes WHERE id = ?').bind(note).run();
+  assert.equal(
+    (await d1.prepare('SELECT COUNT(*) AS n FROM task_note_links').first())!.n,
+    0,
+    'deleting the note removes its links',
+  );
+});

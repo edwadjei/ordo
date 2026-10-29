@@ -31,8 +31,10 @@ export class NotesService {
     private readonly workspaces: WorkspacesService,
   ) {}
 
-  async list(owner: string) {
-    return (await this.repository.list(owner)).map(publicRecord);
+  async list(owner: string, includeArchived = false) {
+    return (await this.repository.list(owner, includeArchived)).map(
+      publicRecord,
+    );
   }
   async get(owner: string, id: string) {
     return publicNote(await this.requireNote(owner, id));

@@ -7,6 +7,7 @@ import {
   getTableColumns,
   gt,
   isNull,
+  ne,
   sql,
   type SQL,
 } from 'drizzle-orm';
@@ -25,10 +26,11 @@ import {
   drafts,
   captureRuns,
   aiSettings,
+  taskNoteLinks,
   type Database,
 } from '@ordo/db';
 
-export { and, asc, desc, eq, getTableColumns, gt, isNull, sql, type SQL };
+export { and, asc, desc, eq, getTableColumns, gt, isNull, ne, sql, type SQL };
 export const tables = {
   users,
   sessions,
@@ -43,6 +45,7 @@ export const tables = {
   drafts,
   captureRuns,
   aiSettings,
+  taskNoteLinks,
 };
 export type { Database };
 export type UserRecord = typeof users.$inferSelect;
@@ -61,6 +64,50 @@ export type NewTask = typeof tasks.$inferInsert;
 export type NewNote = typeof notes.$inferInsert;
 export type NewIdempotencyKey = typeof idempotencyKeys.$inferInsert;
 export type OtpChallengeRecord = typeof otpChallenges.$inferSelect;
+
+/**
+ * Each note with the status of its newest capture run (or null): one
+ * correlated lookup per note on `capture_runs_note_idx`
+ * (owner_user_id, note_id, created_at), inside the same query. The outer
+ * columns are written out in full: Drizzle leaves column names unqualified
+ * in a one-table select, which would bind them to `capture_runs` instead.
+ */
+const latestCaptureStatus = sql<
+  'ready' | 'failed' | 'pending' | 'saved' | null
+>`(SELECT r.status FROM ${captureRuns} AS r WHERE r.owner_user_id = "notes"."owner_user_id" AND r.note_id = "notes"."id" ORDER BY r.created_at DESC, r.rowid DESC LIMIT 1)`;
+
+/**
+ * A list entry: every column but the body, which can be 100,000 characters,
+ * plus its first 280 characters and its length. SQLite's `substr` and
+ * `length` count code points, so the preview never splits a character and
+ * the full body never leaves D1 (no transfer, no parsing, no JSON).
+ */
+const { body: _body, ...summaryColumns } = getTableColumns(notes);
+const noteSummary = {
+  ...summaryColumns,
+  preview: sql<string>`substr("notes"."body", 1, 280)`,
+  bodyLength: sql<number>`length("notes"."body")`,
+  latestCaptureStatus,
+};
+
+/** Note selections shared by the notes and related-items repositories. */
+export const noteColumns = {
+  withCaptureStatus: { ...getTableColumns(notes), latestCaptureStatus },
+  summary: noteSummary,
+};
+
+/**
+ * Rows of `table` whose workspace or project is archived are left out of
+ * default lists, Home and search; `?includeArchived=1` brings them back.
+ * Both lookups are primary-key probes. The table name is written out in
+ * full, so the subqueries never bind its columns to their own tables.
+ */
+export function notInArchivedScope(table: 'tasks' | 'notes' | 'drafts') {
+  return sql.raw(
+    `NOT EXISTS (SELECT 1 FROM workspaces AS archived_w WHERE archived_w.id = "${table}"."workspace_id" AND archived_w.archived_at IS NOT NULL)` +
+      ` AND NOT EXISTS (SELECT 1 FROM projects AS archived_p WHERE archived_p.id = "${table}"."project_id" AND archived_p.archived_at IS NOT NULL)`,
+  );
+}
 
 /** One D1 statement that can go into `batch()`. */
 export type BatchStatement = Parameters<Database['batch']>[0][number];

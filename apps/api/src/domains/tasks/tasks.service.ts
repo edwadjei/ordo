@@ -48,8 +48,10 @@ export class TasksService {
     private readonly hasher: ContentHasher,
   ) {}
 
-  async list(owner: string) {
-    return (await this.repository.list(owner)).map(publicRecord);
+  async list(owner: string, includeArchived = false) {
+    return (await this.repository.list(owner, includeArchived)).map(
+      publicRecord,
+    );
   }
   async get(owner: string, id: string) {
     return publicRecord(await this.requireTask(owner, id));
