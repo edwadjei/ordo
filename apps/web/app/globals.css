@@ -3342,7 +3342,9 @@ fieldset:disabled select {
   line-height: 1.6;
 }
 .dialog .danger-zone label {
+  display: block;
   margin: 14px 0 6px;
+  line-height: 1.8;
   color: var(--ink);
   font-size: 12px;
 }
