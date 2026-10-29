@@ -158,6 +158,22 @@ export const projectPatch = z
     expectedRevision: z.number().int().positive(),
   })
   .strict();
+/**
+ * What an access key may change on a project: its name and routing hints.
+ * Archiving and favourites stay with the owner.
+ */
+export const agentProjectPatch = projectPatch
+  .pick({
+    name: true,
+    description: true,
+    aliases: true,
+    expectedRevision: true,
+  })
+  .strict();
+
+/** Most active (unarchived) workspaces and projects an account may have. */
+export const WORKSPACE_LIMIT = 50;
+export const PROJECT_LIMIT = 500;
 
 /**
  * `DELETE /v1/workspaces/:id` and `DELETE /v1/projects/:id`: permanent, so
@@ -481,6 +497,10 @@ export interface Workspace {
   color: string;
   /** Set while the workspace is archived; null otherwise. */
   archivedAt: string | null;
+  /** `"agent"` when an access key created it. */
+  origin?: 'manual' | 'agent';
+  /** The access token that created it, when an agent did. */
+  createdByTokenId?: string | null;
   revision: number;
   createdAt: string;
   updatedAt: string;
@@ -494,6 +514,10 @@ export interface Project {
   aliases: string[];
   /** Set while the project is archived; null otherwise. */
   archivedAt: string | null;
+  /** `"agent"` when an access key created it. */
+  origin?: 'manual' | 'agent';
+  /** The access token that created it, when an agent did. */
+  createdByTokenId?: string | null;
   revision: number;
   createdAt: string;
   updatedAt: string;
