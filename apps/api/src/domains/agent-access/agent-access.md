@@ -74,38 +74,69 @@ Each tool validates its arguments with the shared Zod schemas, returns compact J
 
 ## Connecting an assistant
 
-Create a key in Settings and copy it; it is shown only once. Use your Ordo address in place of `https://ordo.example`. Below, `$ORDO_KEY` is an environment variable you set yourself, so the key never appears in your shell history.
+Create a key in Settings and copy it; it is shown only once. Use your Ordo address in place of `https://ordo.example`.
 
-**Claude Code:**
+**Keep the key out of commands and saved config.** Claude Code saves every server you add in plain text in `~/.claude.json`. A key typed into `claude mcp add --header "Authorization: Bearer ordo_pat_…"` is saved there, and `claude mcp get` prints it back. So the key goes into one place you control, and Claude Code reads it when it connects. Never paste the key into a chat, a command or an issue.
+
+### Claude Code on macOS (recommended): the Keychain
+
+1. Store the key in your login Keychain. With nothing after `-w`, `security` asks for the key twice, so it stays out of your shell history. Paste it at the prompts. `-U` replaces an earlier key.
+
+   ```bash
+   security add-generic-password -a "$USER" -s ordo-mcp -U -w
+   ```
+
+2. Create a small helper that reads the key and gives Claude Code the header:
+
+   ```bash
+   cat > ~/.claude/ordo-mcp-headers.sh <<'EOF'
+   #!/bin/sh
+   key=$(security find-generic-password -s ordo-mcp -w) || exit 1
+   printf '{"Authorization":"Bearer %s"}' "$key"
+   EOF
+   chmod 700 ~/.claude/ordo-mcp-headers.sh
+   ```
+
+3. Add Ordo for all your projects:
+
+   ```bash
+   claude mcp add-json --scope user ordo '{"type":"http","url":"https://ordo.example/api/mcp","headersHelper":"$HOME/.claude/ordo-mcp-headers.sh"}'
+   ```
+
+Claude Code runs the helper each time it connects (Claude Code [`headersHelper`](https://code.claude.com/docs/en/mcp#use-dynamic-headers-for-custom-authentication)). The key is in no file, and `claude mcp get ordo` shows no headers. To change the key, run step 1 again; to remove it, `security delete-generic-password -s ordo-mcp`.
+
+### Anywhere else: an environment variable
+
+Add the server with a reference to `ORDO_KEY`, in single quotes so the shell does not fill it in:
 
 ```bash
-claude mcp add --transport http ordo https://ordo.example/api/mcp --header "Authorization: Bearer $ORDO_KEY"
+claude mcp add --scope user --transport http ordo https://ordo.example/api/mcp --header 'Authorization: Bearer ${ORDO_KEY}'
 ```
 
-This is the form in the Claude Code MCP documentation for a remote HTTP server with a bearer token. Claude Code saves the server without checking the key, so run `/mcp` in Claude Code afterwards: a working connection is listed as connected, and a wrong key shows the HTTP status (`401`).
+Claude Code saves `Bearer ${ORDO_KEY}` and fills it in at connect time ([variable expansion](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)). Set `ORDO_KEY` in the environment Claude Code starts from, from a password manager or a secrets file only you can read, never typed into a command. Without it, Claude Code warns `Missing environment variables: ORDO_KEY` and does not connect.
 
-**Claude Desktop:** until Ordo supports sign-in for connectors (OAuth, a later step), use the [`mcp-remote`](https://github.com/punkpeye/mcp-remote) bridge in `claude_desktop_config.json`. This follows its README:
-- `--header` sends the key on every request.
-- The value is kept in `env` so the arguments hold no spaces, which avoids a bug in Claude Desktop on Windows where spaces in arguments are not escaped.
-- `--transport http-only` stops it falling back to server-sent events, which Ordo does not offer.
+Both setups were checked on 30 October 2026 (Claude Code 2.1.310) against a local Ordo, with a test key and a separate test Keychain. Each connected. No file Claude Code saved held the key, and a wrong key showed only the status.
 
-```json
-{
-  "mcpServers": {
-    "ordo": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://ordo.example/api/mcp",
-        "--transport",
-        "http-only",
-        "--header",
-        "Authorization:${ORDO_AUTH}"
-      ],
-      "env": { "ORDO_AUTH": "Bearer your-key-from-Settings" }
-    }
-  }
-}
-```
+### Checking a connection
+
+Run `claude mcp list` in a terminal, or `/mcp` in Claude Code. `claude mcp list` shows each server's status only: `✔ Connected`, or `✘ Failed to connect` with the HTTP status and Ordo's error message (checked). According to the Claude Code documentation, `/mcp` shows the same status and issue, and a `${ORDO_KEY}` reference is shown by name, never filled in. Don't use `claude mcp get` for an Ordo key added the old way: it prints the saved header, key and all.
+
+### If it fails
+
+- **401 `UNAUTHORIZED`:** the key is wrong, revoked or expired. Create a new one in Settings, store it as above (step 1, or a new `ORDO_KEY`), and revoke the old one.
+- **403 `INSUFFICIENT_SCOPE`:** a read-only key used for a write. Create a read-and-write key.
+- **`Missing environment variables: ORDO_KEY`:** the variable isn't set where Claude Code started. Use the Keychain setup on macOS.
+- **The helper fails:** run `security find-generic-password -s ordo-mcp > /dev/null && echo found`. It says whether the key is stored without printing it. If it's missing, run step 1.
+- **Connected but no tools:** report the status line from `claude mcp list` to the owner; the Ordo server may need an update.
+
+Never paste `~/.claude.json`, `claude mcp get` output, an `Authorization` header or the key into a chat or an issue to debug a connection. The status and HTTP code above are enough. If a key was printed or pasted anywhere, revoke it in Settings and create a new one.
+
+### Moving off a key saved in the command
+
+If you added Ordo with the key in `--header`, remove it with `claude mcp remove ordo -s user` (or `-s local`). Revoke that key in Settings, create a new one, and set it up as above. Claude Code's backups of `~/.claude.json` may still hold the old key; revoking it makes that copy useless.
+
+### Claude Desktop
+
+Claude Desktop keeps a connector's settings in plain text in `claude_desktop_config.json`, so a key there is saved like one in a command. Until Ordo supports sign-in for connectors (OAuth, a later step), connect Ordo through Claude Code instead.
 
 Revoking the key in Settings stops the assistant at its next request.
