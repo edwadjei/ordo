@@ -248,7 +248,7 @@ Live site `https://ordo.edward-dejaysblog.workers.dev`. Release 4 `addc7803` (`4
 
 | Route | Release 3 | Release 5 | Release 6 | Release 7 |
 |---|---|---|---|---|
-| `GET /api/auth/me` | 1 (6), 9 | 2.5 (6), 10 | 4 (7), 2 | 7 (10), 3 |
+| `GET /api/auth/me` | 1 (6), 9 | 2.5 (6), 10 | 5.5 (7), 2 | 7 (10), 3 |
 | `GET /api/home` | 7 (14), 15 | 5 (6), 6 | 4.5 (5), 4 | 7 (10), 7 |
 | `GET /api/search` | 5 (7), 3 | 2 (4), 8 | 2 (2), 2 | 4 (5), 5 |
 | `GET /api/notes/:id` | 4 (4), 6 | 2.5 (3), 4 | 2 (5), 4 | 4 (5), 5 |
