@@ -443,6 +443,16 @@ test('MCP: handshake, discovery, versions and the transport rules', async (t) =>
   });
   assert.ok(discover.body.result.supportedVersions.includes('2026-07-28'));
   assert.equal(discover.body.result.resultType, 'complete');
+  // 2026-07-28 clients reject discover and tools/list without cache hints.
+  assert.equal(discover.body.result.ttlMs, 300_000);
+  assert.equal(discover.body.result.cacheScope, 'public');
+  const listed = (
+    await mcp(write, 'tools/list', {
+      _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' },
+    })
+  ).body.result;
+  assert.equal(listed.ttlMs, 300_000);
+  assert.equal(listed.cacheScope, 'private');
   assert.deepEqual((await mcp(write, 'ping')).body.result, {
     resultType: 'complete',
   });

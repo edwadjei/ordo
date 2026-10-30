@@ -54,7 +54,7 @@ It speaks two eras of the protocol:
 - **2025-03-26 to 2025-11-25:** the `initialize` handshake. `notifications/initialized` gets `202`.
 - **2026-07-28:** `server/discover`, with the version in each request's `_meta`. An `MCP-Protocol-Version`, `Mcp-Method` or `Mcp-Name` header that disagrees with the body is `400` (`-32020`), and an unsupported version is `400` (`-32022`).
 
-`ping`, `tools/list` and `tools/call` work in both. A read token is offered only the read tools.
+`ping`, `tools/list` and `tools/call` work in both. A read token is offered only the read tools. `server/discover` and `tools/list` carry the caching hints 2026-07-28 requires (clients reject the result without them): `ttlMs: 300000`, with `cacheScope: "public"` for discover and `"private"` for the tool list, which depends on the token's scopes.
 
 | Tool | Scope | Does |
 |---|---|---|
