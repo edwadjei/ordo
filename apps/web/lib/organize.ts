@@ -97,3 +97,40 @@ export function archivedScope(
     return { kind: 'projects', id: project.id, name: project.name };
   return null;
 }
+
+export type PlaceAction = 'settings' | 'archive' | 'restore' | 'delete';
+/**
+ * The options menu on a workspace or project (sidebar rows, the header,
+ * Settings): settings, Archive or Restore, and Delete permanently…, each
+ * saying when it needs a connection.
+ */
+export function placeMenuItems(
+  kind: 'workspaces' | 'projects',
+  item: object,
+  offline: boolean,
+): { action: PlaceAction; label: string; hint?: string }[] {
+  const noun = kind === 'workspaces' ? 'workspace' : 'project';
+  const hint = offline ? 'Needs a connection' : undefined;
+  return [
+    { action: 'settings', label: `Open ${noun} settings`, hint },
+    isArchived(item)
+      ? { action: 'restore', label: `Restore ${noun}`, hint }
+      : { action: 'archive', label: `Archive ${noun}`, hint },
+    { action: 'delete', label: 'Delete permanently…', hint },
+  ];
+}
+
+/** Arrow keys, Home and End move through a menu, wrapping at the ends. */
+export function menuFocusAfter(key: string, index: number, count: number) {
+  if (key === 'ArrowDown') return (index + 1) % count;
+  if (key === 'ArrowUp') return (index - 1 + count) % count;
+  if (key === 'Home') return 0;
+  if (key === 'End') return count - 1;
+  return null;
+}
+
+/** "Archived “Work”." with where to find it again. */
+export const archivedMessage = (name: string, nowArchived: boolean) =>
+  nowArchived
+    ? `Archived “${name}”. Find it under Archived in the sidebar to restore it.`
+    : `Restored “${name}”.`;

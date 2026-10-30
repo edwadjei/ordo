@@ -94,10 +94,15 @@ import { WorkspaceSettingsDialog } from './workspace-settings';
 import { existingMessage } from '../lib/agents';
 import {
   archivedItems,
+  archivedMessage,
   archivedScope,
   isLastWorkspace,
   withoutArchived,
+  type PlaceAction,
 } from '../lib/organize';
+import { PlaceMenu, PlaceRow } from './place-menu';
+import { DeletePlaceDialog } from './danger-zone';
+import { WorkspacesSettings } from './workspaces-settings';
 import { notProcessed } from '../lib/capture';
 import type { AiSettings } from '@ordo/client/capture';
 import type { AgentTokenRecord } from '@ordo/client';
@@ -208,6 +213,7 @@ export function WorkspaceApp() {
       | 'email'
       | 'upload'
       | 'manage'
+      | 'delete'
       | 'assistants'
       | null
     >(null),
@@ -219,6 +225,8 @@ export function WorkspaceApp() {
     [managed, setManaged] = useState<{
       kind: 'workspaces' | 'projects';
       id: string;
+      /** Settings, when Delete was chosen there: Cancel goes back to it. */
+      from?: 'settings';
     } | null>(null),
     [upcomingDate, setUpcomingDate] = useState('');
   const composerRef = useRef<HTMLInputElement>(null);
@@ -356,6 +364,45 @@ export function WorkspaceApp() {
     navigate('day');
     await work.refresh().catch(() => {});
   }
+  /** An options-menu choice on a workspace or project. */
+  async function placeAction(
+    kind: 'workspaces' | 'projects',
+    item: { id: string; name: string; revision: number },
+    action: PlaceAction,
+    from?: 'settings',
+  ) {
+    if (needsConnection('Archiving and deleting')) return;
+    if (action === 'settings') return manageItem(kind, item.id);
+    if (action === 'delete') {
+      setMobileMenu(false);
+      setManaged({ kind, id: item.id, from });
+      setModal('delete');
+      return;
+    }
+    const nowArchived = action === 'archive';
+    try {
+      const change = { archived: nowArchived, expectedRevision: item.revision };
+      if (kind === 'workspaces') await api.updateWorkspace(item.id, change);
+      else await api.updateProject(item.id, change);
+      await work.refresh().catch(() => {});
+      // An archived workspace or project leaves the everyday views.
+      if (nowArchived && (workspaceId === item.id || projectId === item.id))
+        navigate('day');
+      work.setMessage(archivedMessage(item.name, nowArchived));
+    } catch (error) {
+      work.setMessage((error as Error).message);
+    }
+  }
+  /** The menu props every workspace or project row shares. */
+  const placeMenu = (
+    kind: 'workspaces' | 'projects',
+    item: { id: string; name: string; revision: number },
+  ) => ({
+    kind,
+    item,
+    offline: work.readOnly,
+    onAction: (action: PlaceAction) => void placeAction(kind, item, action),
+  });
   async function toggleFavorite(item: Project) {
     if (needsConnection('Changing favourites')) return;
     setFavoriteBusy((ids) => [...ids, item.id]);
@@ -652,21 +699,26 @@ export function WorkspaceApp() {
           <div className="workspace-nav">
             {data.workspaces.map((item) => (
               <div key={item.id}>
-                <button
-                  className={`nav-item ${workspaceId === item.id ? 'workspace-active' : ''}`}
-                  onClick={() => navigate('workspace', item.id)}
+                <PlaceRow
+                  className="workspace-nav-row"
+                  menu={placeMenu('workspaces', item)}
                 >
-                  <span
-                    className="workspace-dot"
-                    style={{ background: item.color }}
-                  />
-                  <span>{item.name}</span>
-                  {workspaceId === item.id ? (
-                    <ChevronDown size={13} />
-                  ) : (
-                    <ChevronRight size={13} />
-                  )}
-                </button>
+                  <button
+                    className={`nav-item ${workspaceId === item.id ? 'workspace-active' : ''}`}
+                    onClick={() => navigate('workspace', item.id)}
+                  >
+                    <span
+                      className="workspace-dot"
+                      style={{ background: item.color }}
+                    />
+                    <span>{item.name}</span>
+                    {workspaceId === item.id ? (
+                      <ChevronDown size={13} />
+                    ) : (
+                      <ChevronRight size={13} />
+                    )}
+                  </button>
+                </PlaceRow>
                 {workspaceId === item.id && (
                   <div className="project-nav">
                     <label className="project-search">
@@ -689,9 +741,10 @@ export function WorkspaceApp() {
                             .includes(projectFilter.toLowerCase()),
                       ),
                     ).map((p) => (
-                      <div
+                      <PlaceRow
                         key={p.id}
                         className={`project-nav-row ${projectId === p.id ? 'active' : ''}`}
+                        menu={placeMenu('projects', p)}
                       >
                         <button
                           className={`project-nav-item ${projectId === p.id ? 'active' : ''}`}
@@ -707,7 +760,7 @@ export function WorkspaceApp() {
                           busy={favoriteBusy.includes(p.id)}
                           onToggle={() => void toggleFavorite(p)}
                         />
-                      </div>
+                      </PlaceRow>
                     ))}
                     <button
                       className="project-nav-item add-project"
@@ -734,9 +787,16 @@ export function WorkspaceApp() {
                   </small>
                 </button>
                 {showArchived && (
-                  <ul aria-label="Archived workspaces and projects">
+                  <div
+                    role="group"
+                    aria-label="Archived workspaces and projects"
+                  >
                     {archived.workspaces.map((item) => (
-                      <li key={item.id}>
+                      <PlaceRow
+                        key={item.id}
+                        className="project-nav-row"
+                        menu={placeMenu('workspaces', item)}
+                      >
                         <button
                           className="project-nav-item"
                           onClick={() => manageItem('workspaces', item.id)}
@@ -748,10 +808,14 @@ export function WorkspaceApp() {
                           {item.name}
                           <small>workspace</small>
                         </button>
-                      </li>
+                      </PlaceRow>
                     ))}
                     {archived.projects.map((item) => (
-                      <li key={item.id}>
+                      <PlaceRow
+                        key={item.id}
+                        className="project-nav-row"
+                        menu={placeMenu('projects', item)}
+                      >
                         <button
                           className="project-nav-item"
                           onClick={() => manageItem('projects', item.id)}
@@ -766,9 +830,9 @@ export function WorkspaceApp() {
                             }
                           </small>
                         </button>
-                      </li>
+                      </PlaceRow>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </div>
             )}
@@ -883,19 +947,7 @@ export function WorkspaceApp() {
                         busy={favoriteBusy.includes(project.id)}
                         onToggle={() => void toggleFavorite(project)}
                       />
-                      <button
-                        type="button"
-                        className="favorite-toggle"
-                        aria-label={`Project settings for ${project.name}`}
-                        title="Description and other names"
-                        onClick={() => manageItem('projects', project.id)}
-                      >
-                        <Settings
-                          size={13}
-                          strokeWidth={1.8}
-                          aria-hidden="true"
-                        />
-                      </button>
+                      <PlaceMenu {...placeMenu('projects', project)} labelled />
                       {scopeSelect}
                     </span>
                   ) : view === 'workspace' && workspace ? (
@@ -904,19 +956,10 @@ export function WorkspaceApp() {
                         item={workspace}
                         className="by-agent header-by-agent"
                       />
-                      <button
-                        type="button"
-                        className="favorite-toggle"
-                        aria-label={`Workspace settings for ${workspace.name}`}
-                        title="Archive or delete"
-                        onClick={() => manageItem('workspaces', workspace.id)}
-                      >
-                        <Settings
-                          size={13}
-                          strokeWidth={1.8}
-                          aria-hidden="true"
-                        />
-                      </button>
+                      <PlaceMenu
+                        {...placeMenu('workspaces', workspace)}
+                        labelled
+                      />
                       {scopeSelect}
                     </span>
                   ) : (
@@ -1632,6 +1675,12 @@ export function WorkspaceApp() {
                     setAiConfig({ ownerId: data.user.id, settings })
                   }
                 />
+                <WorkspacesSettings
+                  everything={everything!}
+                  onAction={(item, action) =>
+                    void placeAction('workspaces', item, action, 'settings')
+                  }
+                />
                 <section
                   className="ai-settings"
                   aria-labelledby="assistants-heading"
@@ -1816,6 +1865,26 @@ export function WorkspaceApp() {
                 afterArchive(nowArchived, managedProject.id)
               }
               onDeleted={afterDelete}
+            />
+          )}
+        {modal === 'delete' &&
+          managed &&
+          (managedWorkspace || managedProject) && (
+            <DeletePlaceDialog
+              key={managed.id}
+              kind={managed.kind}
+              item={(managedWorkspace || managedProject)!}
+              blocked={
+                managedWorkspace && isLastWorkspace(everything!)
+                  ? 'This is your only workspace, so it can’t be deleted. Create another first if you want to remove this one.'
+                  : undefined
+              }
+              onClose={() => setModal(managed.from ?? null)}
+              onDeleted={async () => {
+                const back = managed.from;
+                await afterDelete();
+                if (back) setModal(back);
+              }}
             />
           )}
         {modal === 'manage' &&
