@@ -4,6 +4,7 @@ import { AlertTriangle, LoaderCircle, Trash2 } from 'lucide-react';
 import { RequestError, type Container, type DeletePreview } from '@ordo/client';
 import { api } from '../lib/workspace';
 import { confirmsName, deleteSummary } from '../lib/organize';
+import { Dialog } from './dialog';
 
 /**
  * Delete permanently, kept apart from everything else: it shows what will
@@ -15,15 +16,21 @@ export function DangerZone({
   item,
   blocked,
   onDeleted,
+  startOpen = false,
+  onCancel,
 }: {
   kind: Container;
   item: { id: string; name: string; revision: number };
   /** Why deleting isn't possible here (the last workspace), if so. */
   blocked?: string;
   onDeleted: () => Promise<unknown> | void;
+  /** Go straight to the preview and the name to type. */
+  startOpen?: boolean;
+  /** Cancel leaves instead of folding the section back. */
+  onCancel?: () => void;
 }) {
   const noun = kind === 'workspaces' ? 'workspace' : 'project';
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [preview, setPreview] = useState<DeletePreview | null>(null);
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
@@ -136,6 +143,7 @@ export function DangerZone({
               type="button"
               className="text-button"
               onClick={() => {
+                if (onCancel) return onCancel();
                 setOpen(false);
                 setTyped('');
                 setError('');
@@ -147,5 +155,37 @@ export function DangerZone({
         </>
       )}
     </section>
+  );
+}
+
+/** Delete permanently…, opened from an options menu: straight to the confirmation. */
+export function DeletePlaceDialog({
+  kind,
+  item,
+  blocked,
+  onClose,
+  onDeleted,
+}: {
+  kind: Container;
+  item: { id: string; name: string; revision: number };
+  blocked?: string;
+  onClose: () => void;
+  onDeleted: () => Promise<unknown> | void;
+}) {
+  return (
+    <Dialog
+      title={item.name}
+      eyebrow={kind === 'workspaces' ? 'DELETE WORKSPACE' : 'DELETE PROJECT'}
+      onClose={onClose}
+    >
+      <DangerZone
+        kind={kind}
+        item={item}
+        blocked={blocked}
+        onDeleted={onDeleted}
+        startOpen
+        onCancel={onClose}
+      />
+    </Dialog>
   );
 }

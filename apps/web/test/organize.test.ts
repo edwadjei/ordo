@@ -3,11 +3,14 @@ import assert from 'node:assert/strict';
 import type { HomeSnapshot } from '@ordo/client';
 import {
   archivedItems,
+  archivedMessage,
   archivedScope,
   confirmsName,
   deleteSummary,
   isArchived,
   isLastWorkspace,
+  menuFocusAfter,
+  placeMenuItems,
   withoutArchived,
 } from '../lib/organize.ts';
 
@@ -162,4 +165,39 @@ test('a search result in an archived scope says which one', () => {
     ),
     null,
   );
+});
+
+test('the options menu: settings, Archive or Restore, and Delete permanently…', () => {
+  const live = { id: 'w', name: 'Work', archivedAt: null };
+  assert.deepEqual(placeMenuItems('workspaces', live, false), [
+    { action: 'settings', label: 'Open workspace settings', hint: undefined },
+    { action: 'archive', label: 'Archive workspace', hint: undefined },
+    { action: 'delete', label: 'Delete permanently…', hint: undefined },
+  ]);
+  const old = { id: 'p', name: 'Old', archivedAt: '2026-10-30T09:00:00Z' };
+  assert.deepEqual(
+    placeMenuItems('projects', old, false).map((item) => item.label),
+    ['Open project settings', 'Restore project', 'Delete permanently…'],
+  );
+});
+
+test('offline, every menu item says it needs a connection', () => {
+  const items = placeMenuItems('workspaces', { archivedAt: null }, true);
+  assert.ok(items.every((item) => item.hint === 'Needs a connection'));
+});
+
+test('arrow keys, Home and End move through the menu and wrap', () => {
+  assert.equal(menuFocusAfter('ArrowDown', 2, 3), 0);
+  assert.equal(menuFocusAfter('ArrowUp', 0, 3), 2);
+  assert.equal(menuFocusAfter('Home', 2, 3), 0);
+  assert.equal(menuFocusAfter('End', 0, 3), 2);
+  assert.equal(menuFocusAfter('a', 0, 3), null);
+});
+
+test('archiving says where to find it again', () => {
+  assert.equal(
+    archivedMessage('Work', true),
+    'Archived “Work”. Find it under Archived in the sidebar to restore it.',
+  );
+  assert.equal(archivedMessage('Work', false), 'Restored “Work”.');
 });
