@@ -109,3 +109,10 @@ This is the form in the Claude Code MCP documentation for a remote HTTP server w
 ```
 
 Revoking the key in Settings stops the assistant at its next request.
+
+### If it fails
+
+- Check the connection with `claude mcp list` in a terminal or `/mcp` in Claude Code. They show the status only: `✔ Connected`, or `✘ Failed to connect` with the HTTP status and Ordo's error message.
+- **401 `UNAUTHORIZED`:** the key is wrong, revoked or expired. Create a new one in Settings and add Ordo again with it.
+- Never paste the key, `~/.claude.json` or the saved server config into a chat to debug a connection. The status and HTTP code are enough.
+- `claude mcp get ordo` shows the saved `Authorization` header, key included, so don't run it in a chat with an assistant.
