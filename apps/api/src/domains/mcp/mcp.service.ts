@@ -15,6 +15,15 @@ export const supportedVersions = [
 const latestHandshakeVersion = '2025-11-25';
 const serverInfo = { name: 'ordo', title: 'Ordo', version: '1.0.0' };
 const capabilities = { tools: { listChanged: false } };
+/**
+ * 2026-07-28 requires caching hints on `server/discover` and `tools/list`
+ * (clients reject a list without them). Five minutes; the tool list depends
+ * on the token's scopes, so it is private to that token.
+ */
+const cacheFor = (cacheScope: 'public' | 'private') => ({
+  ttlMs: 300_000,
+  cacheScope,
+});
 const instructions =
   "Ordo is the owner's task and note manager. Use list_workspaces and list_projects to find where work belongs, then create_task or create_note. Dates are YYYY-MM-DD and times HH:MM in the owner's timezone. Tasks you create are marked as made by this assistant.";
 
@@ -164,6 +173,7 @@ export class McpService {
           capabilities,
           _meta: { 'io.modelcontextprotocol/serverInfo': serverInfo },
           instructions,
+          ...cacheFor('public'),
         });
       case 'ping':
         return ok(id, {});
@@ -177,6 +187,7 @@ export class McpService {
               description,
               inputSchema,
             })),
+          ...cacheFor('private'),
         });
       case 'tools/call':
         return this.call(id, params, user, agent);
