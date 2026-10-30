@@ -31,7 +31,7 @@ The system prompt (`captureSystemPrompt`) treats the capture's author as its own
 
 - the owner's own tasks have no `responsiblePerson`; a name is used only for someone else named in the capture;
 - a time is set only when the capture states it, never a default such as 23:59;
-- a draft's body is the message itself, ready to send, in the owner's voice, with a short subject for an email, and a recipient only as the capture names them;
+- a draft's body is the message itself, ready to send, in the owner's voice, with a short subject for an email, and a recipient only as the capture names them. It does what the capture asks, in the same direction: a request to the recipient stays a request ("ask the design agency for the final logo files" asks them to send the files) and never becomes an offer or a delivery, and nothing is said to be attached unless the capture says the owner is sending it (found on hosted release 6, where the draft read as the owner sending the files);
 - a day of the month ("the 14th") is the next such date on or after today, with its stated time.
 
 Checks run after validation, whatever the model does with the instructions (`capture.prompt.ts` and `capture.checks.ts`):

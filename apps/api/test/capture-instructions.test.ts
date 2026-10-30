@@ -87,7 +87,7 @@ const realRunReply = {
   },
 };
 
-test('the instructions cover the owner, stated times, real drafts and days of the month', () => {
+test('the instructions cover the owner, stated times, real drafts that ask rather than send, and days of the month', () => {
   for (const rule of [
     /"I", "me", "my" and "we" mean the owner/,
     /Never "me", "I", "myself", "we" or "us"/,
@@ -95,6 +95,10 @@ test('the instructions cover the owner, stated times, real drafts and days of th
     /"the 14th" is the next 14th on or after today/,
     /The body is the message itself, ready to send, written in the owner's voice/,
     /Give an email a short subject/,
+    /It does what the capture asks, in the same direction/,
+    /Never turn a request into an offer or a delivery/,
+    /Could you send me the signed contract\?", not "Please find the signed contract attached\."/,
+    /say something is attached only when the capture says the owner is sending it/,
   ])
     assert.match(captureSystemPrompt, rule);
   const prompt = capturePrompt(weeklySyncInput);
