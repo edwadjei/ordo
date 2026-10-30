@@ -28,6 +28,8 @@ import {
   keyStatus,
   mcpAddress,
   scopeLabel,
+  otherSystemsStep,
+  setupDetailsUrl,
   setupSteps,
   type ExpiryChoice,
 } from '../lib/agents';
@@ -100,35 +102,61 @@ function CopyField({
   );
 }
 
+/** A command with its own Copy. */
+function Command({ command, label }: { command: string; label: string }) {
+  return (
+    <div className="command-block">
+      <pre tabIndex={0} aria-label={label}>
+        <code>{command}</code>
+      </pre>
+      <CopyButton text={command} label={`Copy the ${label.toLowerCase()}`} />
+    </div>
+  );
+}
+
 /**
- * The setup steps, each command with its own Copy. No command holds the
- * key, so nothing here can leak it into a terminal or saved settings.
+ * The setup steps. No command holds the key, so nothing here can leak it
+ * into a terminal or Claude Code's saved settings.
  */
 function SetupSteps({ origin }: { origin: string }) {
+  const other = otherSystemsStep(origin);
   return (
     <section className="assistants-connect" aria-label="Connect Claude Code">
-      <h3>Connect Claude Code</h3>
+      <h3>Connect Claude Code on a Mac (recommended)</h3>
       <ol className="setup-steps">
         {setupSteps(origin).map((step, index) => (
           <li key={index}>
             <p>{step.text}</p>
             {step.command && (
-              <div className="command-block">
-                <pre tabIndex={0} aria-label={`Step ${index + 1} command`}>
-                  <code>{step.command}</code>
-                </pre>
-                <CopyButton
-                  text={step.command}
-                  label={`Copy the step ${index + 1} command`}
-                />
-              </div>
+              <Command
+                command={step.command}
+                label={`Step ${index + 1} command`}
+              />
             )}
           </li>
         ))}
       </ol>
+      <h3>On other systems</h3>
+      <div className="setup-steps setup-other">
+        <Command command={other.command!} label="Other systems command" />
+        <p>{other.text}</p>
+      </div>
       <p className="key-safety">
         <ShieldAlert size={13} aria-hidden="true" />
-        <span>{keySafetyLine}</span>
+        <span>
+          {keySafetyLine
+            .split(/(\/mcp|claude mcp list)/)
+            .map((part, index) =>
+              index % 2 ? <code key={index}>{part}</code> : part,
+            )}
+        </span>
+      </p>
+      <p className="field-hint">
+        Claude Desktop keeps the key in plain text, so connect through Claude
+        Code for now.{' '}
+        <a href={setupDetailsUrl} target="_blank" rel="noreferrer">
+          Setup details and what to do if it fails
+        </a>
       </p>
     </section>
   );
@@ -217,9 +245,9 @@ export function AssistantsDialog({
   return (
     <Dialog title="Connected assistants" eyebrow="SETTINGS" onClose={close}>
       <p className="muted">
-        Let an AI assistant such as Claude Code or Claude Desktop read and add
-        to your Ordo through MCP. Each assistant gets its own key, which you can
-        revoke at any time, and everything it does is listed under Activity.
+        Let an AI assistant such as Claude Code read and add to your Ordo
+        through MCP. Each assistant gets its own key, which you can revoke at
+        any time, and everything it does is listed under Activity.
       </p>
       <div className="agent-abilities">
         <div>

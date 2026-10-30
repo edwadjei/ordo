@@ -10,6 +10,7 @@ import {
   expiresAt,
   keyStatus,
   mcpAddress,
+  otherSystemsStep,
   scopeLabel,
   setupSteps,
 } from '../lib/agents.ts';
@@ -63,22 +64,50 @@ test('the MCP address', () => {
 test('no setup command contains a key or a header with one in it', () => {
   // The steps take no key, so none can leak into a command or saved config.
   assert.equal(setupSteps.length, 1);
+  assert.equal(otherSystemsStep.length, 1);
   for (const origin of ['https://ordo.example.test', 'http://127.0.0.1:8798']) {
-    const commands = setupSteps(origin).flatMap((s) => s.command ?? []);
-    assert.ok(commands.length > 0);
+    const commands = [...setupSteps(origin), otherSystemsStep(origin)].flatMap(
+      (step) => step.command ?? [],
+    );
+    assert.equal(commands.length, 4);
     for (const command of commands) {
       assert.doesNotMatch(command, /ordo_pat_[A-Za-z0-9_-]/);
       assert.doesNotMatch(command, /Bearer\s+[A-Za-z0-9_-]{8,}/);
-      assert.doesNotMatch(command, /--header/);
+      assert.ok(
+        command.includes(mcpAddress(origin)) || !command.includes('http'),
+      );
     }
-    assert.ok(commands.some((c) => c.includes(mcpAddress(origin))));
   }
+});
+
+test('the setup commands keep the quotes that stop the shell expanding them', () => {
+  const [store, helper, add] = setupSteps('https://ordo.example.test');
+  assert.equal(
+    store.command,
+    'security add-generic-password -a "$USER" -s ordo-mcp -U -w',
+  );
+  assert.match(
+    helper.command!,
+    /^cat > ~\/\.claude\/ordo-mcp-headers\.sh <<'EOF'\n/,
+  );
+  assert.match(
+    helper.command!,
+    /\nchmod 700 ~\/\.claude\/ordo-mcp-headers\.sh$/,
+  );
+  assert.equal(
+    add.command,
+    `claude mcp add-json --scope user ordo '{"type":"http","url":"https://ordo.example.test/api/mcp","headersHelper":"$HOME/.claude/ordo-mcp-headers.sh"}'`,
+  );
+  assert.equal(
+    otherSystemsStep('https://ordo.example.test').command,
+    "claude mcp add --scope user --transport http ordo https://ordo.example.test/api/mcp --header 'Authorization: Bearer ${ORDO_KEY}'",
+  );
 });
 
 test('the safety line says not to paste the key and how to check', () => {
   assert.equal(
     keySafetyLine,
-    'Never paste your key into a chat or a command. To check a connection, run /mcp in Claude Code.',
+    'Never paste your key into a chat or a command. To check a connection, run /mcp in Claude Code or claude mcp list in a terminal.',
   );
 });
 

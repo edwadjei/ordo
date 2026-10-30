@@ -41,8 +41,9 @@ export const mcpAddress = (origin: string) =>
 /**
  * How to connect Claude Code. These steps never take the key: a command
  * that holds it ends up in plain text in Claude Code's saved settings, and
- * in anything that prints them. The key is saved once, in the Keychain, and
- * read from there each time Claude Code connects.
+ * in anything that prints them. On a Mac the key is saved once, in the
+ * Keychain, and read from there each time Claude Code connects; elsewhere
+ * Claude Code reads it from ORDO_KEY.
  */
 export interface SetupStep {
   text: string;
@@ -50,27 +51,35 @@ export interface SetupStep {
 }
 export const setupSteps = (origin: string): SetupStep[] => [
   {
-    text: 'Save the key in your Mac’s Keychain. Run this, then paste the key when it asks for a password. Nothing is shown or kept in your shell history.',
-    command: 'security add-generic-password -U -a "$USER" -s ordo-mcp -w',
+    text: 'Store your key in the Keychain. It asks for the key: paste it there, not in the command.',
+    command: 'security add-generic-password -a "$USER" -s ordo-mcp -U -w',
   },
   {
-    text: 'Add a small script that reads the key from the Keychain when Claude Code connects.',
+    text: 'Create the helper Claude Code uses to read it.',
     command: [
-      "mkdir -p ~/.claude && cat > ~/.claude/ordo-headers.sh <<'EOF'",
+      "cat > ~/.claude/ordo-mcp-headers.sh <<'EOF'",
       '#!/bin/sh',
       'key=$(security find-generic-password -s ordo-mcp -w) || exit 1',
       `printf '{"Authorization":"Bearer %s"}' "$key"`,
       'EOF',
-      'chmod 700 ~/.claude/ordo-headers.sh',
+      'chmod 700 ~/.claude/ordo-mcp-headers.sh',
     ].join('\n'),
   },
   {
-    text: 'Connect Claude Code to Ordo.',
-    command: `claude mcp add-json --scope user ordo '{"type":"http","url":"${mcpAddress(origin)}","headersHelper":"'"$HOME"'/.claude/ordo-headers.sh"}'`,
+    text: 'Add Ordo.',
+    // Single quotes keep $HOME for the helper to expand when it connects.
+    command: `claude mcp add-json --scope user ordo '{"type":"http","url":"${mcpAddress(origin)}","headersHelper":"$HOME/.claude/ordo-mcp-headers.sh"}'`,
   },
 ];
+/** Not a Mac: Claude Code expands ${ORDO_KEY} itself, so the quotes stay single. */
+export const otherSystemsStep = (origin: string): SetupStep => ({
+  text: 'Then set ORDO_KEY to your key in the environment Claude Code starts from (from a password manager or a file only you can read).',
+  command: `claude mcp add --scope user --transport http ordo ${mcpAddress(origin)} --header 'Authorization: Bearer \${ORDO_KEY}'`,
+});
 export const keySafetyLine =
-  'Never paste your key into a chat or a command. To check a connection, run /mcp in Claude Code.';
+  'Never paste your key into a chat or a command. To check a connection, run /mcp in Claude Code or claude mcp list in a terminal.';
+export const setupDetailsUrl =
+  'https://github.com/edwadjei/ordo/blob/main/apps/api/src/domains/agent-access/agent-access.md#connecting-an-assistant';
 
 const toolWords: Record<string, string> = {
   get_my_day: 'Read My Day',

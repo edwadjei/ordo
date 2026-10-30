@@ -3430,6 +3430,19 @@ fieldset:disabled select {
 .setup-steps p {
   margin: 0 0 6px;
 }
+.setup-other p {
+  margin: 6px 0 0;
+}
+.assistants-connect h3 + .setup-other {
+  padding-left: 0;
+}
+.setup-steps + h3 {
+  margin-top: 16px;
+}
+.key-safety code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
 .command-block {
   display: flex;
   gap: 8px;
