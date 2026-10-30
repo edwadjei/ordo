@@ -3310,7 +3310,8 @@ fieldset:disabled select {
   margin: 0 0 6px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--danger);
+  /* --danger-ink keeps red text readable on light and dark backgrounds. */
+  color: var(--danger-ink);
 }
 .danger-zone .muted {
   margin: 0 0 12px;
@@ -3323,7 +3324,7 @@ fieldset:disabled select {
   border-radius: 7px;
   border: 1px solid light-dark(#e3b2a9, #7a443b);
   background: var(--bg);
-  color: var(--danger);
+  color: var(--danger-ink);
   font-size: 12px;
   font-weight: 500;
 }
