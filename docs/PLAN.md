@@ -111,6 +111,49 @@ Application baseline verification: fresh `npm ci`, `npm run format:check`, all w
 | Checks | Signed out: `/` 200, `/api/health` 200, `/api/auth/me` 401, capabilities with `aiCapture: true`, `/sw.js` 200 and identical to the build. Signed in, including one real Workers AI capture: see [verification](coordination/VERIFICATION.md#hosted-ai-capture-and-the-cpu-fix-29-october-2026) |
 | CPU | Most routes now within the 10 ms limit; AI processing and saving a capture are not. See verification |
 
+**Hosted release 4 (capture rules) — 29 October 2026** (on Edward's word, "Deploy and sign in", in the Cloudflare specialist session):
+
+| Item | Value |
+|---|---|
+| Revision deployed | `main` at `4f335a9`, from a clean detached worktree; typecheck, 234 tests (116 API, 79 web, 39 client) and build passed |
+| Migration | None pending; 0001–0005 applied |
+| Rollback point | `e870f486-f40c-4a24-9127-ce617d4b7767` (release 3) |
+| New live version | `addc7803-4433-4549-8d76-92d1c3935826`; Worker startup time 164 ms; upload 1184.85 KiB (212.19 KiB gzip) |
+| Checks | Signed out: `/` 200, `/api/health` 200, `/api/auth/me` 401, capabilities with `aiCapture: true`, `/sw.js` 200 and identical to the build. The signed-in checks for this release were run on release 5, which followed before Edward signed in |
+
+**Hosted release 5 (connected assistants) — 29 October 2026** (on Edward's word, "Yes, all three", in the Cloudflare specialist session):
+
+| Item | Value |
+|---|---|
+| Revision deployed | `main` at `383f855` (#32, #33, #34 with #35), from a clean detached worktree; typecheck, 276 tests (134 API, 95 web, 47 client) and build passed |
+| D1 restore point (before 0006) | Time Travel bookmark `0000000b-00000000-00005113-419aaef2f86916fd51d81912061c3d0f` |
+| Migrations | `0006_related_items_and_deleting.sql` and `0007_agent_access.sql` applied; 0001–0007 applied; `task_note_links`, `agent_tokens` and `agent_activity` present |
+| Rollback point | `addc7803-4433-4549-8d76-92d1c3935826` (release 4) |
+| New live version | `4bc6d83c-9095-4b92-8d23-51173cb2eb77`; Worker startup time 82 ms; upload 1237.65 KiB (224.42 KiB gzip) |
+| Secrets and variables | Unchanged: the same four secrets (token HMAC reuses `OTP_HMAC_KEY` under its own label); no `ORDO_FAKE_*` |
+| Checks | Signed out as release 4, plus `POST /api/mcp` 401 with no key and with a made-up key. `GET /api/mcp` without a key is 401, not 405: the key check runs before the method check. Signed in with a real code, CPU and one real AI capture: see [verification](coordination/VERIFICATION.md#hosted-releases-4-to-7-29-and-30-october-2026) |
+
+**Hosted release 6 (AI dates, assistants create workspaces) — 30 October 2026** (on Edward's word, "Yes, all three", in the Cloudflare specialist session):
+
+| Item | Value |
+|---|---|
+| Revision deployed | `main` at `acc50d4` (#36, #37 with #38), from a clean detached worktree; typecheck, 287 tests (141 API, 99 web, 47 client) and build passed |
+| D1 restore point (before 0008) | Time Travel bookmark `00000016-00000000-00005114-dba6cbab5ad3f6165ae6ebbbafc253ac` |
+| Migration | `0008_agent_workspaces_and_projects.sql` applied; 0001–0008 applied |
+| Rollback point | `4bc6d83c-9095-4b92-8d23-51173cb2eb77` (release 5) |
+| New live version | `9619cfa7-07cd-4461-ac2d-30981bb9e550`; Worker startup time 82 ms; upload 1256.87 KiB (228.60 KiB gzip) |
+| Checks | Signed out as release 5; signed in, CPU and the weekly-sync AI capture: see [verification](coordination/VERIFICATION.md#hosted-releases-4-to-7-29-and-30-october-2026) |
+
+**Hosted release 7 (AI email drafts, MCP caching hints) — 30 October 2026** (Edward's "Merge and deploy" relayed by the coordinator, then "Yes, deploy" in the Cloudflare specialist session):
+
+| Item | Value |
+|---|---|
+| Revision deployed | `main` at `4c9210c` (#39, #40, #41), from a clean detached worktree; typecheck, 287 tests (141 API, 99 web, 47 client) and build passed |
+| D1 restore point | Time Travel bookmark `0000001a-00000000-00005114-a0a29086ab7d688492c7647e1b7b1212` (no migration; latest is still 0008) |
+| Rollback point | `9619cfa7-07cd-4461-ac2d-30981bb9e550` (release 6) |
+| New live version | `ed559d40-cf6a-49ba-bfb5-69820c1beaa8`; Worker startup time 78 ms; upload 1257.54 KiB (228.87 KiB gzip) |
+| Checks | Signed out as release 5; `POST /api/mcp` with `initialize`, `server/discover` and `tools/list` (protocol header `2026-07-28`) without a key: 401 each. Signed in, CPU and the weekly-sync AI capture: see [verification](coordination/VERIFICATION.md#hosted-releases-4-to-7-29-and-30-october-2026). Not checked: `tools/list` with a key (14 tools, `ttlMs` 300000, `cacheScope` private), as the specialist holds no key |
+
 Before this release, migrations had run on local D1 only. Recent merges to `main`, each on Edward's word: #9 Phase 1 → `180742d` (rollback `2bac518`); #11 D1 and the Worker → `97b0469` (rollback `0838aad`); #12 Workers AI transcription → `ff4a567` (rollback `97b0469`); #13 sign-in delivery fix → `e96df57` (rollback `ff4a567`). Add a release entry only after an approved integration/deploy, with revision, checks, D1 restore point if relevant, rollback point, and post-deploy evidence.
 
 ## Remaining web acceptance work

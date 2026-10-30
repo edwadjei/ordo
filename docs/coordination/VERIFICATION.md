@@ -217,3 +217,51 @@ Live site `https://ordo.edward-dejaysblog.workers.dev`, Worker version `e870f486
 
 The fix roughly halves CPU: medians for reads and everyday writes are now under 10 ms, though maximums still reach 11–14 ms. Processing a capture (19 ms) and saving one (31 ms) are over the limit, and sign-in was 19–35 ms when last measured. These go back to the API specialist.
 
+
+## Hosted releases 4 to 7 — 29 and 30 October 2026
+
+Live site `https://ordo.edward-dejaysblog.workers.dev`. Release 4 `addc7803` (`4f335a9`), release 5 `4bc6d83c` (`383f855`), release 6 `9619cfa7` (`acc50d4`), release 7 `ed559d40` (`4c9210c`). Release details are in the [delivery ledger](../PLAN.md#release-record).
+
+**Sign-in** (release 5; Edward signed out and in again himself with a real email code):
+
+| Step | CPU | Wall time | Release 1 CPU |
+|---|---|---|---|
+| `POST /api/auth/otp/request` | 9 ms | 4.2 s (sending the email) | 35 ms |
+| `POST /api/auth/otp/verify` (correct code) | 10 ms | 133 ms | 19 ms |
+| `POST /api/auth/otp/verify` (wrong code first) | 7 ms, 401 | 126 ms | — |
+
+**AI capture of the weekly-sync fixture** (`apps/api/test/fixtures/weekly-sync.txt`, saved as a transcript note in "Hosting check (delete me)", one real Workers AI run per release, `@cf/meta/llama-3.3-70b-instruct-fp8-fast`; "today" was 29 October for release 5 and 30 October for releases 6 and 7):
+
+| Rule | Release 5 | Release 6 | Release 7 |
+|---|---|---|---|
+| No "me" as the responsible person | Held: only Kofi named | Held | Held |
+| No invented time (23:59) | Held: no times set | Held | Held |
+| "Book a review meeting … the 14th at 10am" | Failed: no date, no time | 2026-11-14 10:00 | 2026-11-14 10:00 |
+| "Follow up on Monday" | Due 2 November, no follow-up date | Follow-up 2 November | Follow-up 2 November |
+| Weekdays ("by Friday", "by Wednesday", "today") | Correct | Correct | Correct |
+| Email draft to the design agency | Thanks and asks, but greets "Hi the design agency" | Greeting fixed, but the body offers the files ("please find attached") | Thanks them and asks for the final logo files; nothing attached |
+| Save with provenance | 5 tasks and 1 draft, `origin: capture`, `sourceNoteId` set | Saved | Saved, `origin: capture`, `sourceNoteId` set |
+
+**MCP without a key**: `POST /api/mcp` returns 401 with `initialize`, `server/discover`, `tools/list` and a made-up key; `GET` returns 401 too, because the key check comes first (405 needs a valid key). The assistant flow with Edward's own key (By agent, Activity, a repeated create returning the existing workspace) was not checked here.
+
+**CPU per request** (`wrangler tail`, milliseconds; Free plan limit 10 ms; median, max in brackets, then requests logged). `tail` dropped some invocations, so counts are lower than the requests sent. Every logged request completed with outcome `ok`.
+
+| Route | Release 3 | Release 5 | Release 6 | Release 7 |
+|---|---|---|---|---|
+| `GET /api/auth/me` | 1 (6), 9 | 2.5 (6), 10 | 5.5 (7), 2 | 7 (10), 3 |
+| `GET /api/home` | 7 (14), 15 | 5 (6), 6 | 4.5 (5), 4 | 7 (10), 7 |
+| `GET /api/search` | 5 (7), 3 | 2 (4), 8 | 2 (2), 2 | 4 (5), 5 |
+| `GET /api/notes/:id` | 4 (4), 6 | 2.5 (3), 4 | 2 (5), 4 | 4 (5), 5 |
+| `POST /api/tasks` | 8.5 (13), 6 | 6 (15), 8 | 5 (9), 3 | 10 (15), 11 |
+| `PATCH /api/tasks/:id` | 7.5 (14), 8 | 6.5 (8), 4 | 6 (7), 3 | 9 (14), 9 |
+| `DELETE /api/tasks/:id` (archive) | — | — | — | 7 (12), 13 |
+| `POST /api/notes` | 8 (9), 5 | 5 (9), 9 | 4 (4), 5 | 7 (7), 3 |
+| `PATCH /api/notes/:id` | 9 (11), 5 | 7 (13), 7 | — | — |
+| `POST /api/notes/:id/process` | 19, 1 | 8, 1 | 8, 1 | 15, 1 |
+| `POST /api/capture-runs/:id/save` | 31, 1 | 11, 1 | 7, 1 | 9, 1 |
+| `GET /api/settings/agent-tokens` | — | 7 (11), 2 | — | — |
+| `POST /api/mcp` (no key, 401) | — | 0–6 | 2 | 1 (3), 4 |
+
+The first `/api/home` after the release 5 deploy used 20 ms; the first request after the release 6 and 7 deploys (`GET /api/health`) used 2 and 9 ms. Processing and saving a capture are now within or near the limit (release 3: 19 and 31 ms). Release 7's medians for task writes (9–10 ms) and processing (15 ms, one run) are higher than release 6's, although release 7 changed only the AI prompt, MCP list hints and docs; the samples are small and taken at different times, so this is recorded rather than explained. Task creates still reach 15 ms at their maximum.
+
+Cleanup: all test tasks, notes and drafts from releases 3 to 7 in "Hosting check (delete me)" were archived through the app (the workspace holds no live items). Projects Check A and Check B and the workspace itself remain for Edward to delete.
