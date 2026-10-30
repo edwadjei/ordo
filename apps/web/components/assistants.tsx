@@ -22,12 +22,13 @@ import {
   activityText,
   agentCan,
   agentCannot,
-  connectCommand,
   expiresAt,
   expiryChoices,
+  keySafetyLine,
   keyStatus,
   mcpAddress,
   scopeLabel,
+  setupSteps,
   type ExpiryChoice,
 } from '../lib/agents';
 import { Dialog } from './dialog';
@@ -100,6 +101,40 @@ function CopyField({
 }
 
 /**
+ * The setup steps, each command with its own Copy. No command holds the
+ * key, so nothing here can leak it into a terminal or saved settings.
+ */
+function SetupSteps({ origin }: { origin: string }) {
+  return (
+    <section className="assistants-connect" aria-label="Connect Claude Code">
+      <h3>Connect Claude Code</h3>
+      <ol className="setup-steps">
+        {setupSteps(origin).map((step, index) => (
+          <li key={index}>
+            <p>{step.text}</p>
+            {step.command && (
+              <div className="command-block">
+                <pre tabIndex={0} aria-label={`Step ${index + 1} command`}>
+                  <code>{step.command}</code>
+                </pre>
+                <CopyButton
+                  text={step.command}
+                  label={`Copy the step ${index + 1} command`}
+                />
+              </div>
+            )}
+          </li>
+        ))}
+      </ol>
+      <p className="key-safety">
+        <ShieldAlert size={13} aria-hidden="true" />
+        <span>{keySafetyLine}</span>
+      </p>
+    </section>
+  );
+}
+
+/**
  * Settings › Connected assistants: access keys for AI assistants that use
  * Ordo through MCP or the API. A new key is shown once, here, and kept only
  * in this screen's memory; Ordo stores just a fingerprint of it.
@@ -167,12 +202,10 @@ export function AssistantsDialog({
           value={shown.token}
           copyLabel="Copy the key"
         />
-        <CopyField
-          id="new-key-command"
-          label="Connect Claude Code (run this in a terminal)"
-          value={connectCommand(origin, shown.token)}
-          copyLabel="Copy the connect command"
-        />
+        <p className="field-hint">
+          Paste it only where step 1 asks for a password.
+        </p>
+        <SetupSteps origin={origin} />
         <div className="form-actions">
           <button className="primary" onClick={() => setShown(null)}>
             I’ve copied it
@@ -206,24 +239,13 @@ export function AssistantsDialog({
           </ul>
         </div>
       </div>
-      <section className="assistants-connect" aria-label="How to connect">
-        <CopyField
-          id="mcp-address"
-          label="MCP address"
-          value={mcpAddress(origin)}
-          copyLabel="Copy the MCP address"
-        />
-        <CopyField
-          id="connect-command"
-          label="Connect Claude Code"
-          value={connectCommand(origin)}
-          copyLabel="Copy the connect command"
-        />
-        <p className="field-hint">
-          Replace PASTE_YOUR_KEY_HERE with a key. A new key’s screen gives you
-          the command with the key already in it.
-        </p>
-      </section>
+      <CopyField
+        id="mcp-address"
+        label="MCP address"
+        value={mcpAddress(origin)}
+        copyLabel="Copy the MCP address"
+      />
+      <SetupSteps origin={origin} />
       {error && (
         <p className="error" role="alert">
           {error}

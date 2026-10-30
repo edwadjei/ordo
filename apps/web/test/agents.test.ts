@@ -6,11 +6,12 @@ import {
   existingMessage,
   activityText,
   byAgent,
-  connectCommand,
+  keySafetyLine,
   expiresAt,
   keyStatus,
   mcpAddress,
   scopeLabel,
+  setupSteps,
 } from '../lib/agents.ts';
 
 const record = (fields: object = {}) =>
@@ -52,18 +53,32 @@ test('expiry choices become times from now, or none', () => {
   assert.equal(expiresAt('30', now), '2026-11-29T12:00:00.000Z');
 });
 
-test('the MCP address and connect command; a placeholder unless the key is shown', () => {
+test('the MCP address', () => {
   assert.equal(
     mcpAddress('https://ordo.example.test/'),
     'https://ordo.example.test/api/mcp',
   );
+});
+
+test('no setup command contains a key or a header with one in it', () => {
+  // The steps take no key, so none can leak into a command or saved config.
+  assert.equal(setupSteps.length, 1);
+  for (const origin of ['https://ordo.example.test', 'http://127.0.0.1:8798']) {
+    const commands = setupSteps(origin).flatMap((s) => s.command ?? []);
+    assert.ok(commands.length > 0);
+    for (const command of commands) {
+      assert.doesNotMatch(command, /ordo_pat_[A-Za-z0-9_-]/);
+      assert.doesNotMatch(command, /Bearer\s+[A-Za-z0-9_-]{8,}/);
+      assert.doesNotMatch(command, /--header/);
+    }
+    assert.ok(commands.some((c) => c.includes(mcpAddress(origin))));
+  }
+});
+
+test('the safety line says not to paste the key and how to check', () => {
   assert.equal(
-    connectCommand('https://ordo.example.test'),
-    'claude mcp add --transport http ordo https://ordo.example.test/api/mcp --header "Authorization: Bearer PASTE_YOUR_KEY_HERE"',
-  );
-  assert.match(
-    connectCommand('https://ordo.example.test', 'ordo_pat_FAKE'),
-    /Bearer ordo_pat_FAKE"$/,
+    keySafetyLine,
+    'Never paste your key into a chat or a command. To check a connection, run /mcp in Claude Code.',
   );
 });
 

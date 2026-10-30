@@ -39,11 +39,38 @@ export function expiresAt(choice: ExpiryChoice, now = new Date()) {
 export const mcpAddress = (origin: string) =>
   `${origin.replace(/\/$/, '')}/api/mcp`;
 /**
- * The Claude Code command to connect. With no key it shows where the key
- * goes; the real key appears only on the screen that shows it once.
+ * How to connect Claude Code. These steps never take the key: a command
+ * that holds it ends up in plain text in Claude Code's saved settings, and
+ * in anything that prints them. The key is saved once, in the Keychain, and
+ * read from there each time Claude Code connects.
  */
-export const connectCommand = (origin: string, key = 'PASTE_YOUR_KEY_HERE') =>
-  `claude mcp add --transport http ordo ${mcpAddress(origin)} --header "Authorization: Bearer ${key}"`;
+export interface SetupStep {
+  text: string;
+  command?: string;
+}
+export const setupSteps = (origin: string): SetupStep[] => [
+  {
+    text: 'Save the key in your Mac’s Keychain. Run this, then paste the key when it asks for a password. Nothing is shown or kept in your shell history.',
+    command: 'security add-generic-password -U -a "$USER" -s ordo-mcp -w',
+  },
+  {
+    text: 'Add a small script that reads the key from the Keychain when Claude Code connects.',
+    command: [
+      "mkdir -p ~/.claude && cat > ~/.claude/ordo-headers.sh <<'EOF'",
+      '#!/bin/sh',
+      'key=$(security find-generic-password -s ordo-mcp -w) || exit 1',
+      `printf '{"Authorization":"Bearer %s"}' "$key"`,
+      'EOF',
+      'chmod 700 ~/.claude/ordo-headers.sh',
+    ].join('\n'),
+  },
+  {
+    text: 'Connect Claude Code to Ordo.',
+    command: `claude mcp add-json --scope user ordo '{"type":"http","url":"${mcpAddress(origin)}","headersHelper":"'"$HOME"'/.claude/ordo-headers.sh"}'`,
+  },
+];
+export const keySafetyLine =
+  'Never paste your key into a chat or a command. To check a connection, run /mcp in Claude Code.';
 
 const toolWords: Record<string, string> = {
   get_my_day: 'Read My Day',
