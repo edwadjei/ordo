@@ -14,7 +14,7 @@ export function ByAgent({
   item,
   className = 'by-agent',
 }: {
-  item: { origin?: string; createdByTokenId?: string | null };
+  item: object;
   className?: string;
 }) {
   const label = byAgent(item, useContext(AgentNames));

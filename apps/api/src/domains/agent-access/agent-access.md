@@ -21,18 +21,28 @@ Send `Authorization: Bearer ordo_pat_…`. An `Authorization` header never falls
 `platform/http/agent-policy.ts` lists every route a token may use:
 
 - **read:** `GET` on Home, search, workspaces, projects, tasks (and related items), notes, capture runs and drafts.
-- **write** (read and write): creating, editing, completing and archiving tasks and notes (`DELETE /v1/tasks/:id` and `/v1/notes/:id` archive; they are soft), and saving a capture run.
+- **write** (read and write): creating, editing, completing and archiving tasks and notes (`DELETE /v1/tasks/:id` and `/v1/notes/:id` archive; they are soft), saving a capture run, creating workspaces and projects (`POST /v1/workspaces`, `POST /v1/workspaces/:id/projects`, `POST /v1/projects`), and changing a project's name, description and aliases (`PATCH /v1/projects/:id`).
 
-Everything else is `403 AGENT_NOT_ALLOWED`: settings and keys, sign-in, archiving or deleting workspaces and projects, task links, note processing and the demo. A read token attempting a write gets `403 INSUFFICIENT_SCOPE`.
+Everything else is `403 AGENT_NOT_ALLOWED`: settings and keys, sign-in, changing, archiving or deleting workspaces, archiving, favouriting or deleting projects (a project `PATCH` with `archived` or `favorite` is refused), task links, note processing and the demo. A read token attempting a write gets `403 INSUFFICIENT_SCOPE`.
 
-Tasks and notes a token creates have `origin: "agent"` and `createdByTokenId`, set by the server only. A capture saved with a token keeps `origin: "capture"`.
+Tasks, notes, workspaces and projects a token creates have `origin: "agent"` and `createdByTokenId`, set by the server only. A capture saved with a token keeps `origin: "capture"`.
+
+### Creating workspaces and projects
+
+Assistants retry and repeat themselves, so creates do not make duplicates (this holds for every client, not only tokens):
+
+- An active workspace with the same name, ignoring case and surrounding spaces, is returned instead of a new one: `200` with `existing: true`. A new one is `201` with `existing: false`. For projects the same holds within one workspace. Archived ones do not count, and the existing item is returned unchanged.
+- An optional `Idempotency-Key` header (MCP: `idempotencyKey`) returns what that key first made, even if it was renamed since; the same key with a different request is `409 IDEMPOTENCY_CONFLICT`.
+- An account has at most 50 active workspaces and 500 active projects (`409 LIMIT_REACHED`). Archiving one makes room.
+
+The limit and the name check are also written into the insert itself, so two creates at once cannot both pass.
 
 ## Activity log
 
 `agent_activity` records what kind of thing happened to which id, never any content: `{ id, tokenId, action, entityType, entityId, createdAt }`.
 
-- REST actions are named after the route, such as `task.create`, `task.update`, `task.archive`, `note.create`, `task.read` and `capture.save`.
-- MCP actions are `mcp.<tool>`.
+- REST actions are named after the route, such as `task.create`, `task.update`, `task.archive`, `note.create`, `task.read`, `capture.save`, `workspace.create`, `project.create` and `project.update`. A create logs the id of what it created. A workspace or project create that returned an existing one (`existing: true`) created nothing and logs nothing; only the token's use is recorded.
+- MCP actions are `mcp.<tool>`, except that `create_workspace` and `create_project` returning an existing one log `workspace.found` or `project.found` with its id.
 
 `GET /v1/settings/agent-activity?tokenId=&before=<createdAt>` lists them newest first, 100 a page. Entries older than 90 days are removed when a token's `lastUsedAt` is written.
 
@@ -56,6 +66,9 @@ It speaks two eras of the protocol:
 | `create_task` | write | Optional `idempotencyKey` for safe retries |
 | `update_task`, `complete_task` | write | The current revision unless `expectedRevision` is given |
 | `create_note` | write | Markdown body |
+| `create_workspace` | write | `{ name, color?, idempotencyKey? }`; a same-named active workspace is returned with `existing: true` |
+| `create_project` | write | `{ workspaceId, name, description?, aliases?, idempotencyKey? }`; the description and aliases help route captures; a same-named active project in that workspace is returned with `existing: true` |
+| `update_project` | write | `{ projectId, name?, description?, aliases?, expectedRevision? }`; aliases replace the list; the current revision unless one is given |
 
 Each tool validates its arguments with the shared Zod schemas, returns compact JSON as `structuredContent` and as text, and is logged. Failures come back as tool errors (`isError: true`, text `CODE: message`) so the assistant can correct itself. An unknown tool is a JSON-RPC `-32602`. No tool can read another owner's data: every service call is scoped to the token's owner.
 

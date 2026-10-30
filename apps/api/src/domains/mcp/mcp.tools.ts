@@ -1,10 +1,13 @@
 import { z } from 'zod';
 import {
+  agentProjectPatch,
   noteInput,
   priorities,
+  projectInput,
   statuses,
   taskInput,
   taskPatch,
+  workspaceInput,
   type AgentScope,
   type User,
 } from '@ordo/core';
@@ -32,6 +35,8 @@ export interface ToolContext {
 /** What a tool did, for the activity log. */
 export interface ToolOutcome {
   result: unknown;
+  /** The activity action, when not `mcp.<tool>`. */
+  action?: string;
   entityType: string | null;
   entityId: string | null;
 }
@@ -109,6 +114,34 @@ const taskFields = {
 };
 
 const byId = z.object({ id: z.uuid() }).strict();
+const retryKey = { type: 'string', minLength: 1, maxLength: 128 };
+const projectFields = {
+  name: { type: 'string', minLength: 1, maxLength: 200 },
+  description: { type: 'string', maxLength: 5000 },
+  aliases: {
+    type: 'array',
+    items: { type: 'string', minLength: 1, maxLength: 60 },
+    maxItems: 10,
+  },
+};
+/** The fields an assistant needs about a project. */
+const compactProject = (project: {
+  id: string;
+  name: string;
+  description: string;
+  workspaceId: string;
+  aliases: string[];
+  origin: string;
+  revision: number;
+}) => ({
+  id: project.id,
+  name: project.name,
+  description: project.description,
+  workspaceId: project.workspaceId,
+  aliases: project.aliases,
+  origin: project.origin,
+  revision: project.revision,
+});
 const listTasksInput = z
   .object({
     workspaceId: z.uuid().optional(),
@@ -228,6 +261,116 @@ export const tools: Tool[] = [
         },
         entityType: 'project',
         entityId: null,
+      };
+    },
+  },
+  {
+    name: 'create_workspace',
+    title: 'Create a workspace',
+    description:
+      'Creates a workspace. If an active workspace already has this name (ignoring case), that one is returned with existing: true instead. It is marked as made by this assistant. Send the same idempotencyKey to retry safely.',
+    scope: 'write',
+    inputSchema: object(
+      {
+        name: { type: 'string', minLength: 1, maxLength: 200 },
+        color: { type: 'string', pattern: '^#[0-9a-fA-F]{6}$' },
+        idempotencyKey: retryKey,
+      },
+      ['name'],
+    ),
+    async run(args, context, { workspaces }) {
+      const { idempotencyKey, ...input } = z
+        .object({ idempotencyKey: z.string().min(1).max(128).optional() })
+        .passthrough()
+        .parse(args);
+      const { workspace, existing } = await workspaces.createWorkspace(
+        context.user.id,
+        workspaceInput.parse(input),
+        { createdByTokenId: context.tokenId, idempotencyKey },
+      );
+      return {
+        result: {
+          id: workspace.id,
+          name: workspace.name,
+          color: workspace.color,
+          origin: workspace.origin,
+          existing,
+        },
+        // Returning an existing one is not a create.
+        ...(existing ? { action: 'workspace.found' } : {}),
+        entityType: 'workspace',
+        entityId: workspace.id,
+      };
+    },
+  },
+  {
+    name: 'create_project',
+    title: 'Create a project',
+    description:
+      'Creates a project in a workspace. A description and aliases (other names it goes by) help route captured notes and tasks to it. If an active project in that workspace already has this name (ignoring case), that one is returned with existing: true instead. It is marked as made by this assistant. Send the same idempotencyKey to retry safely.',
+    scope: 'write',
+    inputSchema: object(
+      { workspaceId: uuid, ...projectFields, idempotencyKey: retryKey },
+      ['workspaceId', 'name'],
+    ),
+    async run(args, context, { workspaces }) {
+      const { idempotencyKey, ...input } = z
+        .object({ idempotencyKey: z.string().min(1).max(128).optional() })
+        .passthrough()
+        .parse(args);
+      const { project, existing } = await workspaces.createProject(
+        context.user.id,
+        // Favourites stay with the owner.
+        {
+          ...projectInput.omit({ favorite: true }).parse(input),
+          favorite: false,
+        },
+        { createdByTokenId: context.tokenId, idempotencyKey },
+      );
+      return {
+        result: { ...compactProject(project), existing },
+        ...(existing ? { action: 'project.found' } : {}),
+        entityType: 'project',
+        entityId: project.id,
+      };
+    },
+  },
+  {
+    name: 'update_project',
+    title: 'Update a project',
+    description:
+      "Changes a project's name, description or aliases (aliases replace the whole list). Omitted fields stay as they are. Without expectedRevision the current revision is used.",
+    scope: 'write',
+    inputSchema: object(
+      {
+        projectId: uuid,
+        ...projectFields,
+        expectedRevision: { type: 'integer', minimum: 1 },
+      },
+      ['projectId'],
+    ),
+    async run(args, context, { workspaces }) {
+      const { projectId, expectedRevision, ...patch } = z
+        .object({
+          projectId: z.uuid(),
+          expectedRevision: z.number().int().positive().optional(),
+        })
+        .passthrough()
+        .parse(args);
+      const saved = await workspaces.updateProject(
+        context.user.id,
+        projectId,
+        agentProjectPatch.parse({
+          ...patch,
+          expectedRevision:
+            expectedRevision ??
+            (await workspaces.getProject(context.user.id, projectId)).revision,
+        }),
+      );
+      return {
+        result: compactProject(saved),
+        entityType: 'project',
+        entityId: projectId,
       };
     },
   },

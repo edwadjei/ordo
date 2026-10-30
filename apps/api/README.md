@@ -201,4 +201,6 @@ An assistant connects with a personal access token (`Authorization: Bearer ordo_
 | `GET /v1/settings/agent-activity` | Session only. `?tokenId=&before=`; newest first, 100 a page; never content |
 | `POST /api/mcp` | Token only. MCP over Streamable HTTP (JSON-RPC 2.0): `initialize`, `server/discover`, `ping`, `tools/list`, `tools/call` |
 
-A token may use the read routes (with `read`) and create, edit, complete and archive tasks and notes and save captures (with `write`). Anything else is `403 AGENT_NOT_ALLOWED`; a write with a read token is `403 INSUFFICIENT_SCOPE`. What a token creates has `origin: "agent"` and `createdByTokenId`; notes now carry `origin` too.
+A token may use the read routes (with `read`) and, with `write`: create, edit, complete and archive tasks and notes, save captures, create workspaces and projects, and change a project's name, description and aliases. Anything else is `403 AGENT_NOT_ALLOWED`; a write with a read token is `403 INSUFFICIENT_SCOPE`. What a token creates has `origin: "agent"` and `createdByTokenId`; notes, workspaces and projects carry `origin` too.
+
+Creating a workspace or project whose name an active one already has (ignoring case; for projects, in the same workspace) returns that one, `200` with `existing: true`, instead of a duplicate; a new one is `201` with `existing: false`. Both creates take an optional `Idempotency-Key` header. At most 50 active workspaces and 500 active projects (`409 LIMIT_REACHED`).

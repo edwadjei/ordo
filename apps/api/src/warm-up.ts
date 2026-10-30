@@ -182,6 +182,27 @@ const requests: [string, string, object?, boolean?][] = [
     mcp('create_task', { title: 'Warm-up', workspaceId: id }),
     true,
   ],
+  // Workspace and project creates: a name the made-up rows do not have, so
+  // each runs past the duplicate guard to its insert.
+  ['POST', '/v1/workspaces', { name: 'Warm-up workspace' }, true],
+  ['POST', `/v1/workspaces/${id}/projects`, { name: 'Warm-up project' }, true],
+  ['POST', '/v1/mcp', mcp('create_workspace', { name: 'Warm-up MCP' }), true],
+  [
+    'POST',
+    '/v1/mcp',
+    mcp('create_project', {
+      workspaceId: id,
+      name: 'Warm-up MCP',
+      aliases: ['warm'],
+    }),
+    true,
+  ],
+  [
+    'POST',
+    '/v1/mcp',
+    mcp('update_project', { projectId: id, aliases: ['warm'] }),
+    true,
+  ],
 ];
 
 /**
@@ -209,6 +230,8 @@ class WarmUpStatement {
   private columns() {
     // No stored retry key: a create runs through to its insert.
     if (/^\s*select[\s\S]+from\s+"idempotency_keys"/i.test(this.sql)) return [];
+    if (/^\s*select[\s\S]+where[\s\S]+"idempotency_key"\s*=/i.test(this.sql))
+      return [];
     const select =
       /^\s*select\s+([\s\S]+?)\s+from\s/i.exec(this.sql)?.[1] ??
       /\sreturning\s+([\s\S]+)$/i.exec(this.sql)?.[1];

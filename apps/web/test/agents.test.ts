@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { AgentActivity, HomeSnapshot } from '@ordo/client';
 import {
   activityTarget,
+  existingMessage,
   activityText,
   byAgent,
   connectCommand,
@@ -125,4 +126,89 @@ test('By agent names the key that created the item', () => {
   );
   assert.equal(byAgent({ origin: 'manual' }, tokens), '');
   assert.equal(byAgent({}, tokens), '');
+});
+
+test('activity names workspaces and projects an assistant created, with their workspace', () => {
+  const places = {
+    tasks: [],
+    notes: [],
+    workspaces: [
+      { id: 'w1', name: 'DOSH' },
+      { id: 'mtn', name: 'MTN' },
+    ],
+    projects: [{ id: 'p1', name: 'Verify', workspaceId: 'mtn' }],
+  } as unknown as HomeSnapshot;
+  assert.equal(
+    activityText(entry('workspace.create', 'workspace', 'w1'), places),
+    'Created workspace “DOSH”',
+  );
+  assert.equal(
+    activityText(entry('project.create', 'project', 'p1'), places),
+    'Created project “Verify” in MTN',
+  );
+  assert.equal(
+    activityText(entry('mcp.update_project', 'project', 'p1'), places),
+    'Updated project “Verify” in MTN',
+  );
+  assert.equal(
+    activityText(entry('project.create', 'project', 'gone'), places),
+    'Created project',
+  );
+  assert.deepEqual(
+    activityTarget(entry('workspace.create', 'workspace', 'w1'), places),
+    { type: 'workspace', id: 'w1' },
+  );
+  assert.deepEqual(
+    activityTarget(entry('project.create', 'project', 'p1'), places),
+    { type: 'project', id: 'p1' },
+  );
+  assert.equal(
+    activityTarget(entry('project.create', 'project', 'gone'), places),
+    null,
+  );
+});
+
+test('By agent works on workspaces and projects too', () => {
+  assert.equal(
+    byAgent(
+      { id: 'w', name: 'DOSH', origin: 'agent', createdByTokenId: 'k1' },
+      [{ id: 'k1', name: 'Claude Code' }],
+    ),
+    'By agent · Claude Code',
+  );
+  assert.equal(
+    byAgent({ id: 'w', name: 'MTN' }, [{ id: 'k1', name: 'Claude Code' }]),
+    '',
+  );
+});
+
+test('creating an existing name says so plainly', () => {
+  assert.equal(
+    existingMessage('workspace', 'Work'),
+    'You already have a workspace called “Work”. Opened it.',
+  );
+  assert.equal(
+    existingMessage('project', 'Verify'),
+    'You already have a project called “Verify”. Opened it.',
+  );
+});
+
+test('a create that found an existing one says so', () => {
+  const places = {
+    tasks: [],
+    notes: [],
+    workspaces: [
+      { id: 'w1', name: 'DOSH' },
+      { id: 'mtn', name: 'MTN' },
+    ],
+    projects: [{ id: 'p1', name: 'Verify', workspaceId: 'mtn' }],
+  } as unknown as HomeSnapshot;
+  assert.equal(
+    activityText(entry('workspace.found', 'workspace', 'w1'), places),
+    'Found existing workspace “DOSH”',
+  );
+  assert.equal(
+    activityText(entry('project.found', 'project', 'p1'), places),
+    'Found existing project “Verify” in MTN',
+  );
 });

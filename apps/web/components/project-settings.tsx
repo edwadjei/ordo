@@ -4,6 +4,7 @@ import { Check } from 'lucide-react';
 import type { Project } from '@ordo/client';
 import { api } from '../lib/workspace';
 import { Dialog } from './dialog';
+import { ByAgent } from './agent-names';
 import { ArchiveControl } from './archive-control';
 import { DangerZone } from './danger-zone';
 import { parseAliases, projectAliases } from '../lib/capture';
@@ -55,6 +56,7 @@ export function ProjectSettingsDialog({
   }
   return (
     <Dialog title={project.name} eyebrow="PROJECT SETTINGS" onClose={onClose}>
+      <ByAgent item={project} className="by-agent settings-by-agent" />
       <form onSubmit={submit}>
         <label>
           Description

@@ -29,6 +29,11 @@ test('the warm-up runs every main request path through', async () => {
     200, // MCP tools/list
     200, // MCP tools/call list_tasks
     200, // MCP tools/call create_task
+    201, // POST /v1/workspaces with an access token
+    201, // POST /v1/workspaces/:id/projects with an access token
+    200, // MCP tools/call create_workspace
+    200, // MCP tools/call create_project
+    200, // MCP tools/call update_project
   ]);
 });
 

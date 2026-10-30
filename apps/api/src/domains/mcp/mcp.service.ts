@@ -212,7 +212,7 @@ export class McpService {
       await this.agents.log(
         user.id,
         agent.tokenId,
-        `mcp.${tool.name}`,
+        outcome.action ?? `mcp.${tool.name}`,
         outcome.entityType,
         outcome.entityId,
         agent.touch,

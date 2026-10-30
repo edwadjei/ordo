@@ -20,6 +20,8 @@ import { api } from '../lib/workspace';
 import {
   activityTarget,
   activityText,
+  agentCan,
+  agentCannot,
   connectCommand,
   expiresAt,
   expiryChoices,
@@ -108,6 +110,7 @@ export function AssistantsDialog({
   onTokens,
   onOpenTask,
   onOpenNote,
+  onOpenPlace,
 }: {
   data: HomeSnapshot;
   onClose: () => void;
@@ -115,6 +118,8 @@ export function AssistantsDialog({
   onTokens: (tokens: AgentTokenRecord[]) => void;
   onOpenTask: (id: string) => void;
   onOpenNote: (id: string) => void;
+  /** Opens a workspace or project an assistant created. */
+  onOpenPlace: (type: 'workspace' | 'project', id: string) => void;
 }) {
   const origin = typeof location === 'undefined' ? '' : location.origin;
   const [tokens, setTokens] = useState<AgentTokenRecord[] | null>(null);
@@ -181,9 +186,26 @@ export function AssistantsDialog({
       <p className="muted">
         Let an AI assistant such as Claude Code or Claude Desktop read and add
         to your Ordo through MCP. Each assistant gets its own key, which you can
-        revoke at any time. Assistants can never delete anything or change your
-        settings, and everything they do is listed under Activity.
+        revoke at any time, and everything it does is listed under Activity.
       </p>
+      <div className="agent-abilities">
+        <div>
+          <h4>An assistant can</h4>
+          <ul>
+            {agentCan.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h4>It can’t</h4>
+          <ul>
+            {agentCannot.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
       <section className="assistants-connect" aria-label="How to connect">
         <CopyField
           id="mcp-address"
@@ -249,6 +271,7 @@ export function AssistantsDialog({
                 onRevoked={load}
                 onOpenTask={onOpenTask}
                 onOpenNote={onOpenNote}
+                onOpenPlace={onOpenPlace}
               />
             ))}
           </ul>
@@ -369,6 +392,7 @@ function KeyRow({
   onRevoked,
   onOpenTask,
   onOpenNote,
+  onOpenPlace,
 }: {
   token: AgentTokenRecord;
   data: HomeSnapshot;
@@ -377,6 +401,8 @@ function KeyRow({
   onRevoked: () => Promise<void>;
   onOpenTask: (id: string) => void;
   onOpenNote: (id: string) => void;
+  /** Opens a workspace or project an assistant created. */
+  onOpenPlace: (type: 'workspace' | 'project', id: string) => void;
 }) {
   const status = keyStatus(token);
   const [busy, setBusy] = useState(false);
@@ -451,6 +477,7 @@ function KeyRow({
           data={data}
           onOpenTask={onOpenTask}
           onOpenNote={onOpenNote}
+          onOpenPlace={onOpenPlace}
         />
       )}
     </li>
@@ -462,11 +489,14 @@ function ActivityList({
   data,
   onOpenTask,
   onOpenNote,
+  onOpenPlace,
 }: {
   tokenId: string;
   data: HomeSnapshot;
   onOpenTask: (id: string) => void;
   onOpenNote: (id: string) => void;
+  /** Opens a workspace or project an assistant created. */
+  onOpenPlace: (type: 'workspace' | 'project', id: string) => void;
 }) {
   const [entries, setEntries] = useState<AgentActivity[] | null>(null);
   const [more, setMore] = useState(false);
@@ -511,7 +541,9 @@ function ActivityList({
                   onClick={() =>
                     target.type === 'task'
                       ? onOpenTask(target.id)
-                      : onOpenNote(target.id)
+                      : target.type === 'note'
+                        ? onOpenNote(target.id)
+                        : onOpenPlace(target.type, target.id)
                   }
                 >
                   {text}

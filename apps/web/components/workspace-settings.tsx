@@ -1,6 +1,7 @@
 'use client';
 import type { Workspace } from '@ordo/client';
 import { Dialog } from './dialog';
+import { ByAgent } from './agent-names';
 import { ArchiveControl } from './archive-control';
 import { DangerZone } from './danger-zone';
 
@@ -24,6 +25,7 @@ export function WorkspaceSettingsDialog({
       eyebrow="WORKSPACE SETTINGS"
       onClose={onClose}
     >
+      <ByAgent item={workspace} className="by-agent settings-by-agent" />
       <ArchiveControl kind="workspaces" item={workspace} onDone={onArchived} />
       <DangerZone
         kind="workspaces"

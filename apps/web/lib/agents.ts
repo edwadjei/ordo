@@ -57,6 +57,9 @@ const toolWords: Record<string, string> = {
   complete_task: 'Completed task',
   create_note: 'Created note',
   get_note: 'Read note',
+  create_workspace: 'Created workspace',
+  create_project: 'Created project',
+  update_project: 'Updated project',
 };
 const actionWords: Record<string, string> = {
   'task.create': 'Created task',
@@ -67,6 +70,12 @@ const actionWords: Record<string, string> = {
   'note.update': 'Updated note',
   'note.archive': 'Archived note',
   'capture.save': 'Saved a capture',
+  'workspace.create': 'Created workspace',
+  'project.create': 'Created project',
+  'project.update': 'Updated project',
+  // A create that matched an existing one by name.
+  'workspace.found': 'Found existing workspace',
+  'project.found': 'Found existing project',
 };
 /** Activity in words: "Created task “Send QA the scope”". */
 export function activityText(entry: AgentActivity, data: HomeSnapshot) {
@@ -74,19 +83,29 @@ export function activityText(entry: AgentActivity, data: HomeSnapshot) {
     ? toolWords[entry.action.slice(4)] ||
       `Used ${entry.action.slice(4).replace(/_/g, ' ')}`
     : actionWords[entry.action] || entry.action.replace(/[._]/g, ' ');
+  if (entry.entityType === 'project') {
+    const project = data.projects.find((p) => p.id === entry.entityId);
+    if (!project) return verb;
+    const workspace = data.workspaces.find((w) => w.id === project.workspaceId);
+    return workspace
+      ? `${verb} “${project.name}” in ${workspace.name}`
+      : `${verb} “${project.name}”`;
+  }
   const title =
     entry.entityType === 'task'
       ? data.tasks.find((task) => task.id === entry.entityId)?.title
       : entry.entityType === 'note'
         ? data.notes.find((note) => note.id === entry.entityId)?.title
-        : undefined;
+        : entry.entityType === 'workspace'
+          ? data.workspaces.find((w) => w.id === entry.entityId)?.name
+          : undefined;
   return title ? `${verb} “${title}”` : verb;
 }
 /** Whether an activity entry's item can be opened from here. */
 export function activityTarget(
   entry: AgentActivity,
   data: HomeSnapshot,
-): { type: 'task' | 'note'; id: string } | null {
+): { type: 'task' | 'note' | 'workspace' | 'project'; id: string } | null {
   if (
     entry.entityType === 'task' &&
     data.tasks.some((t) => t.id === entry.entityId)
@@ -97,15 +116,41 @@ export function activityTarget(
     data.notes.some((n) => n.id === entry.entityId)
   )
     return { type: 'note', id: entry.entityId! };
+  if (
+    entry.entityType === 'workspace' &&
+    data.workspaces.some((w) => w.id === entry.entityId)
+  )
+    return { type: 'workspace', id: entry.entityId! };
+  if (
+    entry.entityType === 'project' &&
+    data.projects.some((p) => p.id === entry.entityId)
+  )
+    return { type: 'project', id: entry.entityId! };
   return null;
 }
 
 /** "By agent · Claude Code" for items an assistant created, else ''. */
 export function byAgent(
-  item: { origin?: string; createdByTokenId?: string | null },
+  item: object,
   tokens: Pick<AgentTokenRecord, 'id' | 'name'>[],
 ) {
-  if (item.origin !== 'agent') return '';
-  const name = tokens.find((token) => token.id === item.createdByTokenId)?.name;
+  const made = item as { origin?: string; createdByTokenId?: string | null };
+  if (made.origin !== 'agent') return '';
+  const name = tokens.find((token) => token.id === made.createdByTokenId)?.name;
   return name ? `By agent · ${name}` : 'By agent';
 }
+
+/** What a connected assistant can and can't do, for the help text. */
+export const agentCan = [
+  'Read My Day, search, and list workspaces, projects and tasks',
+  'Create workspaces and projects, and rename or describe projects',
+  'Add, edit and complete tasks, and add notes',
+];
+export const agentCannot = [
+  'Delete or archive workspaces and projects, or delete anything else',
+  'Change your settings or access keys',
+];
+
+/** Creating a name that already exists opens that one instead; say so plainly. */
+export const existingMessage = (kind: 'workspace' | 'project', name: string) =>
+  `You already have a ${kind} called “${name}”. Opened it.`;

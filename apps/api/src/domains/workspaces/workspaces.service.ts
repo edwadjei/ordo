@@ -1,14 +1,17 @@
 import { isoNow } from '../../platform/time/iso-now.js';
 import type { z } from 'zod';
-import type {
-  DeletePreview,
-  DeleteResult,
-  permanentDeleteInput,
-  workspaceInput,
-  workspacePatch,
-  projectInput,
-  projectPatch,
+import {
+  PROJECT_LIMIT,
+  WORKSPACE_LIMIT,
+  type DeletePreview,
+  type DeleteResult,
+  type permanentDeleteInput,
+  type workspaceInput,
+  type workspacePatch,
+  type projectInput,
+  type projectPatch,
 } from '@ordo/core';
+import type { ContentHasher } from '../../capabilities/content-hasher.contract.js';
 import { fail } from '../../platform/http/api-failure.js';
 import { publicRecord } from '../../platform/http/response.js';
 import {
@@ -30,6 +33,43 @@ function archiving(
     : { archivedAt: archived ? (current ?? now) : null };
 }
 
+/** Who is creating, and the retry key they sent. */
+export interface CreateOptions {
+  createdByTokenId?: string | null;
+  idempotencyKey?: string | null;
+}
+
+interface StoredRow {
+  ownerUserId: string;
+  createdByTokenId: string | null;
+  idempotencyKey: string | null;
+  idempotencyFingerprint: string | null;
+}
+
+/** A workspace or project as returned: no owner or retry key; its origin. */
+function record<T extends StoredRow>(row: T) {
+  const {
+    idempotencyKey: _key,
+    idempotencyFingerprint: _fingerprint,
+    ...rest
+  } = publicRecord(row);
+  return {
+    ...rest,
+    origin: (row.createdByTokenId ? 'agent' : 'manual') as 'agent' | 'manual',
+  };
+}
+
+/** Names match ignoring case and surrounding spaces. */
+const sameName = (a: string, b: string) =>
+  a.trim().toLowerCase() === b.trim().toLowerCase();
+
+function isUniqueViolation(error: unknown) {
+  for (let cause = error; cause; cause = (cause as { cause?: unknown }).cause)
+    if (/UNIQUE constraint failed/i.test(String((cause as Error).message)))
+      return true;
+  return false;
+}
+
 export interface WorkspaceScope {
   workspaceId: string | null;
   projectId: string | null;
@@ -39,24 +79,65 @@ export class WorkspacesService {
   constructor(
     private readonly repository: WorkspacesRepository,
     private readonly deleting: PermanentDeleteRepository,
+    private readonly hasher: ContentHasher,
   ) {}
 
   async listWorkspaces(owner: string) {
-    return (await this.repository.listWorkspaces(owner)).map(publicRecord);
+    return (await this.repository.listWorkspaces(owner)).map(record);
   }
   async getWorkspace(owner: string, id: string) {
-    return publicRecord(await this.requireWorkspace(owner, id));
+    return record(await this.requireWorkspace(owner, id));
   }
-  async createWorkspace(owner: string, input: z.infer<typeof workspaceInput>) {
-    return publicRecord(
-      await this.repository.insertWorkspace({
+
+  /**
+   * Creates a workspace, or returns the owner's active workspace of the same
+   * name (`existing: true`) rather than making a second one. A retried key
+   * returns what it first made. At most `WORKSPACE_LIMIT` active ones.
+   */
+  async createWorkspace(
+    owner: string,
+    input: z.infer<typeof workspaceInput>,
+    options: CreateOptions = {},
+  ) {
+    const key = options.idempotencyKey ?? null;
+    const fingerprint = key
+      ? await this.hasher.digest(JSON.stringify(input))
+      : null;
+    const check = async () => {
+      const state = await this.repository.workspaceCreateState(owner, key);
+      const previous =
+        state.byKey && this.retried(state.byKey, fingerprint, 'workspace');
+      const same = state.active.find((row) => sameName(row.name, input.name));
+      if (previous ?? same)
+        return { workspace: record((previous ?? same)!), existing: true };
+      if (state.active.length >= WORKSPACE_LIMIT)
+        fail(
+          409,
+          'LIMIT_REACHED',
+          `An account can have at most ${WORKSPACE_LIMIT} workspaces. Archive one first.`,
+        );
+      return undefined;
+    };
+    const found = await check();
+    if (found) return found;
+    let saved;
+    try {
+      saved = await this.repository.insertWorkspace({
         id: newId(),
         ownerUserId: owner,
         ...input,
-      }),
-    );
+        createdByTokenId: options.createdByTokenId ?? null,
+        idempotencyKey: key,
+        idempotencyFingerprint: fingerprint,
+      });
+    } catch (error) {
+      // A concurrent create with the same key won the unique index.
+      if (!isUniqueViolation(error)) throw error;
+    }
+    if (saved) return { workspace: record(saved), existing: false };
+    // Refused or raced: a same-named one, the key's row, or the limit.
+    return (await check()) ?? revisionConflict();
   }
-
   async updateWorkspace(
     owner: string,
     id: string,
@@ -73,28 +154,69 @@ export class WorkspacesService {
       { ...patch, ...archiving(archived, row.archivedAt, now), updatedAt: now },
     );
     // Zero rows: another save won between the read and this write.
-    return publicRecord(saved ?? revisionConflict());
+    return record(saved ?? revisionConflict());
   }
 
   async listProjects(owner: string, workspaceId?: string) {
     if (workspaceId) await this.requireWorkspace(owner, workspaceId);
-    return (await this.repository.listProjects(owner, workspaceId)).map(
-      publicRecord,
-    );
+    return (await this.repository.listProjects(owner, workspaceId)).map(record);
   }
 
   async getProject(owner: string, id: string) {
-    return publicRecord(await this.requireProject(owner, id));
+    return record(await this.requireProject(owner, id));
   }
-  async createProject(owner: string, input: z.infer<typeof projectInput>) {
-    await this.requireWorkspace(owner, input.workspaceId);
-    return publicRecord(
-      await this.repository.insertProject({
+
+  /**
+   * Creates a project, or returns the workspace's active project of the same
+   * name (`existing: true`). A retried key returns what it first made. At
+   * most `PROJECT_LIMIT` active ones per owner.
+   */
+  async createProject(
+    owner: string,
+    input: z.infer<typeof projectInput>,
+    options: CreateOptions = {},
+  ) {
+    const key = options.idempotencyKey ?? null;
+    const fingerprint = key
+      ? await this.hasher.digest(JSON.stringify(input))
+      : null;
+    const check = async () => {
+      const state = await this.repository.projectCreateState(
+        owner,
+        input.workspaceId,
+        key,
+      );
+      const previous =
+        state.byKey && this.retried(state.byKey, fingerprint, 'project');
+      if (previous) return { project: record(previous), existing: true };
+      if (!state.workspace) fail(404, 'NOT_FOUND', 'Workspace not found.');
+      const same = state.siblings.find((row) => sameName(row.name, input.name));
+      if (same) return { project: record(same), existing: true };
+      if (state.active >= PROJECT_LIMIT)
+        fail(
+          409,
+          'LIMIT_REACHED',
+          `An account can have at most ${PROJECT_LIMIT} projects. Archive one first.`,
+        );
+      return undefined;
+    };
+    const found = await check();
+    if (found) return found;
+    let saved;
+    try {
+      saved = await this.repository.insertProject({
         id: newId(),
         ownerUserId: owner,
         ...input,
-      }),
-    );
+        createdByTokenId: options.createdByTokenId ?? null,
+        idempotencyKey: key,
+        idempotencyFingerprint: fingerprint,
+      });
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+    }
+    if (saved) return { project: record(saved), existing: false };
+    return (await check()) ?? revisionConflict();
   }
 
   async updateProject(
@@ -112,7 +234,7 @@ export class WorkspacesService {
       updatedAt: now,
     });
     // Zero rows: another save won between the read and this write.
-    return publicRecord(saved ?? revisionConflict());
+    return record(saved ?? revisionConflict());
   }
 
   /** What deleting a workspace or project permanently would remove. */
@@ -237,9 +359,24 @@ export class WorkspacesService {
     )
       await this.validateScope(owner, scope);
     return {
-      workspace: publicRecord(workspace),
-      projects: projects.map(publicRecord),
+      workspace: record(workspace),
+      projects: projects.map(record),
     };
+  }
+
+  /** The row a retry key made, or 409 when the key asked for something else. */
+  private retried<T extends StoredRow>(
+    row: T,
+    fingerprint: string | null,
+    kind: 'workspace' | 'project',
+  ) {
+    if (row.idempotencyFingerprint !== fingerprint)
+      fail(
+        409,
+        'IDEMPOTENCY_CONFLICT',
+        `This retry key was already used for a different ${kind}.`,
+      );
+    return row;
   }
 
   private async requireWorkspace(owner: string, id: string) {

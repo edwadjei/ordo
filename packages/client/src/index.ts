@@ -222,14 +222,15 @@ export function createClient(
       }
     },
     demo: () => send<HomeSnapshot>('/demo', 'POST'),
+    /** An existing active workspace of the same name comes back with `existing: true`. */
     createWorkspace: (data: { name: string; color?: string }) =>
-      send<Workspace>('/workspaces', 'POST', data),
+      send<Workspace & { existing?: boolean }>('/workspaces', 'POST', data),
     createProject: (data: {
       name: string;
       workspaceId: string;
       description?: string;
       favorite?: boolean;
-    }) => send<Project>('/projects', 'POST', data),
+    }) => send<Project & { existing?: boolean }>('/projects', 'POST', data),
     updateProject: (id: string, data: ProjectChanges) =>
       send<Project>(`/projects/${id}`, 'PATCH', data),
     updateWorkspace: (id: string, data: WorkspaceChanges) =>
