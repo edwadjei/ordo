@@ -2,6 +2,8 @@
 
 **Owner request (30 October 2026):** "we keep printing our ordo keys on this.. can you check? for MCP connections and failures especially"; on the fix: "Yes, brief it".
 
+**Edward's decision (30 October 2026), after the first API PR:** "i want the existing setup I just don't want my MCP agent print my keys, what we already have is perfect". The connect command stays as it is (the key in `--header`). The Keychain and `${ORDO_KEY}` setups were dropped, and the Claude Desktop instructions are unchanged. This brief keeps only the agent rule against printing keys and a short "If it fails" section; the goal and per-specialist steps below are superseded where they say otherwise.
+
 **What the coordinator found:** Ordo's API never logs or echoes a key (the 401 shows only `ordo_pat_…`), and no real key is in any session transcript, Claude Code log or shell history. The leak is in how the key is connected:
 
 - The connect command in Settings › Connected assistants (`connectCommand` in `apps/web/lib/agents.ts`) puts the real key inside `--header "Authorization: Bearer <key>"`. Pasting it anywhere (terminal, a Claude chat) carries the key, and Claude Code saves it in plain text in `~/.claude.json` (and its automatic backups).

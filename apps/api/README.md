@@ -191,7 +191,7 @@ Details are in the [workspaces](src/domains/workspaces/workspaces.md#deleting-pe
 
 ## Agent access and MCP
 
-An assistant connects with a personal access token (`Authorization: Bearer ordo_pat_…`) that the owner creates and can revoke. The [agent access concept note](src/domains/agent-access/agent-access.md) has what a token may do, the MCP tools and how to connect Claude Code with the key kept in the macOS Keychain or an environment variable, never in a command or in Claude Code's saved config.
+An assistant connects with a personal access token (`Authorization: Bearer ordo_pat_…`) that the owner creates and can revoke. The [agent access concept note](src/domains/agent-access/agent-access.md) has what a token may do, the MCP tools and how to connect Claude Code and Claude Desktop.
 
 | Method and path | Body / behavior |
 |---|---|
